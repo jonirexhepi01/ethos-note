@@ -1108,6 +1108,9 @@ class _CalendarPageState extends State<CalendarPage> {
   WeatherData? _weatherData;
   bool _isLoadingWeather = false;
 
+  // Cycle tracking (private)
+  Set<String> _cycleDays = {};
+
   @override
   void initState() {
     super.initState();
@@ -1115,6 +1118,34 @@ class _CalendarPageState extends State<CalendarPage> {
     _holidays = Holidays.getHolidays(widget.religione);
     _loadEvents();
     _loadCalendarSettings();
+    _loadCycleDays();
+  }
+
+  Future<void> _loadCycleDays() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('cycle_tracking_private') ?? [];
+    setState(() => _cycleDays = list.toSet());
+  }
+
+  Future<void> _saveCycleDays() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('cycle_tracking_private', _cycleDays.toList());
+  }
+
+  void _toggleCycleDay(DateTime day) {
+    final key = '${day.year}-${day.month}-${day.day}';
+    setState(() {
+      if (_cycleDays.contains(key)) {
+        _cycleDays.remove(key);
+      } else {
+        _cycleDays.add(key);
+      }
+    });
+    _saveCycleDays();
+  }
+
+  bool _isCycleDay(DateTime day) {
+    return _cycleDays.contains('${day.year}-${day.month}-${day.day}');
   }
 
   Future<void> _loadCalendarSettings() async {
@@ -1225,7 +1256,9 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildCalendarCell(DateTime day, DateTime focusedDay, {bool isOutsideMonth = false}) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isToday = isSameDay(day, DateTime.now());
+    final isSelected = isSameDay(day, _selectedDay);
     final hasEvents = _getEventsForDay(day).isNotEmpty;
     final holidayKey = '${day.month}-${day.day}';
     final holiday = _holidays[holidayKey]?.first;
@@ -1238,50 +1271,61 @@ class _CalendarPageState extends State<CalendarPage> {
     final weather = (_calSettings.showWeather && daysFromToday >= 0 && daysFromToday <= 7)
         ? _weatherData?.forDay(day) : null;
 
-    return Stack(
-      children: [
-        Center(
-          child: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: isToday ? Border.all(color: todayColor, width: 2) : null,
-            ),
-            child: Center(
-              child: Text(
-                '${day.day}',
-                style: TextStyle(
-                  color: isOutsideMonth
-                      ? _calSettings.calendarColor.withValues(alpha: 0.35)
-                      : null,
-                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                  fontSize: _calSettings.dayFontSize,
-                  fontFamily: fontFamily,
+    return Container(
+      margin: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        color: isOutsideMonth
+            ? colorScheme.surfaceContainerLowest.withValues(alpha: 0.5)
+            : isSelected
+                ? _calSettings.selectedDayColor.withValues(alpha: 0.12)
+                : colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(10),
+        border: isToday
+            ? Border.all(color: todayColor, width: 1.5)
+            : Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.25), width: 0.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (weather != null && !isOutsideMonth)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 1),
+                    child: Text(weather.icon, style: const TextStyle(fontSize: 8)),
+                  ),
+                Text(
+                  '${day.day}',
+                  style: TextStyle(
+                    color: isOutsideMonth
+                        ? _calSettings.calendarColor.withValues(alpha: 0.35)
+                        : isToday ? todayColor : null,
+                    fontWeight: isToday ? FontWeight.bold : FontWeight.w600,
+                    fontSize: _calSettings.dayFontSize - 1,
+                    fontFamily: fontFamily,
+                  ),
                 ),
-              ),
+              ],
             ),
-          ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasEvents)
+                  const Icon(Icons.lightbulb, size: 9, color: Colors.amber),
+                if (holiday != null)
+                  Text(holiday.emoji, style: const TextStyle(fontSize: 8)),
+                if (_calSettings.showCycleTracking && _isCycleDay(day) && !isOutsideMonth)
+                  const Text('🩸', style: TextStyle(fontSize: 8)),
+              ],
+            ),
+          ],
         ),
-        if (weather != null && !isOutsideMonth)
-          Positioned(
-            top: 2,
-            left: 4,
-            child: Text(weather.icon, style: const TextStyle(fontSize: 10)),
-          ),
-        if (hasEvents)
-          const Positioned(
-            top: 2,
-            right: 8,
-            child: Icon(Icons.lightbulb, size: 12, color: Colors.amber),
-          ),
-        if (holiday != null)
-          Positioned(
-            bottom: 2,
-            right: 8,
-            child: Text(holiday.emoji, style: const TextStyle(fontSize: 10)),
-          ),
-      ],
+      ),
     );
   }
 
@@ -1313,16 +1357,10 @@ class _CalendarPageState extends State<CalendarPage> {
             ? (context, day, focusedDay) =>
                 _buildCalendarCell(day, focusedDay, isOutsideMonth: true)
             : null,
-        selectedBuilder: (context, day, focusedDay) => Container(
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: _calSettings.selectedDayColor.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: _calSettings.calendarLayout == 'fullScreen'
-              ? _buildFullScreenCell(day, focusedDay)
-              : _buildCalendarCell(day, focusedDay),
-        ),
+        selectedBuilder: (context, day, focusedDay) =>
+            _calSettings.calendarLayout == 'fullScreen'
+                ? _buildFullScreenCell(day, focusedDay)
+                : _buildCalendarCell(day, focusedDay),
         todayBuilder: (context, day, focusedDay) =>
             _calSettings.calendarLayout == 'fullScreen'
                 ? _buildFullScreenCell(day, focusedDay)
@@ -1364,7 +1402,9 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildFullScreenCell(DateTime day, DateTime focusedDay) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isToday = isSameDay(day, DateTime.now());
+    final isSelected = isSameDay(day, _selectedDay);
     final events = _getEventsForDay(day);
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
@@ -1376,52 +1416,61 @@ class _CalendarPageState extends State<CalendarPage> {
     final holidayKey = '${day.month}-${day.day}';
     final holiday = _holidays[holidayKey]?.first;
 
-    return Padding(
-      padding: const EdgeInsets.all(2),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 8)),
-              const SizedBox(width: 1),
-              Container(
-                width: 22, height: 22,
+    return Container(
+      margin: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? _calSettings.selectedDayColor.withValues(alpha: 0.12)
+            : colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(10),
+        border: isToday
+            ? Border.all(color: todayColor, width: 1.5)
+            : Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.25), width: 0.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(3),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row: day number + icons
+            Row(
+              children: [
+                Text(
+                  '${day.day}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isToday ? FontWeight.bold : FontWeight.w600,
+                    color: isToday ? todayColor : colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 9)),
+                if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 9)),
+                if (_calSettings.showCycleTracking && _isCycleDay(day)) const Text('🩸', style: TextStyle(fontSize: 9)),
+              ],
+            ),
+            const Spacer(),
+            // Events
+            if (events.isNotEmpty) ...[
+              ...events.take(2).map((e) => Container(
+                margin: const EdgeInsets.only(bottom: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: isToday ? Border.all(color: todayColor, width: 1.5) : null,
+                  color: _calSettings.calendarColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                child: Center(
-                  child: Text('${day.day}', style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                    color: isToday ? todayColor : null,
-                  )),
+                child: Text(
+                  e.title,
+                  style: TextStyle(fontSize: 7, color: colorScheme.onSurface),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 8)),
+              )),
+              if (events.length > 2)
+                Text('+${events.length - 2}', style: TextStyle(fontSize: 7, color: _calSettings.calendarColor, fontWeight: FontWeight.w500)),
             ],
-          ),
-          if (events.isNotEmpty) ...[
-            ...events.take(2).map((e) => Container(
-              margin: const EdgeInsets.only(top: 1),
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
-              decoration: BoxDecoration(
-                color: _calSettings.calendarColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: Text(
-                e.title,
-                style: const TextStyle(fontSize: 7),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            )),
-            if (events.length > 2)
-              Text('+${events.length - 2}', style: TextStyle(fontSize: 7, color: _calSettings.calendarColor)),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1466,14 +1515,35 @@ class _CalendarPageState extends State<CalendarPage> {
                             ),
                           ],
                         ),
-                        FilledButton.icon(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            setState(() => _selectedDay = day);
-                            _createEvent();
-                          },
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Evento'),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_calSettings.showCycleTracking)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    _toggleCycleDay(day);
+                                    setSheetState(() {});
+                                  },
+                                  icon: Text(_isCycleDay(day) ? '🩸' : '🩸', style: const TextStyle(fontSize: 14)),
+                                  label: Text(_isCycleDay(day) ? 'Rimuovi' : 'Ciclo'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: _isCycleDay(day) ? Colors.red : null,
+                                    side: _isCycleDay(day) ? const BorderSide(color: Colors.red) : null,
+                                  ),
+                                ),
+                              ),
+                            FilledButton.icon(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                setState(() => _selectedDay = day);
+                                _createEvent();
+                              },
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('Evento'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1770,10 +1840,28 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                   ],
                 ),
-                FilledButton.icon(
-                  onPressed: _createEvent,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Evento'),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_calSettings.showCycleTracking)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: OutlinedButton.icon(
+                          onPressed: () => _toggleCycleDay(_selectedDay!),
+                          icon: const Text('🩸', style: TextStyle(fontSize: 14)),
+                          label: Text(_isCycleDay(_selectedDay!) ? 'Rimuovi' : 'Ciclo'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _isCycleDay(_selectedDay!) ? Colors.red : null,
+                            side: _isCycleDay(_selectedDay!) ? const BorderSide(color: Colors.red) : null,
+                          ),
+                        ),
+                      ),
+                    FilledButton.icon(
+                      onPressed: _createEvent,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Evento'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1870,6 +1958,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         children: [
                           if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 16)),
                           if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 12)),
+                          if (_calSettings.showCycleTracking && _isCycleDay(day)) const Text('🩸', style: TextStyle(fontSize: 12)),
                         ],
                       ),
                     ],
@@ -2094,6 +2183,9 @@ class CalendarSettings {
   final String calendarLayout; // 'split' or 'fullScreen'
   final String calendarViewMode; // 'month' or 'week'
 
+  // Cycle tracking (private)
+  final bool showCycleTracking;
+
   const CalendarSettings({
     this.alertConfig = const CalendarAlertConfig(),
     this.alertMinutesBefore = const [10],
@@ -2112,6 +2204,7 @@ class CalendarSettings {
     this.weatherCity,
     this.calendarLayout = 'split',
     this.calendarViewMode = 'month',
+    this.showCycleTracking = false,
   });
 
   Color get calendarColor => Color(calendarColorValue);
@@ -2137,6 +2230,7 @@ class CalendarSettings {
     String? weatherCity,
     String? calendarLayout,
     String? calendarViewMode,
+    bool? showCycleTracking,
   }) {
     return CalendarSettings(
       alertConfig: alertConfig ?? this.alertConfig,
@@ -2156,6 +2250,7 @@ class CalendarSettings {
       weatherCity: weatherCity ?? this.weatherCity,
       calendarLayout: calendarLayout ?? this.calendarLayout,
       calendarViewMode: calendarViewMode ?? this.calendarViewMode,
+      showCycleTracking: showCycleTracking ?? this.showCycleTracking,
     );
   }
 
@@ -2177,6 +2272,7 @@ class CalendarSettings {
     'weatherCity': weatherCity,
     'calendarLayout': calendarLayout,
     'calendarViewMode': calendarViewMode,
+    'showCycleTracking': showCycleTracking,
   };
 
   factory CalendarSettings.fromJson(Map<String, dynamic> json) =>
@@ -2203,6 +2299,7 @@ class CalendarSettings {
         weatherCity: json['weatherCity'],
         calendarLayout: json['calendarLayout'] ?? 'split',
         calendarViewMode: json['calendarViewMode'] ?? 'month',
+        showCycleTracking: json['showCycleTracking'] ?? false,
       );
 
   static Future<CalendarSettings> load() async {
@@ -2378,6 +2475,12 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             _buildSectionHeader('Meteo', Icons.cloud),
             const SizedBox(height: 8),
             _buildWeatherSettingsCard(),
+            const SizedBox(height: 24),
+
+            // ── SECTION: Ciclo Mestruale ──
+            _buildSectionHeader('Ciclo Mestruale', Icons.water_drop),
+            const SizedBox(height: 8),
+            _buildCycleTrackingSettingsCard(),
             const SizedBox(height: 32),
 
             // Save button
@@ -3038,6 +3141,45 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 },
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCycleTrackingSettingsCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              title: const Text('Tracciamento Ciclo', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Segna i giorni del ciclo con 🩸'),
+              value: _settings.showCycleTracking,
+              activeColor: Colors.red,
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.water_drop, color: Colors.red),
+              onChanged: (v) {
+                _updateSettings(_settings.copyWith(showCycleTracking: v));
+              },
+            ),
+            const Divider(),
+            Row(
+              children: [
+                Icon(Icons.lock_outline, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'I dati del ciclo sono privati e non vengono mai condivisi.',
+                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
