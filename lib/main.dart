@@ -2082,10 +2082,17 @@ class _CalendarPageState extends State<CalendarPage> {
             Expanded(
               child: isWeek
                   ? _buildCustomWeekView(colorScheme)
-                  : _buildTableCalendar(colorScheme, format: CalendarFormat.month, rowHeight: 90),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Header ~50px, day-of-week row ~30px, FAB space ~50px
+                        final rows = _calSettings.showNextMonthPreview ? 6 : 6;
+                        final availableHeight = constraints.maxHeight - 80 - 50;
+                        final dynamicRowHeight = (availableHeight / rows).clamp(60.0, 140.0);
+                        return _buildTableCalendar(colorScheme, format: CalendarFormat.month, rowHeight: dynamicRowHeight);
+                      },
+                    ),
             ),
             _buildHoroscopeCard(),
-            const SizedBox(height: 60),
           ],
         ),
         Positioned(
@@ -2108,13 +2115,14 @@ class _CalendarPageState extends State<CalendarPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    final isFullScreen = _calSettings.calendarLayout == 'fullScreen';
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(isFullScreen ? 8.0 : 16.0),
       child: Column(
         children: [
           _buildLayoutToggle(),
           Expanded(
-            child: _calSettings.calendarLayout == 'fullScreen'
+            child: isFullScreen
                 ? _buildFullScreenLayout(colorScheme)
                 : _buildSplitLayout(colorScheme),
           ),
