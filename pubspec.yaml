@@ -43,6 +43,14 @@ dependencies:
   google_fonts: ^6.2.1
   image_picker: ^1.1.2
   http: ^1.2.0
+  google_generative_ai: ^0.4.7
+  google_sign_in: ^6.2.2
+  googleapis: ^14.0.0
+  extension_google_sign_in_as_googleapis_auth: ^2.0.12
+  health: ^13.3.1
+  record: ^5.1.2
+  audioplayers: ^6.1.0
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
@@ -65,6 +73,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/logo.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -12,7 +12,647 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:google_generative_ai/google_generative_ai.dart' as gemini;
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
+import 'package:googleapis/calendar/v3.dart' as gcal;
+import 'package:health/health.dart';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb, TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart' as ap;
+import 'package:path_provider/path_provider.dart';
+import 'dart:async';
+
+/// Returns true when the Ethos (Bordeaux) theme is active.
+bool _isEthosTheme(BuildContext context) {
+  final primary = Theme.of(context).colorScheme.primary;
+  return primary == const Color(0xFFA3274F);
+}
+
+// ─── Internationalization (i18n) ─────────────────────────────────────────────
+
+String _appLocale = 'it';
+
+String tr(String key) => _translations[key]?[_appLocale] ?? _translations[key]?['it'] ?? key;
+
+List<String> localizedMonths() => [
+  '', tr('january'), tr('february'), tr('march'), tr('april'), tr('may'), tr('june'),
+  tr('july'), tr('august'), tr('september'), tr('october'), tr('november'), tr('december'),
+];
+
+List<String> localizedWeekdaysShort() => [tr('mon'), tr('tue'), tr('wed'), tr('thu'), tr('fri'), tr('sat'), tr('sun')];
+
+const _translations = <String, Map<String, String>>{
+  // ── Navigation ──
+  'calendar': {'it': 'Calendario', 'en': 'Calendar', 'fr': 'Calendrier', 'es': 'Calendario'},
+
+  // ── Common actions ──
+  'save': {'it': 'Salva', 'en': 'Save', 'fr': 'Enregistrer', 'es': 'Guardar'},
+  'cancel': {'it': 'Annulla', 'en': 'Cancel', 'fr': 'Annuler', 'es': 'Cancelar'},
+  'delete': {'it': 'Elimina', 'en': 'Delete', 'fr': 'Supprimer', 'es': 'Eliminar'},
+  'edit': {'it': 'Modifica', 'en': 'Edit', 'fr': 'Modifier', 'es': 'Editar'},
+  'create': {'it': 'Crea', 'en': 'Create', 'fr': 'Créer', 'es': 'Crear'},
+  'confirm': {'it': 'Conferma', 'en': 'Confirm', 'fr': 'Confirmer', 'es': 'Confirmar'},
+  'close': {'it': 'Chiudi', 'en': 'Close', 'fr': 'Fermer', 'es': 'Cerrar'},
+  'add': {'it': 'Aggiungi', 'en': 'Add', 'fr': 'Ajouter', 'es': 'Añadir'},
+  'search': {'it': 'Cerca', 'en': 'Search', 'fr': 'Rechercher', 'es': 'Buscar'},
+  'apply': {'it': 'Applica', 'en': 'Apply', 'fr': 'Appliquer', 'es': 'Aplicar'},
+  'insert': {'it': 'Inserisci', 'en': 'Insert', 'fr': 'Insérer', 'es': 'Insertar'},
+  'seconds': {'it': 'secondi', 'en': 'seconds', 'fr': 'secondes', 'es': 'segundos'},
+  'minutes_before': {'it': 'minuti prima', 'en': 'minutes before', 'fr': 'minutes avant', 'es': 'minutos antes'},
+  'empty_action': {'it': 'Svuota', 'en': 'Empty', 'fr': 'Vider', 'es': 'Vaciar'},
+  'restore': {'it': 'Ripristina', 'en': 'Restore', 'fr': 'Restaurer', 'es': 'Restaurar'},
+  'share': {'it': 'Condividi', 'en': 'Share', 'fr': 'Partager', 'es': 'Compartir'},
+  'continue_action': {'it': 'Continua', 'en': 'Continue', 'fr': 'Continuer', 'es': 'Continuar'},
+  'select': {'it': 'Seleziona', 'en': 'Select', 'fr': 'Sélectionner', 'es': 'Seleccionar'},
+  'remove': {'it': 'Rimuovi', 'en': 'Remove', 'fr': 'Retirer', 'es': 'Quitar'},
+  'done': {'it': 'Fatto', 'en': 'Done', 'fr': 'Terminé', 'es': 'Hecho'},
+  'back': {'it': 'Indietro', 'en': 'Back', 'fr': 'Retour', 'es': 'Atrás'},
+  'all': {'it': 'Tutte', 'en': 'All', 'fr': 'Toutes', 'es': 'Todas'},
+  'copy': {'it': 'Copia', 'en': 'Copy', 'fr': 'Copier', 'es': 'Copiar'},
+  'yes': {'it': 'Sì', 'en': 'Yes', 'fr': 'Oui', 'es': 'Sí'},
+  'no': {'it': 'No', 'en': 'No', 'fr': 'Non', 'es': 'No'},
+  'send': {'it': 'Invia', 'en': 'Send', 'fr': 'Envoyer', 'es': 'Enviar'},
+  'view': {'it': 'Vedi', 'en': 'View', 'fr': 'Voir', 'es': 'Ver'},
+  'rename': {'it': 'Rinomina', 'en': 'Rename', 'fr': 'Renommer', 'es': 'Renombrar'},
+  'move': {'it': 'Sposta', 'en': 'Move', 'fr': 'Déplacer', 'es': 'Mover'},
+  'reset': {'it': 'Reset', 'en': 'Reset', 'fr': 'Réinitialiser', 'es': 'Restablecer'},
+  'download': {'it': 'Scarica', 'en': 'Download', 'fr': 'Télécharger', 'es': 'Descargar'},
+  'open': {'it': 'Apri', 'en': 'Open', 'fr': 'Ouvrir', 'es': 'Abrir'},
+
+  // ── Months ──
+  'january': {'it': 'Gennaio', 'en': 'January', 'fr': 'Janvier', 'es': 'Enero'},
+  'february': {'it': 'Febbraio', 'en': 'February', 'fr': 'Février', 'es': 'Febrero'},
+  'march': {'it': 'Marzo', 'en': 'March', 'fr': 'Mars', 'es': 'Marzo'},
+  'april': {'it': 'Aprile', 'en': 'April', 'fr': 'Avril', 'es': 'Abril'},
+  'may': {'it': 'Maggio', 'en': 'May', 'fr': 'Mai', 'es': 'Mayo'},
+  'june': {'it': 'Giugno', 'en': 'June', 'fr': 'Juin', 'es': 'Junio'},
+  'july': {'it': 'Luglio', 'en': 'July', 'fr': 'Juillet', 'es': 'Julio'},
+  'august': {'it': 'Agosto', 'en': 'August', 'fr': 'Août', 'es': 'Agosto'},
+  'september': {'it': 'Settembre', 'en': 'September', 'fr': 'Septembre', 'es': 'Septiembre'},
+  'october': {'it': 'Ottobre', 'en': 'October', 'fr': 'Octobre', 'es': 'Octubre'},
+  'november': {'it': 'Novembre', 'en': 'November', 'fr': 'Novembre', 'es': 'Noviembre'},
+  'december': {'it': 'Dicembre', 'en': 'December', 'fr': 'Décembre', 'es': 'Diciembre'},
+
+  // ── Days (short) ──
+  'mon': {'it': 'Lun', 'en': 'Mon', 'fr': 'Lun', 'es': 'Lun'},
+  'tue': {'it': 'Mar', 'en': 'Tue', 'fr': 'Mar', 'es': 'Mar'},
+  'wed': {'it': 'Mer', 'en': 'Wed', 'fr': 'Mer', 'es': 'Mié'},
+  'thu': {'it': 'Gio', 'en': 'Thu', 'fr': 'Jeu', 'es': 'Jue'},
+  'fri': {'it': 'Ven', 'en': 'Fri', 'fr': 'Ven', 'es': 'Vie'},
+  'sat': {'it': 'Sab', 'en': 'Sat', 'fr': 'Sam', 'es': 'Sáb'},
+  'sun': {'it': 'Dom', 'en': 'Sun', 'fr': 'Dim', 'es': 'Dom'},
+
+  // ── Days (full) ──
+  'monday': {'it': 'Lunedì', 'en': 'Monday', 'fr': 'Lundi', 'es': 'Lunes'},
+  'tuesday': {'it': 'Martedì', 'en': 'Tuesday', 'fr': 'Mardi', 'es': 'Martes'},
+  'wednesday': {'it': 'Mercoledì', 'en': 'Wednesday', 'fr': 'Mercredi', 'es': 'Miércoles'},
+  'thursday': {'it': 'Giovedì', 'en': 'Thursday', 'fr': 'Jeudi', 'es': 'Jueves'},
+  'friday': {'it': 'Venerdì', 'en': 'Friday', 'fr': 'Vendredi', 'es': 'Viernes'},
+  'saturday': {'it': 'Sabato', 'en': 'Saturday', 'fr': 'Samedi', 'es': 'Sábado'},
+  'sunday': {'it': 'Domenica', 'en': 'Sunday', 'fr': 'Dimanche', 'es': 'Domingo'},
+
+  // ── Zodiac ──
+  'aries': {'it': 'Ariete', 'en': 'Aries', 'fr': 'Bélier', 'es': 'Aries'},
+  'taurus': {'it': 'Toro', 'en': 'Taurus', 'fr': 'Taureau', 'es': 'Tauro'},
+  'gemini': {'it': 'Gemelli', 'en': 'Gemini', 'fr': 'Gémeaux', 'es': 'Géminis'},
+  'cancer': {'it': 'Cancro', 'en': 'Cancer', 'fr': 'Cancer', 'es': 'Cáncer'},
+  'leo': {'it': 'Leone', 'en': 'Leo', 'fr': 'Lion', 'es': 'Leo'},
+  'virgo': {'it': 'Vergine', 'en': 'Virgo', 'fr': 'Vierge', 'es': 'Virgo'},
+  'libra': {'it': 'Bilancia', 'en': 'Libra', 'fr': 'Balance', 'es': 'Libra'},
+  'scorpio': {'it': 'Scorpione', 'en': 'Scorpio', 'fr': 'Scorpion', 'es': 'Escorpio'},
+  'sagittarius': {'it': 'Sagittario', 'en': 'Sagittarius', 'fr': 'Sagittaire', 'es': 'Sagitario'},
+  'capricorn': {'it': 'Capricorno', 'en': 'Capricorn', 'fr': 'Capricorne', 'es': 'Capricornio'},
+  'aquarius': {'it': 'Acquario', 'en': 'Aquarius', 'fr': 'Verseau', 'es': 'Acuario'},
+  'pisces': {'it': 'Pesci', 'en': 'Pisces', 'fr': 'Poissons', 'es': 'Piscis'},
+
+  // ── Settings ──
+  'settings': {'it': 'Impostazioni', 'en': 'Settings', 'fr': 'Paramètres', 'es': 'Ajustes'},
+  'theme': {'it': 'Tema', 'en': 'Theme', 'fr': 'Thème', 'es': 'Tema'},
+  'light': {'it': 'Chiaro', 'en': 'Light', 'fr': 'Clair', 'es': 'Claro'},
+  'dark': {'it': 'Scuro', 'en': 'Dark', 'fr': 'Sombre', 'es': 'Oscuro'},
+  'language': {'it': 'Lingua', 'en': 'Language', 'fr': 'Langue', 'es': 'Idioma'},
+  'deep_note_settings': {'it': 'Impostazioni Deep Note', 'en': 'Deep Note Settings', 'fr': 'Paramètres Deep Note', 'es': 'Ajustes Deep Note'},
+  'calendar_settings': {'it': 'Impostazioni Calendario', 'en': 'Calendar Settings', 'fr': 'Paramètres Calendrier', 'es': 'Ajustes Calendario'},
+  'flash_notes_settings': {'it': 'Impostazioni Flash Notes', 'en': 'Flash Notes Settings', 'fr': 'Paramètres Flash Notes', 'es': 'Ajustes Flash Notes'},
+  'trash': {'it': 'Cestino', 'en': 'Trash', 'fr': 'Corbeille', 'es': 'Papelera'},
+  'backup': {'it': 'Backup', 'en': 'Backup', 'fr': 'Sauvegarde', 'es': 'Copia de seguridad'},
+  'backup_mode': {'it': 'Modalità Backup', 'en': 'Backup Mode', 'fr': 'Mode de sauvegarde', 'es': 'Modo de copia'},
+  'local': {'it': 'Locale', 'en': 'Local', 'fr': 'Local', 'es': 'Local'},
+  'save_on_device': {'it': 'Salva sul dispositivo', 'en': 'Save on device', 'fr': 'Enregistrer sur l\'appareil', 'es': 'Guardar en dispositivo'},
+  'sync_to_cloud': {'it': 'Sincronizza su cloud', 'en': 'Sync to cloud', 'fr': 'Synchroniser sur le cloud', 'es': 'Sincronizar en la nube'},
+  'info': {'it': 'Informazioni', 'en': 'Information', 'fr': 'Informations', 'es': 'Información'},
+  'version': {'it': 'Versione', 'en': 'Version', 'fr': 'Version', 'es': 'Versión'},
+  'add_account': {'it': 'Aggiungi Account', 'en': 'Add Account', 'fr': 'Ajouter un compte', 'es': 'Añadir cuenta'},
+  'max_profiles': {'it': 'Massimo 3 profili', 'en': 'Maximum 3 profiles', 'fr': 'Maximum 3 profils', 'es': 'Máximo 3 perfiles'},
+  'delete_account': {'it': 'Elimina Account', 'en': 'Delete Account', 'fr': 'Supprimer le compte', 'es': 'Eliminar cuenta'},
+  'delete_account_confirm': {'it': 'Sei sicuro di voler eliminare il tuo account? Tutti i dati verranno persi.', 'en': 'Are you sure you want to delete your account? All data will be lost.', 'fr': 'Êtes-vous sûr de vouloir supprimer votre compte ? Toutes les données seront perdues.', 'es': '¿Estás seguro de que quieres eliminar tu cuenta? Todos los datos se perderán.'},
+
+  // ── Profile ──
+  'profile': {'it': 'Profilo', 'en': 'Profile', 'fr': 'Profil', 'es': 'Perfil'},
+  'profile_photo': {'it': 'Foto Profilo', 'en': 'Profile Photo', 'fr': 'Photo de profil', 'es': 'Foto de perfil'},
+  'change_photo': {'it': 'Cambia Foto', 'en': 'Change Photo', 'fr': 'Changer la photo', 'es': 'Cambiar foto'},
+  'remove_photo': {'it': 'Rimuovi Foto', 'en': 'Remove Photo', 'fr': 'Supprimer la photo', 'es': 'Quitar foto'},
+  'name': {'it': 'Nome', 'en': 'First Name', 'fr': 'Prénom', 'es': 'Nombre'},
+  'surname': {'it': 'Cognome', 'en': 'Last Name', 'fr': 'Nom', 'es': 'Apellido'},
+  'email': {'it': 'Email', 'en': 'Email', 'fr': 'Email', 'es': 'Email'},
+  'phone': {'it': 'Telefono', 'en': 'Phone', 'fr': 'Téléphone', 'es': 'Teléfono'},
+  'nickname': {'it': 'Nickname', 'en': 'Nickname', 'fr': 'Pseudo', 'es': 'Apodo'},
+  'birth_date': {'it': 'Data di nascita', 'en': 'Date of birth', 'fr': 'Date de naissance', 'es': 'Fecha de nacimiento'},
+  'religion': {'it': 'Religione', 'en': 'Religion', 'fr': 'Religion', 'es': 'Religión'},
+  'password': {'it': 'Password', 'en': 'Password', 'fr': 'Mot de passe', 'es': 'Contraseña'},
+  'edit_profile': {'it': 'Modifica Profilo', 'en': 'Edit Profile', 'fr': 'Modifier le profil', 'es': 'Editar perfil'},
+  'years_old': {'it': 'anni', 'en': 'years old', 'fr': 'ans', 'es': 'años'},
+  'guest': {'it': 'Ospite', 'en': 'Guest', 'fr': 'Invité', 'es': 'Invitado'},
+  'account_security': {'it': 'Account e Sicurezza', 'en': 'Account & Security', 'fr': 'Compte et sécurité', 'es': 'Cuenta y seguridad'},
+  'social_links': {'it': 'Link Social', 'en': 'Social Links', 'fr': 'Liens sociaux', 'es': 'Enlaces sociales'},
+  'friends': {'it': 'Amici', 'en': 'Friends', 'fr': 'Amis', 'es': 'Amigos'},
+  'photo_history': {'it': 'Cronologia Foto', 'en': 'Photo History', 'fr': 'Historique des photos', 'es': 'Historial de fotos'},
+  'add_friend': {'it': 'Aggiungi Amico', 'en': 'Add Friend', 'fr': 'Ajouter un ami', 'es': 'Añadir amigo'},
+  'friend_name': {'it': 'Nome amico', 'en': 'Friend name', 'fr': 'Nom de l\'ami', 'es': 'Nombre del amigo'},
+  'add_social_link': {'it': 'Aggiungi Link Social', 'en': 'Add Social Link', 'fr': 'Ajouter un lien social', 'es': 'Añadir enlace social'},
+  'social_url': {'it': 'URL social (es. instagram.com/...)', 'en': 'Social URL (e.g. instagram.com/...)', 'fr': 'URL social (ex. instagram.com/...)', 'es': 'URL social (ej. instagram.com/...)'},
+  'connected': {'it': 'Connesso', 'en': 'Connected', 'fr': 'Connecté', 'es': 'Conectado'},
+  'not_connected': {'it': 'Non connesso', 'en': 'Not connected', 'fr': 'Non connecté', 'es': 'No conectado'},
+  'connect': {'it': 'Connetti', 'en': 'Connect', 'fr': 'Connecter', 'es': 'Conectar'},
+  'disconnect': {'it': 'Disconnetti', 'en': 'Disconnect', 'fr': 'Déconnecter', 'es': 'Desconectar'},
+
+  // ── Calendar ──
+  'events': {'it': 'Eventi', 'en': 'Events', 'fr': 'Événements', 'es': 'Eventos'},
+  'event': {'it': 'Evento', 'en': 'Event', 'fr': 'Événement', 'es': 'Evento'},
+  'new_event': {'it': 'Nuovo Evento', 'en': 'New Event', 'fr': 'Nouvel événement', 'es': 'Nuevo evento'},
+  'edit_event': {'it': 'Modifica Evento', 'en': 'Edit Event', 'fr': 'Modifier l\'événement', 'es': 'Editar evento'},
+  'event_title': {'it': 'Titolo evento', 'en': 'Event title', 'fr': 'Titre de l\'événement', 'es': 'Título del evento'},
+  'start_time': {'it': 'Ora inizio', 'en': 'Start time', 'fr': 'Heure de début', 'es': 'Hora de inicio'},
+  'end_time': {'it': 'Ora fine', 'en': 'End time', 'fr': 'Heure de fin', 'es': 'Hora de fin'},
+  'calendar_name': {'it': 'Calendario', 'en': 'Calendar', 'fr': 'Calendrier', 'es': 'Calendario'},
+  'reminder': {'it': 'Promemoria', 'en': 'Reminder', 'fr': 'Rappel', 'es': 'Recordatorio'},
+  'no_reminder': {'it': 'Nessuno', 'en': 'None', 'fr': 'Aucun', 'es': 'Ninguno'},
+  '5_min_before': {'it': '5 minuti prima', 'en': '5 minutes before', 'fr': '5 minutes avant', 'es': '5 minutos antes'},
+  '15_min_before': {'it': '15 minuti prima', 'en': '15 minutes before', 'fr': '15 minutes avant', 'es': '15 minutos antes'},
+  '30_min_before': {'it': '30 minuti prima', 'en': '30 minutes before', 'fr': '30 minutes avant', 'es': '30 minutos antes'},
+  '1_hour_before': {'it': '1 ora prima', 'en': '1 hour before', 'fr': '1 heure avant', 'es': '1 hora antes'},
+  '1_day_before': {'it': '1 giorno prima', 'en': '1 day before', 'fr': '1 jour avant', 'es': '1 día antes'},
+  'personal': {'it': 'Personale', 'en': 'Personal', 'fr': 'Personnel', 'es': 'Personal'},
+  'work': {'it': 'Lavoro', 'en': 'Work', 'fr': 'Travail', 'es': 'Trabajo'},
+  'family': {'it': 'Famiglia', 'en': 'Family', 'fr': 'Famille', 'es': 'Familia'},
+  'study': {'it': 'Studio', 'en': 'Study', 'fr': 'Études', 'es': 'Estudio'},
+  'health': {'it': 'Salute', 'en': 'Health', 'fr': 'Santé', 'es': 'Salud'},
+  'notes': {'it': 'Note', 'en': 'Notes', 'fr': 'Notes', 'es': 'Notas'},
+  'attachment': {'it': 'Allegato', 'en': 'Attachment', 'fr': 'Pièce jointe', 'es': 'Adjunto'},
+  'share_with': {'it': 'Condividi con', 'en': 'Share with', 'fr': 'Partager avec', 'es': 'Compartir con'},
+  'no_events': {'it': 'Nessun evento', 'en': 'No events', 'fr': 'Aucun événement', 'es': 'Sin eventos'},
+  'no_events_for_day': {'it': 'Nessun evento per questo giorno', 'en': 'No events for this day', 'fr': 'Aucun événement pour ce jour', 'es': 'Sin eventos para este día'},
+  'today': {'it': 'Oggi', 'en': 'Today', 'fr': 'Aujourd\'hui', 'es': 'Hoy'},
+  'tomorrow': {'it': 'Domani', 'en': 'Tomorrow', 'fr': 'Demain', 'es': 'Mañana'},
+  'yesterday': {'it': 'Ieri', 'en': 'Yesterday', 'fr': 'Hier', 'es': 'Ayer'},
+  'month': {'it': 'Mese', 'en': 'Month', 'fr': 'Mois', 'es': 'Mes'},
+  'week': {'it': 'Settimana', 'en': 'Week', 'fr': 'Semaine', 'es': 'Semana'},
+  'split_layout': {'it': 'Split', 'en': 'Split', 'fr': 'Divisé', 'es': 'Dividido'},
+  'full_layout': {'it': 'Full', 'en': 'Full', 'fr': 'Plein', 'es': 'Completo'},
+  'event_created': {'it': 'Evento creato', 'en': 'Event created', 'fr': 'Événement créé', 'es': 'Evento creado'},
+  'event_saved': {'it': 'Evento salvato', 'en': 'Event saved', 'fr': 'Événement enregistré', 'es': 'Evento guardado'},
+  'event_deleted': {'it': 'Evento eliminato', 'en': 'Event deleted', 'fr': 'Événement supprimé', 'es': 'Evento eliminado'},
+  'delete_event_confirm': {'it': 'Eliminare questo evento?', 'en': 'Delete this event?', 'fr': 'Supprimer cet événement ?', 'es': '¿Eliminar este evento?'},
+  'horoscope': {'it': 'Oroscopo', 'en': 'Horoscope', 'fr': 'Horoscope', 'es': 'Horóscopo'},
+  'weather': {'it': 'Meteo', 'en': 'Weather', 'fr': 'Météo', 'es': 'Clima'},
+  'holidays': {'it': 'Festività', 'en': 'Holidays', 'fr': 'Jours fériés', 'es': 'Festivos'},
+
+  // ── Calendar Settings ──
+  'show_horoscope': {'it': 'Mostra Oroscopo', 'en': 'Show Horoscope', 'fr': 'Afficher l\'horoscope', 'es': 'Mostrar horóscopo'},
+  'show_weather': {'it': 'Mostra Meteo', 'en': 'Show Weather', 'fr': 'Afficher la météo', 'es': 'Mostrar clima'},
+  'weather_city': {'it': 'Città meteo', 'en': 'Weather city', 'fr': 'Ville météo', 'es': 'Ciudad del clima'},
+  'show_zodiac': {'it': 'Mostra Segno Zodiacale', 'en': 'Show Zodiac Sign', 'fr': 'Afficher le signe du zodiaque', 'es': 'Mostrar signo zodiacal'},
+  'zodiac_display': {'it': 'Visualizzazione Zodiacale', 'en': 'Zodiac Display', 'fr': 'Affichage du zodiaque', 'es': 'Visualización del zodíaco'},
+  'icon_and_text': {'it': 'Icona e testo', 'en': 'Icon and text', 'fr': 'Icône et texte', 'es': 'Icono y texto'},
+  'icon_only': {'it': 'Solo icona', 'en': 'Icon only', 'fr': 'Icône seule', 'es': 'Solo icono'},
+  'text_only': {'it': 'Solo testo', 'en': 'Text only', 'fr': 'Texte seul', 'es': 'Solo texto'},
+  'show_next_month': {'it': 'Mostra Anteprima Mese Successivo', 'en': 'Show Next Month Preview', 'fr': 'Aperçu du mois suivant', 'es': 'Vista previa del mes siguiente'},
+  'calendar_layout': {'it': 'Layout Calendario', 'en': 'Calendar Layout', 'fr': 'Disposition du calendrier', 'es': 'Diseño del calendario'},
+  'calendar_view': {'it': 'Vista Calendario', 'en': 'Calendar View', 'fr': 'Vue du calendrier', 'es': 'Vista del calendario'},
+  'alert_sound': {'it': 'Suono Avviso', 'en': 'Alert Sound', 'fr': 'Son d\'alerte', 'es': 'Sonido de alerta'},
+  'default_alert': {'it': 'Predefinito', 'en': 'Default', 'fr': 'Par défaut', 'es': 'Predeterminado'},
+  'calendar_color': {'it': 'Colore Calendario', 'en': 'Calendar Color', 'fr': 'Couleur du calendrier', 'es': 'Color del calendario'},
+  'font_family': {'it': 'Famiglia Font', 'en': 'Font Family', 'fr': 'Famille de police', 'es': 'Familia de fuente'},
+  'header_font_size': {'it': 'Dimensione Font Intestazione', 'en': 'Header Font Size', 'fr': 'Taille de police de l\'en-tête', 'es': 'Tamaño de fuente del encabezado'},
+  'header_color': {'it': 'Colore Intestazione', 'en': 'Header Color', 'fr': 'Couleur de l\'en-tête', 'es': 'Color del encabezado'},
+  'alerts': {'it': 'Avvisi', 'en': 'Alerts', 'fr': 'Alertes', 'es': 'Alertas'},
+  'colors_and_fonts': {'it': 'Colori e Font', 'en': 'Colors & Fonts', 'fr': 'Couleurs et polices', 'es': 'Colores y fuentes'},
+  'cycle_tracking': {'it': 'Tracciamento Ciclo', 'en': 'Cycle Tracking', 'fr': 'Suivi du cycle', 'es': 'Seguimiento del ciclo'},
+  'show_cycle_tracking': {'it': 'Mostra Tracciamento Ciclo', 'en': 'Show Cycle Tracking', 'fr': 'Afficher le suivi du cycle', 'es': 'Mostrar seguimiento del ciclo'},
+  'cycle_length': {'it': 'Durata Ciclo (giorni)', 'en': 'Cycle Length (days)', 'fr': 'Durée du cycle (jours)', 'es': 'Duración del ciclo (días)'},
+  'period_length': {'it': 'Durata Mestruazione (giorni)', 'en': 'Period Length (days)', 'fr': 'Durée des règles (jours)', 'es': 'Duración del periodo (días)'},
+  'mark_period_day': {'it': 'Segna giorno ciclo', 'en': 'Mark period day', 'fr': 'Marquer jour de règles', 'es': 'Marcar día del periodo'},
+  'unmark_period_day': {'it': 'Rimuovi giorno ciclo', 'en': 'Unmark period day', 'fr': 'Retirer jour de règles', 'es': 'Quitar día del periodo'},
+  'period_day': {'it': 'Giorno ciclo', 'en': 'Period day', 'fr': 'Jour de règles', 'es': 'Día del periodo'},
+  'fertile_window': {'it': 'Finestra fertile', 'en': 'Fertile window', 'fr': 'Fenêtre de fertilité', 'es': 'Ventana fértil'},
+  'predicted_period': {'it': 'Ciclo previsto', 'en': 'Predicted period', 'fr': 'Règles prévues', 'es': 'Periodo previsto'},
+  'ovulation_day': {'it': 'Giorno ovulazione', 'en': 'Ovulation day', 'fr': 'Jour d\'ovulation', 'es': 'Día de ovulación'},
+
+  // ── Deep Note ──
+  'new_note': {'it': 'Nuova nota', 'en': 'New note', 'fr': 'Nouvelle note', 'es': 'Nueva nota'},
+  'no_notes': {'it': 'Nessuna nota', 'en': 'No notes', 'fr': 'Aucune note', 'es': 'Sin notas'},
+  'no_notes_yet': {'it': 'Nessuna nota ancora.\nTocca + per iniziare!', 'en': 'No notes yet.\nTap + to get started!', 'fr': 'Aucune note pour l\'instant.\nAppuyez sur + pour commencer !', 'es': 'Sin notas aún.\n¡Toca + para empezar!'},
+  'folder': {'it': 'Cartella', 'en': 'Folder', 'fr': 'Dossier', 'es': 'Carpeta'},
+  'folders': {'it': 'Cartelle', 'en': 'Folders', 'fr': 'Dossiers', 'es': 'Carpetas'},
+  'general': {'it': 'Generale', 'en': 'General', 'fr': 'Général', 'es': 'General'},
+  'private': {'it': 'Privata', 'en': 'Private', 'fr': 'Privé', 'es': 'Privada'},
+  'new_folder': {'it': 'Nuova Cartella', 'en': 'New Folder', 'fr': 'Nouveau dossier', 'es': 'Nueva carpeta'},
+  'folder_name': {'it': 'Nome cartella', 'en': 'Folder name', 'fr': 'Nom du dossier', 'es': 'Nombre de la carpeta'},
+  'move_to_folder': {'it': 'Sposta in cartella', 'en': 'Move to folder', 'fr': 'Déplacer vers le dossier', 'es': 'Mover a carpeta'},
+  'untitled': {'it': 'Senza titolo', 'en': 'Untitled', 'fr': 'Sans titre', 'es': 'Sin título'},
+  'title': {'it': 'Titolo', 'en': 'Title', 'fr': 'Titre', 'es': 'Título'},
+  'content': {'it': 'Contenuto', 'en': 'Content', 'fr': 'Contenu', 'es': 'Contenido'},
+  'search_notes': {'it': 'Cerca note...', 'en': 'Search notes...', 'fr': 'Rechercher des notes...', 'es': 'Buscar notas...'},
+  'delete_note_confirm': {'it': 'Eliminare questa nota?', 'en': 'Delete this note?', 'fr': 'Supprimer cette note ?', 'es': '¿Eliminar esta nota?'},
+  'note_deleted': {'it': 'Nota eliminata', 'en': 'Note deleted', 'fr': 'Note supprimée', 'es': 'Nota eliminada'},
+  'note_moved_to_trash': {'it': 'Nota spostata nel cestino', 'en': 'Note moved to trash', 'fr': 'Note déplacée dans la corbeille', 'es': 'Nota movida a la papelera'},
+  'open_in_deep_note': {'it': 'Apri in Deep Note', 'en': 'Open in Deep Note', 'fr': 'Ouvrir dans Deep Note', 'es': 'Abrir en Deep Note'},
+  'create_event': {'it': 'Crea Evento', 'en': 'Create Event', 'fr': 'Créer un événement', 'es': 'Crear evento'},
+  'header': {'it': 'Intestazione', 'en': 'Header', 'fr': 'En-tête', 'es': 'Encabezado'},
+  'footer': {'it': 'Piè di pagina', 'en': 'Footer', 'fr': 'Pied de page', 'es': 'Pie de página'},
+  'pdf': {'it': 'PDF', 'en': 'PDF', 'fr': 'PDF', 'es': 'PDF'},
+  'export_pdf': {'it': 'Esporta PDF', 'en': 'Export PDF', 'fr': 'Exporter en PDF', 'es': 'Exportar PDF'},
+  'print': {'it': 'Stampa', 'en': 'Print', 'fr': 'Imprimer', 'es': 'Imprimir'},
+  'pin_security': {'it': 'PIN di sicurezza', 'en': 'Security PIN', 'fr': 'PIN de sécurité', 'es': 'PIN de seguridad'},
+  'enter_pin': {'it': 'Inserisci PIN', 'en': 'Enter PIN', 'fr': 'Entrez le PIN', 'es': 'Introduce el PIN'},
+  'wrong_pin': {'it': 'PIN errato', 'en': 'Wrong PIN', 'fr': 'PIN incorrect', 'es': 'PIN incorrecto'},
+  'grid_view': {'it': 'Griglia', 'en': 'Grid', 'fr': 'Grille', 'es': 'Cuadrícula'},
+  'list_view': {'it': 'Lista', 'en': 'List', 'fr': 'Liste', 'es': 'Lista'},
+
+  // ── Deep Note Settings ──
+  'show_private_folder': {'it': 'Mostra Cartella Privata', 'en': 'Show Private Folder', 'fr': 'Afficher le dossier privé', 'es': 'Mostrar carpeta privada'},
+  'security_pin': {'it': 'PIN Sicurezza', 'en': 'Security PIN', 'fr': 'PIN de sécurité', 'es': 'PIN de seguridad'},
+  'pdf_save_mode': {'it': 'Salvataggio PDF', 'en': 'PDF Save Mode', 'fr': 'Mode de sauvegarde PDF', 'es': 'Modo de guardado PDF'},
+  'enable_trash': {'it': 'Abilita Cestino', 'en': 'Enable Trash', 'fr': 'Activer la corbeille', 'es': 'Activar papelera'},
+  'trash_retention': {'it': 'Giorni conservazione cestino', 'en': 'Trash retention days', 'fr': 'Jours de conservation de la corbeille', 'es': 'Días de retención de papelera'},
+  'downloaded_fonts': {'it': 'Font Scaricati', 'en': 'Downloaded Fonts', 'fr': 'Polices téléchargées', 'es': 'Fuentes descargadas'},
+  'custom_templates': {'it': 'Template Personalizzati', 'en': 'Custom Templates', 'fr': 'Modèles personnalisés', 'es': 'Plantillas personalizadas'},
+  'template': {'it': 'Template', 'en': 'Template', 'fr': 'Modèle', 'es': 'Plantilla'},
+
+  // ── Templates ──
+  'formal_letter': {'it': 'Lettera Formale', 'en': 'Formal Letter', 'fr': 'Lettre formelle', 'es': 'Carta formal'},
+  'business_letter': {'it': 'Lettera Commerciale', 'en': 'Business Letter', 'fr': 'Lettre commerciale', 'es': 'Carta comercial'},
+  'quote_letter': {'it': 'Preventivo', 'en': 'Quote', 'fr': 'Devis', 'es': 'Presupuesto'},
+  'reminder_letter': {'it': 'Sollecito', 'en': 'Reminder', 'fr': 'Relance', 'es': 'Recordatorio'},
+
+  // ── Flash Notes ──
+  'flash_note': {'it': 'Flash Note', 'en': 'Flash Note', 'fr': 'Flash Note', 'es': 'Flash Note'},
+  'new_flash_note': {'it': 'Nuova flash note...', 'en': 'New flash note...', 'fr': 'Nouvelle flash note...', 'es': 'Nueva flash note...'},
+  'no_flash_notes': {'it': 'Nessuna flash note', 'en': 'No flash notes', 'fr': 'Aucune flash note', 'es': 'Sin flash notes'},
+  'no_flash_notes_yet': {'it': 'Nessuna flash note ancora.\nScrivi la tua prima nota veloce!', 'en': 'No flash notes yet.\nWrite your first quick note!', 'fr': 'Aucune flash note pour l\'instant.\nÉcrivez votre première note rapide !', 'es': 'Sin flash notes aún.\n¡Escribe tu primera nota rápida!'},
+  'search_flash_notes': {'it': 'Cerca flash notes...', 'en': 'Search flash notes...', 'fr': 'Rechercher des flash notes...', 'es': 'Buscar flash notes...'},
+  'delete_flash_confirm': {'it': 'Eliminare questa flash note?', 'en': 'Delete this flash note?', 'fr': 'Supprimer cette flash note ?', 'es': '¿Eliminar esta flash note?'},
+
+  // ── Flash Notes Settings ──
+  'gemini_ai': {'it': 'Gemini AI', 'en': 'Gemini AI', 'fr': 'Gemini AI', 'es': 'Gemini AI'},
+  'enable_gemini': {'it': 'Abilita Gemini AI', 'en': 'Enable Gemini AI', 'fr': 'Activer Gemini AI', 'es': 'Activar Gemini AI'},
+  'api_key': {'it': 'Chiave API', 'en': 'API Key', 'fr': 'Clé API', 'es': 'Clave API'},
+  'auto_save': {'it': 'Salvataggio Automatico', 'en': 'Auto Save', 'fr': 'Sauvegarde automatique', 'es': 'Guardado automático'},
+  'auto_save_never': {'it': 'Sempre lì', 'en': 'Always there', 'fr': 'Toujours là', 'es': 'Siempre ahí'},
+  'no_auto_save': {'it': 'Nessun salvataggio automatico', 'en': 'No auto save', 'fr': 'Pas de sauvegarde automatique', 'es': 'Sin guardado automático'},
+  'auto_save_weekly': {'it': 'Settimanale', 'en': 'Weekly', 'fr': 'Hebdomadaire', 'es': 'Semanal'},
+  'auto_save_weekly_desc': {'it': 'Salva in Deep Note ogni settimana', 'en': 'Save to Deep Note every week', 'fr': 'Enregistrer dans Deep Note chaque semaine', 'es': 'Guardar en Deep Note cada semana'},
+  'auto_save_monthly': {'it': 'Mensile', 'en': 'Monthly', 'fr': 'Mensuel', 'es': 'Mensual'},
+  'auto_save_monthly_desc': {'it': 'Salva in Deep Note ogni mese', 'en': 'Save to Deep Note every month', 'fr': 'Enregistrer dans Deep Note chaque mois', 'es': 'Guardar en Deep Note cada mes'},
+  'formatting_preset': {'it': 'Preset Formattazione', 'en': 'Formatting Preset', 'fr': 'Préréglage de mise en forme', 'es': 'Ajuste de formato'},
+  'simple': {'it': 'Semplice', 'en': 'Simple', 'fr': 'Simple', 'es': 'Simple'},
+  'markdown': {'it': 'Markdown', 'en': 'Markdown', 'fr': 'Markdown', 'es': 'Markdown'},
+  'rich': {'it': 'Ricco', 'en': 'Rich', 'fr': 'Riche', 'es': 'Rico'},
+  'ai_correction_level': {'it': 'Livello Correzione AI', 'en': 'AI Correction Level', 'fr': 'Niveau de correction IA', 'es': 'Nivel de corrección IA'},
+  'grouping_mode': {'it': 'Modalità Raggruppamento', 'en': 'Grouping Mode', 'fr': 'Mode de regroupement', 'es': 'Modo de agrupación'},
+  'daily': {'it': 'Giornaliero', 'en': 'Daily', 'fr': 'Quotidien', 'es': 'Diario'},
+  'weekly': {'it': 'Settimanale', 'en': 'Weekly', 'fr': 'Hebdomadaire', 'es': 'Semanal'},
+  'monthly': {'it': 'Mensile', 'en': 'Monthly', 'fr': 'Mensuel', 'es': 'Mensual'},
+
+  // ── Trash ──
+  'empty_trash': {'it': 'Svuota Cestino', 'en': 'Empty Trash', 'fr': 'Vider la corbeille', 'es': 'Vaciar papelera'},
+  'empty_trash_confirm': {'it': 'Svuotare il cestino? Tutti gli elementi verranno eliminati definitivamente.', 'en': 'Empty trash? All items will be permanently deleted.', 'fr': 'Vider la corbeille ? Tous les éléments seront définitivement supprimés.', 'es': '¿Vaciar papelera? Todos los elementos se eliminarán permanentemente.'},
+  'no_trash': {'it': 'Il cestino è vuoto', 'en': 'Trash is empty', 'fr': 'La corbeille est vide', 'es': 'La papelera está vacía'},
+  'restore_note': {'it': 'Ripristina nota', 'en': 'Restore note', 'fr': 'Restaurer la note', 'es': 'Restaurar nota'},
+  'delete_permanently': {'it': 'Elimina definitivamente', 'en': 'Delete permanently', 'fr': 'Supprimer définitivement', 'es': 'Eliminar permanentemente'},
+  'deleted_on': {'it': 'Eliminata il', 'en': 'Deleted on', 'fr': 'Supprimé le', 'es': 'Eliminado el'},
+  'note_restored': {'it': 'Nota ripristinata', 'en': 'Note restored', 'fr': 'Note restaurée', 'es': 'Nota restaurada'},
+
+  // ── Dialogs & messages ──
+  'error': {'it': 'Errore', 'en': 'Error', 'fr': 'Erreur', 'es': 'Error'},
+  'success': {'it': 'Successo', 'en': 'Success', 'fr': 'Succès', 'es': 'Éxito'},
+  'warning': {'it': 'Attenzione', 'en': 'Warning', 'fr': 'Attention', 'es': 'Advertencia'},
+  'loading': {'it': 'Caricamento...', 'en': 'Loading...', 'fr': 'Chargement...', 'es': 'Cargando...'},
+  'no_results': {'it': 'Nessun risultato', 'en': 'No results', 'fr': 'Aucun résultat', 'es': 'Sin resultados'},
+  'copied_to_clipboard': {'it': 'Copiato negli appunti', 'en': 'Copied to clipboard', 'fr': 'Copié dans le presse-papiers', 'es': 'Copiado al portapapeles'},
+  'photo_error': {'it': 'Errore nel caricamento della foto', 'en': 'Error loading photo', 'fr': 'Erreur de chargement de la photo', 'es': 'Error al cargar la foto'},
+  'delete_all_data': {'it': 'Tutti i dati verranno eliminati', 'en': 'All data will be deleted', 'fr': 'Toutes les données seront supprimées', 'es': 'Todos los datos se eliminarán'},
+  'reason_for_leaving': {'it': 'Motivo della cancellazione', 'en': 'Reason for leaving', 'fr': 'Motif de la suppression', 'es': 'Motivo de la cancelación'},
+  'not_using_anymore': {'it': 'Non uso più l\'app', 'en': 'I no longer use the app', 'fr': 'Je n\'utilise plus l\'application', 'es': 'Ya no uso la app'},
+  'found_better_app': {'it': 'Ho trovato un\'app migliore', 'en': 'I found a better app', 'fr': 'J\'ai trouvé une meilleure application', 'es': 'Encontré una app mejor'},
+  'privacy_concerns': {'it': 'Problemi di privacy', 'en': 'Privacy concerns', 'fr': 'Problèmes de confidentialité', 'es': 'Problemas de privacidad'},
+  'too_many_bugs': {'it': 'Troppi bug', 'en': 'Too many bugs', 'fr': 'Trop de bugs', 'es': 'Demasiados errores'},
+  'other': {'it': 'Altro', 'en': 'Other', 'fr': 'Autre', 'es': 'Otro'},
+
+  // ── Voice / Audio ──
+  'voice_note': {'it': 'Nota vocale', 'en': 'Voice note', 'fr': 'Note vocale', 'es': 'Nota de voz'},
+  'recording': {'it': 'Registrazione...', 'en': 'Recording...', 'fr': 'Enregistrement...', 'es': 'Grabando...'},
+  'stop_recording': {'it': 'Ferma registrazione', 'en': 'Stop recording', 'fr': 'Arrêter l\'enregistrement', 'es': 'Detener grabación'},
+  'play': {'it': 'Riproduci', 'en': 'Play', 'fr': 'Lire', 'es': 'Reproducir'},
+  'pause': {'it': 'Pausa', 'en': 'Pause', 'fr': 'Pause', 'es': 'Pausar'},
+
+  // ── Color picker ──
+  'pick_color': {'it': 'Scegli Colore', 'en': 'Pick Color', 'fr': 'Choisir la couleur', 'es': 'Elegir color'},
+  'hex_color': {'it': 'Codice HEX', 'en': 'HEX Code', 'fr': 'Code HEX', 'es': 'Código HEX'},
+
+  // ── Misc ──
+  'undo': {'it': 'Annulla', 'en': 'Undo', 'fr': 'Annuler', 'es': 'Deshacer'},
+  'confirm_delete': {'it': 'Conferma eliminazione', 'en': 'Confirm deletion', 'fr': 'Confirmer la suppression', 'es': 'Confirmar eliminación'},
+  'n_notes': {'it': '{n} note', 'en': '{n} notes', 'fr': '{n} notes', 'es': '{n} notas'},
+  'n_accounts': {'it': '{n} account', 'en': '{n} accounts', 'fr': '{n} comptes', 'es': '{n} cuentas'},
+  'switch_account': {'it': 'Cambia account', 'en': 'Switch account', 'fr': 'Changer de compte', 'es': 'Cambiar cuenta'},
+  'active': {'it': 'Attivo', 'en': 'Active', 'fr': 'Actif', 'es': 'Activo'},
+  'inactive': {'it': 'Inattivo', 'en': 'Inactive', 'fr': 'Inactif', 'es': 'Inactivo'},
+  'preset': {'it': 'Preset', 'en': 'Preset', 'fr': 'Préréglage', 'es': 'Ajuste'},
+  'choose_preset': {'it': 'Scegli preset', 'en': 'Choose preset', 'fr': 'Choisir un préréglage', 'es': 'Elegir ajuste'},
+  'color': {'it': 'Colore', 'en': 'Color', 'fr': 'Couleur', 'es': 'Color'},
+  'font': {'it': 'Font', 'en': 'Font', 'fr': 'Police', 'es': 'Fuente'},
+  'size': {'it': 'Dimensione', 'en': 'Size', 'fr': 'Taille', 'es': 'Tamaño'},
+  'add_link': {'it': 'Aggiungi link', 'en': 'Add link', 'fr': 'Ajouter un lien', 'es': 'Añadir enlace'},
+  'url': {'it': 'URL', 'en': 'URL', 'fr': 'URL', 'es': 'URL'},
+  'link': {'it': 'Link', 'en': 'Link', 'fr': 'Lien', 'es': 'Enlace'},
+  'text': {'it': 'Testo', 'en': 'Text', 'fr': 'Texte', 'es': 'Texto'},
+  'bold': {'it': 'Grassetto', 'en': 'Bold', 'fr': 'Gras', 'es': 'Negrita'},
+  'italic': {'it': 'Corsivo', 'en': 'Italic', 'fr': 'Italique', 'es': 'Cursiva'},
+  'underline': {'it': 'Sottolineato', 'en': 'Underline', 'fr': 'Souligné', 'es': 'Subrayado'},
+  'strikethrough': {'it': 'Barrato', 'en': 'Strikethrough', 'fr': 'Barré', 'es': 'Tachado'},
+  'bullet_list': {'it': 'Elenco puntato', 'en': 'Bullet list', 'fr': 'Liste à puces', 'es': 'Lista con viñetas'},
+  'numbered_list': {'it': 'Elenco numerato', 'en': 'Numbered list', 'fr': 'Liste numérotée', 'es': 'Lista numerada'},
+  'text_color': {'it': 'Colore testo', 'en': 'Text color', 'fr': 'Couleur du texte', 'es': 'Color de texto'},
+  'background_color': {'it': 'Colore sfondo', 'en': 'Background color', 'fr': 'Couleur d\'arrière-plan', 'es': 'Color de fondo'},
+  'align_left': {'it': 'Allinea a sinistra', 'en': 'Align left', 'fr': 'Aligner à gauche', 'es': 'Alinear a la izquierda'},
+  'align_center': {'it': 'Allinea al centro', 'en': 'Align center', 'fr': 'Centrer', 'es': 'Centrar'},
+  'align_right': {'it': 'Allinea a destra', 'en': 'Align right', 'fr': 'Aligner à droite', 'es': 'Alinear a la derecha'},
+  'clear_format': {'it': 'Cancella formattazione', 'en': 'Clear formatting', 'fr': 'Effacer la mise en forme', 'es': 'Borrar formato'},
+  'indent': {'it': 'Rientro', 'en': 'Indent', 'fr': 'Retrait', 'es': 'Sangría'},
+  'image': {'it': 'Immagine', 'en': 'Image', 'fr': 'Image', 'es': 'Imagen'},
+  'insert_image': {'it': 'Inserisci immagine', 'en': 'Insert image', 'fr': 'Insérer une image', 'es': 'Insertar imagen'},
+
+  // ── Event presets ──
+  'meeting': {'it': 'Riunione', 'en': 'Meeting', 'fr': 'Réunion', 'es': 'Reunión'},
+  'birthday': {'it': 'Compleanno', 'en': 'Birthday', 'fr': 'Anniversaire', 'es': 'Cumpleaños'},
+  'appointment': {'it': 'Appuntamento', 'en': 'Appointment', 'fr': 'Rendez-vous', 'es': 'Cita'},
+  'deadline': {'it': 'Scadenza', 'en': 'Deadline', 'fr': 'Échéance', 'es': 'Fecha límite'},
+  'trip': {'it': 'Viaggio', 'en': 'Trip', 'fr': 'Voyage', 'es': 'Viaje'},
+  'sport': {'it': 'Sport', 'en': 'Sport', 'fr': 'Sport', 'es': 'Deporte'},
+
+  // ── Religions ──
+  'catholic': {'it': 'Cattolica', 'en': 'Catholic', 'fr': 'Catholique', 'es': 'Católica'},
+  'orthodox': {'it': 'Ortodossa', 'en': 'Orthodox', 'fr': 'Orthodoxe', 'es': 'Ortodoxa'},
+  'protestant': {'it': 'Protestante', 'en': 'Protestant', 'fr': 'Protestante', 'es': 'Protestante'},
+  'jewish': {'it': 'Ebraica', 'en': 'Jewish', 'fr': 'Juive', 'es': 'Judía'},
+  'islamic': {'it': 'Islamica', 'en': 'Islamic', 'fr': 'Islamique', 'es': 'Islámica'},
+  'buddhist': {'it': 'Buddista', 'en': 'Buddhist', 'fr': 'Bouddhiste', 'es': 'Budista'},
+  'hindu': {'it': 'Induista', 'en': 'Hindu', 'fr': 'Hindoue', 'es': 'Hindú'},
+  'none_religion': {'it': 'Nessuna', 'en': 'None', 'fr': 'Aucune', 'es': 'Ninguna'},
+
+  // ── Account deletion dialog reasons ──
+  'confirm_with_password': {'it': 'Conferma con password', 'en': 'Confirm with password', 'fr': 'Confirmer avec le mot de passe', 'es': 'Confirmar con contraseña'},
+  'enter_password': {'it': 'Inserisci la tua password', 'en': 'Enter your password', 'fr': 'Entrez votre mot de passe', 'es': 'Introduce tu contraseña'},
+  'account_deleted': {'it': 'Account eliminato', 'en': 'Account deleted', 'fr': 'Compte supprimé', 'es': 'Cuenta eliminada'},
+
+  // ── Horoscope ──
+  'daily_horoscope': {'it': 'Oroscopo del giorno', 'en': 'Daily horoscope', 'fr': 'Horoscope du jour', 'es': 'Horóscopo del día'},
+  'horoscope_not_available': {'it': 'Oroscopo non disponibile', 'en': 'Horoscope not available', 'fr': 'Horoscope non disponible', 'es': 'Horóscopo no disponible'},
+  'loading_horoscope': {'it': 'Caricamento oroscopo...', 'en': 'Loading horoscope...', 'fr': 'Chargement de l\'horoscope...', 'es': 'Cargando horóscopo...'},
+
+  // ── Google integrations ──
+  'google_calendar': {'it': 'Google Calendar', 'en': 'Google Calendar', 'fr': 'Google Calendar', 'es': 'Google Calendar'},
+  'google_drive': {'it': 'Google Drive', 'en': 'Google Drive', 'fr': 'Google Drive', 'es': 'Google Drive'},
+
+  // ── Misc UI ──
+  'completed': {'it': 'Completato', 'en': 'Completed', 'fr': 'Terminé', 'es': 'Completado'},
+  'not_completed': {'it': 'Non completato', 'en': 'Not completed', 'fr': 'Non terminé', 'es': 'No completado'},
+  'mark_completed': {'it': 'Segna come completato', 'en': 'Mark as completed', 'fr': 'Marquer comme terminé', 'es': 'Marcar como completado'},
+  'mark_not_completed': {'it': 'Segna come non completato', 'en': 'Mark as not completed', 'fr': 'Marquer comme non terminé', 'es': 'Marcar como no completado'},
+  'add_note': {'it': 'Aggiungi nota', 'en': 'Add note', 'fr': 'Ajouter une note', 'es': 'Añadir nota'},
+  'choose_calendar': {'it': 'Scegli calendario', 'en': 'Choose calendar', 'fr': 'Choisir le calendrier', 'es': 'Elegir calendario'},
+  'choose_reminder': {'it': 'Scegli promemoria', 'en': 'Choose reminder', 'fr': 'Choisir le rappel', 'es': 'Elegir recordatorio'},
+  'select_date': {'it': 'Seleziona data', 'en': 'Select date', 'fr': 'Sélectionner la date', 'es': 'Seleccionar fecha'},
+  'select_time': {'it': 'Seleziona ora', 'en': 'Select time', 'fr': 'Sélectionner l\'heure', 'es': 'Seleccionar hora'},
+  'no_title': {'it': 'Senza titolo', 'en': 'No title', 'fr': 'Sans titre', 'es': 'Sin título'},
+  'add_attachment': {'it': 'Aggiungi allegato', 'en': 'Add attachment', 'fr': 'Ajouter une pièce jointe', 'es': 'Añadir adjunto'},
+  'share_event': {'it': 'Condividi evento', 'en': 'Share event', 'fr': 'Partager l\'événement', 'es': 'Compartir evento'},
+  'add_person': {'it': 'Aggiungi persona', 'en': 'Add person', 'fr': 'Ajouter une personne', 'es': 'Añadir persona'},
+  'person_name': {'it': 'Nome persona', 'en': 'Person name', 'fr': 'Nom de la personne', 'es': 'Nombre de la persona'},
+  'ask_gemini': {'it': 'Chiedi a Gemini', 'en': 'Ask Gemini', 'fr': 'Demander à Gemini', 'es': 'Preguntar a Gemini'},
+  'ai_response': {'it': 'Risposta AI', 'en': 'AI Response', 'fr': 'Réponse IA', 'es': 'Respuesta IA'},
+  'type_message': {'it': 'Scrivi un messaggio...', 'en': 'Type a message...', 'fr': 'Écrivez un message...', 'es': 'Escribe un mensaje...'},
+  'empty_note': {'it': 'Nota vuota', 'en': 'Empty note', 'fr': 'Note vide', 'es': 'Nota vacía'},
+  'set_pin': {'it': 'Imposta PIN', 'en': 'Set PIN', 'fr': 'Définir le PIN', 'es': 'Establecer PIN'},
+  'change_pin': {'it': 'Cambia PIN', 'en': 'Change PIN', 'fr': 'Changer le PIN', 'es': 'Cambiar PIN'},
+  'pin_set': {'it': 'PIN impostato', 'en': 'PIN set', 'fr': 'PIN défini', 'es': 'PIN establecido'},
+  'download_font': {'it': 'Scarica Font', 'en': 'Download Font', 'fr': 'Télécharger la police', 'es': 'Descargar fuente'},
+  'font_name': {'it': 'Nome del font', 'en': 'Font name', 'fr': 'Nom de la police', 'es': 'Nombre de la fuente'},
+  'font_downloaded': {'it': 'Font scaricato', 'en': 'Font downloaded', 'fr': 'Police téléchargée', 'es': 'Fuente descargada'},
+  'add_template': {'it': 'Aggiungi Template', 'en': 'Add Template', 'fr': 'Ajouter un modèle', 'es': 'Añadir plantilla'},
+  'template_name': {'it': 'Nome template', 'en': 'Template name', 'fr': 'Nom du modèle', 'es': 'Nombre de la plantilla'},
+  'delete_font': {'it': 'Elimina Font', 'en': 'Delete Font', 'fr': 'Supprimer la police', 'es': 'Eliminar fuente'},
+  'n_days': {'it': '{n} giorni', 'en': '{n} days', 'fr': '{n} jours', 'es': '{n} días'},
+  'select_religion': {'it': 'Seleziona religione', 'en': 'Select religion', 'fr': 'Sélectionner la religion', 'es': 'Seleccionar religión'},
+
+  // --- Empty states ---
+  'trash_empty': {'it': 'Cestino vuoto', 'en': 'Trash empty', 'fr': 'Corbeille vide', 'es': 'Papelera vacía'},
+  'no_email': {'it': 'Nessuna email', 'en': 'No email', 'fr': 'Pas d\'email', 'es': 'Sin email'},
+  'no_active_integrations': {'it': 'Nessuna integrazione attiva', 'en': 'No active integrations', 'fr': 'Aucune intégration active', 'es': 'Sin integraciones activas'},
+  'no_extra_fonts': {'it': 'Nessun font aggiuntivo scaricato', 'en': 'No extra fonts downloaded', 'fr': 'Aucune police supplémentaire', 'es': 'Sin fuentes adicionales'},
+  'no_custom_templates': {'it': 'Nessun template personalizzato', 'en': 'No custom templates', 'fr': 'Aucun modèle personnalisé', 'es': 'Sin plantillas personalizadas'},
+  'no_results_for': {'it': 'Nessun risultato per', 'en': 'No results for', 'fr': 'Aucun résultat pour', 'es': 'Sin resultados para'},
+  'no_deep_notes': {'it': 'Nessuna Deep Note', 'en': 'No Deep Notes', 'fr': 'Aucune Deep Note', 'es': 'Sin Deep Notes'},
+  'write_first_quick_note': {'it': 'Scrivi la tua prima nota rapida!', 'en': 'Write your first quick note!', 'fr': 'Écrivez votre première note rapide !', 'es': '¡Escribe tu primera nota rápida!'},
+  'create_first_note': {'it': 'Crea la tua prima nota!', 'en': 'Create your first note!', 'fr': 'Créez votre première note !', 'es': '¡Crea tu primera nota!'},
+
+  // --- Status ---
+  'not_set_m': {'it': 'Non impostato', 'en': 'Not set', 'fr': 'Non défini', 'es': 'No establecido'},
+  'not_set_f': {'it': 'Non impostata', 'en': 'Not set', 'fr': 'Non définie', 'es': 'No establecida'},
+  'wrong_password': {'it': 'Password errata', 'en': 'Wrong password', 'fr': 'Mot de passe incorrect', 'es': 'Contraseña incorrecta'},
+  'connected_success': {'it': 'connesso!', 'en': 'connected!', 'fr': 'connecté !', 'es': '¡conectado!'},
+  'auth_failed': {'it': 'Autorizzazione non riuscita', 'en': 'Authorization failed', 'fr': 'Échec de l\'autorisation', 'es': 'Error de autorización'},
+  'disconnected': {'it': 'disconnesso', 'en': 'disconnected', 'fr': 'déconnecté', 'es': 'desconectado'},
+  'health_connected': {'it': 'Salute connessa!', 'en': 'Health connected!', 'fr': 'Santé connectée !', 'es': '¡Salud conectada!'},
+  'health_disconnected': {'it': 'Salute disconnessa', 'en': 'Health disconnected', 'fr': 'Santé déconnectée', 'es': 'Salud desconectada'},
+  'available_ios_android': {'it': 'Disponibile su iOS e Android', 'en': 'Available on iOS and Android', 'fr': 'Disponible sur iOS et Android', 'es': 'Disponible en iOS y Android'},
+  'not_available_web': {'it': 'Non disponibile sul web', 'en': 'Not available on web', 'fr': 'Non disponible sur le web', 'es': 'No disponible en la web'},
+  'password_updated': {'it': 'Password aggiornata', 'en': 'Password updated', 'fr': 'Mot de passe mis à jour', 'es': 'Contraseña actualizada'},
+  'profile_copied': {'it': 'Profilo copiato negli appunti (vCard)', 'en': 'Profile copied to clipboard (vCard)', 'fr': 'Profil copié dans le presse-papiers (vCard)', 'es': 'Perfil copiado al portapapeles (vCard)'},
+  'welcome_pro': {'it': 'Benvenuto in Ethos Note PRO!', 'en': 'Welcome to Ethos Note PRO!', 'fr': 'Bienvenue dans Ethos Note PRO !', 'es': '¡Bienvenido a Ethos Note PRO!'},
+
+  // --- Time formatting ---
+  'days_ago': {'it': 'giorni fa', 'en': 'days ago', 'fr': 'jours', 'es': 'días atrás'},
+  'min_before': {'it': 'min prima', 'en': 'min before', 'fr': 'min avant', 'es': 'min antes'},
+  'hours_before': {'it': 'ore prima', 'en': 'hours before', 'fr': 'heures avant', 'es': 'horas antes'},
+  'hours_min_before': {'it': 'ore {m} min prima', 'en': 'hours {m} min before', 'fr': 'heures {m} min avant', 'es': 'horas {m} min antes'},
+  'day_before': {'it': '1 giorno prima', 'en': '1 day before', 'fr': '1 jour avant', 'es': '1 día antes'},
+  'days_before': {'it': 'giorni prima', 'en': 'days before', 'fr': 'jours avant', 'es': 'días antes'},
+  'n_events': {'it': '{n} evento', 'en': '{n} event', 'fr': '{n} événement', 'es': '{n} evento'},
+  'n_events_plural': {'it': '{n} eventi', 'en': '{n} events', 'fr': '{n} événements', 'es': '{n} eventos'},
+
+  // --- Calendar settings constants ---
+  '10_min_before': {'it': '10 minuti prima', 'en': '10 min before', 'fr': '10 min avant', 'es': '10 min antes'},
+  'vibration_only': {'it': 'Solo Vibrazione', 'en': 'Vibration only', 'fr': 'Vibration uniquement', 'es': 'Solo vibración'},
+  'sound_only': {'it': 'Solo Suono', 'en': 'Sound only', 'fr': 'Son uniquement', 'es': 'Solo sonido'},
+  'bell': {'it': 'Campanella', 'en': 'Bell', 'fr': 'Cloche', 'es': 'Campana'},
+  'melody': {'it': 'Melodia', 'en': 'Melody', 'fr': 'Mélodie', 'es': 'Melodía'},
+  '3_seconds': {'it': '3 secondi', 'en': '3 seconds', 'fr': '3 secondes', 'es': '3 segundos'},
+  'italic_font': {'it': 'Corsivo', 'en': 'Italic', 'fr': 'Italique', 'es': 'Cursiva'},
+  'font_preview': {'it': 'Anteprima: 1 2 3 4 5 Gennaio 2026', 'en': 'Preview: 1 2 3 4 5 January 2026', 'fr': 'Aperçu : 1 2 3 4 5 Janvier 2026', 'es': 'Vista previa: 1 2 3 4 5 Enero 2026'},
+
+  // --- Event editor ---
+  '1_week_before': {'it': '1 settimana prima', 'en': '1 week before', 'fr': '1 semaine avant', 'es': '1 semana antes'},
+  'date_and_time': {'it': 'Data e Ora', 'en': 'Date and Time', 'fr': 'Date et heure', 'es': 'Fecha y hora'},
+  'alert': {'it': 'Avviso', 'en': 'Alert', 'fr': 'Alerte', 'es': 'Alerta'},
+  'custom_duration': {'it': 'Durata Personalizzata', 'en': 'Custom Duration', 'fr': 'Durée personnalisée', 'es': 'Duración personalizada'},
+  'insert_seconds': {'it': 'Inserisci i secondi', 'en': 'Enter seconds', 'fr': 'Entrez les secondes', 'es': 'Introduce los segundos'},
+  'custom_alert_time': {'it': 'Tempo di Avviso Personalizzato', 'en': 'Custom Alert Time', 'fr': 'Temps d\'alerte personnalisé', 'es': 'Tiempo de alerta personalizado'},
+  'insert_minutes': {'it': 'Inserisci i minuti', 'en': 'Enter minutes', 'fr': 'Entrez les minutes', 'es': 'Introduce los minutos'},
+  'custom': {'it': 'Personalizzato', 'en': 'Custom', 'fr': 'Personnalisé', 'es': 'Personalizado'},
+  'select_multiple_alerts': {'it': 'Puoi selezionare più avvisi contemporaneamente', 'en': 'You can select multiple alerts', 'fr': 'Vous pouvez sélectionner plusieurs alertes', 'es': 'Puedes seleccionar varias alertas'},
+
+  // --- Settings descriptions ---
+  'google_cal_desc': {'it': 'Collega Google Calendar per sincronizzare i tuoi eventi in modo bidirezionale.', 'en': 'Connect Google Calendar to sync your events bidirectionally.', 'fr': 'Connectez Google Calendar pour synchroniser vos événements.', 'es': 'Conecta Google Calendar para sincronizar tus eventos.'},
+  'next_month_lighter': {'it': 'I giorni del mese successivo appaiono più chiari', 'en': 'Next month days appear lighter', 'fr': 'Les jours du mois suivant apparaissent plus clairs', 'es': 'Los días del mes siguiente aparecen más claros'},
+  'city_hint': {'it': 'es: Roma, Milano, Napoli', 'en': 'e.g. London, Paris, NYC', 'fr': 'ex : Paris, Lyon, Marseille', 'es': 'ej: Madrid, Barcelona, Sevilla'},
+  'other_none': {'it': 'Altra/Nessuna', 'en': 'Other/None', 'fr': 'Autre/Aucune', 'es': 'Otra/Ninguna'},
+  'cycle_privacy': {'it': 'I dati del ciclo sono privati e non vengono mai condivisi.', 'en': 'Cycle data is private and never shared.', 'fr': 'Les données du cycle sont privées et jamais partagées.', 'es': 'Los datos del ciclo son privados y nunca se comparten.'},
+  'health_connected_desc': {'it': 'Passi, battito cardiaco, sonno e SpO2 visibili nel calendario', 'en': 'Steps, heart rate, sleep, and SpO2 visible in calendar', 'fr': 'Pas, fréquence cardiaque, sommeil et SpO2 visibles dans le calendrier', 'es': 'Pasos, frecuencia cardíaca, sueño y SpO2 visibles en el calendario'},
+  'health_connect_desc': {'it': 'Collega per vedere i dati salute nel calendario', 'en': 'Connect to see health data in calendar', 'fr': 'Connectez pour voir les données santé dans le calendrier', 'es': 'Conecta para ver los datos de salud en el calendario'},
+  'health_web_warning': {'it': 'L\'integrazione salute funziona su iOS (Apple Health) e Android (Health Connect). Sul web non è disponibile.', 'en': 'Health integration works on iOS (Apple Health) and Android (Health Connect). Not available on web.', 'fr': 'L\'intégration santé fonctionne sur iOS (Apple Health) et Android (Health Connect). Non disponible sur le web.', 'es': 'La integración de salud funciona en iOS (Apple Health) y Android (Health Connect). No disponible en la web.'},
+  'health_privacy': {'it': 'I dati vengono letti dal dispositivo e non vengono mai inviati a server esterni.', 'en': 'Data is read from the device and never sent to external servers.', 'fr': 'Les données sont lues depuis l\'appareil et jamais envoyées à des serveurs externes.', 'es': 'Los datos se leen del dispositivo y nunca se envían a servidores externos.'},
+  'api_key_privacy': {'it': 'La chiave API viene salvata localmente sul dispositivo', 'en': 'API key is saved locally on the device', 'fr': 'La clé API est sauvegardée localement sur l\'appareil', 'es': 'La clave API se guarda localmente en el dispositivo'},
+  'ai_formatting_desc': {'it': 'Titolo, paragrafi, elenchi e controllo ortografico automatico', 'en': 'Title, paragraphs, lists and automatic spellcheck', 'fr': 'Titre, paragraphes, listes et correction orthographique automatique', 'es': 'Título, párrafos, listas y corrección ortográfica automática'},
+  'requires_gemini': {'it': 'Richiede Gemini AI attivo', 'en': 'Requires Gemini AI active', 'fr': 'Nécessite Gemini AI actif', 'es': 'Requiere Gemini AI activo'},
+  'custom_ai_instructions': {'it': 'Dai istruzioni personalizzate all\'AI', 'en': 'Give custom instructions to AI', 'fr': 'Donnez des instructions personnalisées à l\'IA', 'es': 'Da instrucciones personalizadas a la IA'},
+  'keep_notes_for': {'it': 'Conserva note per', 'en': 'Keep notes for', 'fr': 'Conserver les notes pendant', 'es': 'Conservar notas durante'},
+  'trash_auto_delete': {'it': 'Le note nel cestino verranno eliminate automaticamente dopo {n} giorni', 'en': 'Notes in trash will be automatically deleted after {n} days', 'fr': 'Les notes dans la corbeille seront supprimées automatiquement après {n} jours', 'es': 'Las notas en la papelera se eliminarán automáticamente después de {n} días'},
+  'deletion_in_days': {'it': 'Eliminazione tra {n} giorni', 'en': 'Deletion in {n} days', 'fr': 'Suppression dans {n} jours', 'es': 'Eliminación en {n} días'},
+  'expiring_today': {'it': 'In scadenza oggi', 'en': 'Expiring today', 'fr': 'Expire aujourd\'hui', 'es': 'Expira hoy'},
+  'n_days_label': {'it': '{n} giorni', 'en': '{n} days', 'fr': '{n} jours', 'es': '{n} días'},
+
+  // --- AI labels ---
+  'summary_label': {'it': 'Riassunto', 'en': 'Summary', 'fr': 'Résumé', 'es': 'Resumen'},
+  'rewrite_label': {'it': 'Riscrittura', 'en': 'Rewrite', 'fr': 'Réécriture', 'es': 'Reescritura'},
+  'spelling_only': {'it': 'Solo ortografia', 'en': 'Spelling only', 'fr': 'Orthographe uniquement', 'es': 'Solo ortografía'},
+  'spelling_punctuation': {'it': 'Ortografia e punteggiatura', 'en': 'Spelling and punctuation', 'fr': 'Orthographe et ponctuation', 'es': 'Ortografía y puntuación'},
+  'light_summary': {'it': 'Riassunto leggero', 'en': 'Light summary', 'fr': 'Résumé léger', 'es': 'Resumen ligero'},
+  'reformulation': {'it': 'Riformulazione', 'en': 'Reformulation', 'fr': 'Reformulation', 'es': 'Reformulación'},
+  'full_rewrite': {'it': 'Riscrittura completa', 'en': 'Full rewrite', 'fr': 'Réécriture complète', 'es': 'Reescritura completa'},
+  'ai_summary': {'it': 'Riassunto AI', 'en': 'AI Summary', 'fr': 'Résumé IA', 'es': 'Resumen IA'},
+  'ai_transcription': {'it': 'Trascrizione AI', 'en': 'AI Transcription', 'fr': 'Transcription IA', 'es': 'Transcripción IA'},
+  'ai_correction': {'it': 'Correzione AI', 'en': 'AI Correction', 'fr': 'Correction IA', 'es': 'Corrección IA'},
+  'ai_key_points': {'it': 'Punti Chiave AI', 'en': 'AI Key Points', 'fr': 'Points clés IA', 'es': 'Puntos clave IA'},
+  'summarize': {'it': 'Riassumi', 'en': 'Summarize', 'fr': 'Résumer', 'es': 'Resumir'},
+  'key_points': {'it': 'Punti Chiave', 'en': 'Key Points', 'fr': 'Points clés', 'es': 'Puntos clave'},
+
+  // --- Flash/Deep Note UI ---
+  'stop': {'it': 'Ferma', 'en': 'Stop', 'fr': 'Arrêter', 'es': 'Detener'},
+  'photo': {'it': 'Foto', 'en': 'Photo', 'fr': 'Photo', 'es': 'Foto'},
+  'write_action': {'it': 'Scrivi', 'en': 'Write', 'fr': 'Écrire', 'es': 'Escribir'},
+  'audio': {'it': 'Audio', 'en': 'Audio', 'fr': 'Audio', 'es': 'Audio'},
+  'by_day': {'it': 'Per giorno', 'en': 'By day', 'fr': 'Par jour', 'es': 'Por día'},
+  'by_week': {'it': 'Per settimana', 'en': 'By week', 'fr': 'Par semaine', 'es': 'Por semana'},
+  'by_month': {'it': 'Per mese', 'en': 'By month', 'fr': 'Par mois', 'es': 'Por mes'},
+  'by_year': {'it': 'Per anno', 'en': 'By year', 'fr': 'Par année', 'es': 'Por año'},
+  'all_items': {'it': 'Tutte', 'en': 'All', 'fr': 'Toutes', 'es': 'Todas'},
+  'preview': {'it': 'Anteprima', 'en': 'Preview', 'fr': 'Aperçu', 'es': 'Vista previa'},
+  'tap_to_stop': {'it': 'Tocca per fermare', 'en': 'Tap to stop', 'fr': 'Appuyez pour arrêter', 'es': 'Toca para detener'},
+  'tap_to_record': {'it': 'Tocca per registrare', 'en': 'Tap to record', 'fr': 'Appuyez pour enregistrer', 'es': 'Toca para grabar'},
+  'max_2_minutes': {'it': 'Max 2 minuti', 'en': 'Max 2 minutes', 'fr': 'Max 2 minutes', 'es': 'Máx. 2 minutos'},
+  'note_label': {'it': 'Nota', 'en': 'Note', 'fr': 'Note', 'es': 'Nota'},
+  'created_on': {'it': 'Creata il', 'en': 'Created on', 'fr': 'Créée le', 'es': 'Creada el'},
+  'at_time': {'it': 'alle', 'en': 'at', 'fr': 'à', 'es': 'a las'},
+  'write_note_here': {'it': 'Scrivi qui la tua nota...', 'en': 'Write your note here...', 'fr': 'Écrivez votre note ici...', 'es': 'Escribe tu nota aquí...'},
+  'quick_colors': {'it': 'Rapidi', 'en': 'Quick', 'fr': 'Rapides', 'es': 'Rápidos'},
+  'write_quick_idea': {'it': 'Scrivi la tua idea veloce...', 'en': 'Write your quick idea...', 'fr': 'Écrivez votre idée rapide...', 'es': 'Escribe tu idea rápida...'},
+
+  // --- Health card ---
+  'sleep': {'it': 'Sonno', 'en': 'Sleep', 'fr': 'Sommeil', 'es': 'Sueño'},
+  'steps': {'it': 'Passi', 'en': 'Steps', 'fr': 'Pas', 'es': 'Pasos'},
+  'health_ios_android': {'it': 'Disponibile su iOS (Apple Health) e Android (Health Connect)', 'en': 'Available on iOS (Apple Health) and Android (Health Connect)', 'fr': 'Disponible sur iOS (Apple Health) et Android (Health Connect)', 'es': 'Disponible en iOS (Apple Health) y Android (Health Connect)'},
+  'tap_connect_apple': {'it': 'Tocca per collegare Apple Health', 'en': 'Tap to connect Apple Health', 'fr': 'Appuyez pour connecter Apple Health', 'es': 'Toca para conectar Apple Health'},
+  'tap_connect_health': {'it': 'Tocca per collegare Health Connect', 'en': 'Tap to connect Health Connect', 'fr': 'Appuyez pour connecter Health Connect', 'es': 'Toca para conectar Health Connect'},
+  'weight': {'it': 'Peso', 'en': 'Weight', 'fr': 'Poids', 'es': 'Peso'},
+
+  // --- Integrations ---
+  'integrations': {'it': 'Integrazioni', 'en': 'Integrations', 'fr': 'Intégrations', 'es': 'Integraciones'},
+
+  // --- PRO dialog ---
+  'per_month': {'it': '/mese', 'en': '/month', 'fr': '/mois', 'es': '/mes'},
+  'pro_benefits': {'it': 'Vantaggi PRO:', 'en': 'PRO Benefits:', 'fr': 'Avantages PRO :', 'es': 'Beneficios PRO:'},
+  'business_profile': {'it': 'Profilo Business', 'en': 'Business Profile', 'fr': 'Profil Business', 'es': 'Perfil Business'},
+  'group_sharing': {'it': 'Condivisione con gruppi di lavoro', 'en': 'Sharing with work groups', 'fr': 'Partage avec les groupes de travail', 'es': 'Compartir con grupos de trabajo'},
+  'calendar_notes_sharing': {'it': 'Condivisione calendario e note', 'en': 'Calendar and notes sharing', 'fr': 'Partage du calendrier et des notes', 'es': 'Compartir calendario y notas'},
+  'advanced_editor': {'it': 'Editor avanzato stile Word', 'en': 'Advanced Word-style editor', 'fr': 'Éditeur avancé style Word', 'es': 'Editor avanzado estilo Word'},
+  'full_text_formatting': {'it': 'Formattazione testo completa', 'en': 'Full text formatting', 'fr': 'Formatage complet du texte', 'es': 'Formato de texto completo'},
+  'tables_media': {'it': 'Tabelle e inserimento media', 'en': 'Tables and media insertion', 'fr': 'Tableaux et insertion de médias', 'es': 'Tablas e inserción de medios'},
+  'unlimited_backup': {'it': 'Backup cloud illimitato', 'en': 'Unlimited cloud backup', 'fr': 'Sauvegarde cloud illimitée', 'es': 'Backup en la nube ilimitado'},
+  'multi_device_sync': {'it': 'Sincronizzazione multi-dispositivo', 'en': 'Multi-device sync', 'fr': 'Synchronisation multi-appareils', 'es': 'Sincronización multi-dispositivo'},
+
+  // --- Religion display ---
+
+  // --- SnackBar messages ---
+  'error_loading_photo': {'it': 'Errore nel caricamento foto', 'en': 'Error loading photo', 'fr': 'Erreur de chargement de la photo', 'es': 'Error al cargar la foto'},
+  'health_available_mobile': {'it': 'Integrazione salute disponibile su iOS e Android', 'en': 'Health integration available on iOS and Android', 'fr': 'Intégration santé disponible sur iOS et Android', 'es': 'Integración de salud disponible en iOS y Android'},
+  'template_coming': {'it': 'Creazione template in arrivo!', 'en': 'Template creation coming soon!', 'fr': 'Création de modèles bientôt disponible !', 'es': '¡Creación de plantillas próximamente!'},
+  'note_replaced': {'it': 'Nota sostituita', 'en': 'Note replaced', 'fr': 'Note remplacée', 'es': 'Nota reemplazada'},
+  'ai_error': {'it': 'Errore AI', 'en': 'AI Error', 'fr': 'Erreur IA', 'es': 'Error IA'},
+  'photo_coming': {'it': 'Funzione foto in arrivo!', 'en': 'Photo feature coming soon!', 'fr': 'Fonction photo bientôt disponible !', 'es': '¡Función de foto próximamente!'},
+  'audio_not_available': {'it': 'Audio non disponibile', 'en': 'Audio not available', 'fr': 'Audio non disponible', 'es': 'Audio no disponible'},
+  'mic_permission_denied': {'it': 'Permesso microfono non concesso', 'en': 'Microphone permission denied', 'fr': 'Permission du microphone refusée', 'es': 'Permiso de micrófono denegado'},
+  'pins_no_match': {'it': 'I PIN non corrispondono o sono troppo corti', 'en': 'PINs don\'t match or are too short', 'fr': 'Les PIN ne correspondent pas ou sont trop courts', 'es': 'Los PIN no coinciden o son muy cortos'},
+  'note_moved_private': {'it': 'Nota spostata in Privata', 'en': 'Note moved to Private', 'fr': 'Note déplacée dans Privé', 'es': 'Nota movida a Privada'},
+  'configure_gemini': {'it': 'Configura la chiave API Gemini nelle impostazioni Flash Notes', 'en': 'Configure the Gemini API key in Flash Notes settings', 'fr': 'Configurez la clé API Gemini dans les paramètres Flash Notes', 'es': 'Configura la clave API Gemini en los ajustes de Flash Notes'},
+  'event_save_error': {'it': 'Errore nel salvataggio dell\'evento', 'en': 'Error saving event', 'fr': 'Erreur lors de l\'enregistrement de l\'événement', 'es': 'Error al guardar el evento'},
+  'event_added_on': {'it': 'aggiunto il', 'en': 'added on', 'fr': 'ajouté le', 'es': 'añadido el'},
+
+  // --- Misc ---
+  'created_by_ethos': {'it': 'Creato da Ethos Note', 'en': 'Created by Ethos Note', 'fr': 'Créé par Ethos Note', 'es': 'Creado por Ethos Note'},
+  'private_folder': {'it': 'Privata', 'en': 'Private', 'fr': 'Privé', 'es': 'Privada'},
+  'move_to_private': {'it': 'Sposta in Privata', 'en': 'Move to Private', 'fr': 'Déplacer dans Privé', 'es': 'Mover a Privada'},
+  'shared_folder': {'it': 'Cartella condivisa', 'en': 'Shared folder', 'fr': 'Dossier partagé', 'es': 'Carpeta compartida'},
+  'add_people': {'it': 'Aggiungi persone che possono vedere e modificare', 'en': 'Add people who can view and edit', 'fr': 'Ajouter des personnes qui peuvent voir et modifier', 'es': 'Añadir personas que pueden ver y editar'},
+  'collaborator_email': {'it': 'Email collaboratore', 'en': 'Collaborator email', 'fr': 'Email du collaborateur', 'es': 'Email del colaborador'},
+  'enter_title': {'it': 'Inserisci il titolo...', 'en': 'Enter title...', 'fr': 'Entrez le titre...', 'es': 'Introduce el título...'},
+  'header_hint': {'it': 'Nome, indirizzo, contatti...', 'en': 'Name, address, contacts...', 'fr': 'Nom, adresse, contacts...', 'es': 'Nombre, dirección, contactos...'},
+  'footer_hint': {'it': 'P.IVA, CF, PEC...', 'en': 'VAT, Tax ID, PEC...', 'fr': 'TVA, SIRET, email certifié...', 'es': 'CIF, NIF, email certificado...'},
+  'color_hex_hint': {'it': 'es. FF5722', 'en': 'e.g. FF5722', 'fr': 'ex. FF5722', 'es': 'ej. FF5722'},
+  'link_text': {'it': 'Testo del link', 'en': 'Link text', 'fr': 'Texte du lien', 'es': 'Texto del enlace'},
+  'link_text_hint': {'it': 'Es: Clicca qui', 'en': 'E.g.: Click here', 'fr': 'Ex : Cliquez ici', 'es': 'Ej: Haz clic aquí'},
+  'insert_link': {'it': 'Inserisci Link', 'en': 'Insert Link', 'fr': 'Insérer un lien', 'es': 'Insertar enlace'},
+  'apply_template_q': {'it': 'Applicare', 'en': 'Apply', 'fr': 'Appliquer', 'es': 'Aplicar'},
+  'template_replace_warning': {'it': 'Il contenuto attuale verrà sostituito con il template selezionato.', 'en': 'Current content will be replaced with the selected template.', 'fr': 'Le contenu actuel sera remplacé par le modèle sélectionné.', 'es': 'El contenido actual será reemplazado por la plantilla seleccionada.'},
+  'google_cal_connected': {'it': 'Google Calendar connesso!', 'en': 'Google Calendar connected!', 'fr': 'Google Calendar connecté !', 'es': '¡Google Calendar conectado!'},
+  'access_cancelled': {'it': 'Accesso annullato o non riuscito', 'en': 'Access cancelled or failed', 'fr': 'Accès annulé ou échoué', 'es': 'Acceso cancelado o fallido'},
+  'google_edit_hint': {'it': 'Modifica gli eventi Google direttamente su Google Calendar', 'en': 'Edit Google events directly on Google Calendar', 'fr': 'Modifiez les événements Google directement sur Google Calendar', 'es': 'Edita los eventos de Google directamente en Google Calendar'},
+  'synced_google': {'it': 'sincronizzato con Google Calendar', 'en': 'synced with Google Calendar', 'fr': 'synchronisé avec Google Calendar', 'es': 'sincronizado con Google Calendar'},
+
+  // --- Deletion reasons ---
+  'privacy_issues': {'it': 'Problemi di privacy', 'en': 'Privacy issues', 'fr': 'Problèmes de confidentialité', 'es': 'Problemas de privacidad'},
+  'optional_comment': {'it': 'Commento opzionale...', 'en': 'Optional comment...', 'fr': 'Commentaire optionnel...', 'es': 'Comentario opcional...'},
+
+  // --- Profile ---
+  'register_email': {'it': 'Registrati con Email', 'en': 'Register with Email', 'fr': 'S\'inscrire par email', 'es': 'Registrarse con email'},
+  'register': {'it': 'Registrati', 'en': 'Register', 'fr': 'S\'inscrire', 'es': 'Registrarse'},
+  'email_hint': {'it': 'tuaemail@esempio.com', 'en': 'your@email.com', 'fr': 'votre@email.com', 'es': 'tu@email.com'},
+  'nickname_hint': {'it': 'es. marco_r', 'en': 'e.g. john_d', 'fr': 'ex. jean_d', 'es': 'ej. juan_r'},
+  'phone_number': {'it': 'Numero di telefono', 'en': 'Phone number', 'fr': 'Numéro de téléphone', 'es': 'Número de teléfono'},
+  'current_password': {'it': 'Password attuale', 'en': 'Current password', 'fr': 'Mot de passe actuel', 'es': 'Contraseña actual'},
+  'new_password': {'it': 'Nuova password', 'en': 'New password', 'fr': 'Nouveau mot de passe', 'es': 'Nueva contraseña'},
+  'change_password': {'it': 'Cambia Password', 'en': 'Change Password', 'fr': 'Changer le mot de passe', 'es': 'Cambiar contraseña'},
+  'url_or_username': {'it': 'URL o username', 'en': 'URL or username', 'fr': 'URL ou nom d\'utilisateur', 'es': 'URL o nombre de usuario'},
+  'new_account': {'it': 'Nuovo Account', 'en': 'New Account', 'fr': 'Nouveau compte', 'es': 'Nueva cuenta'},
+  'add_social': {'it': 'Aggiungi Link Social', 'en': 'Add Social Link', 'fr': 'Ajouter un lien social', 'es': 'Añadir enlace social'},
+  'photo_profile': {'it': 'Foto Profilo', 'en': 'Profile Photo', 'fr': 'Photo de profil', 'es': 'Foto de perfil'},
+  'secondary_accounts': {'it': 'Account secondari', 'en': 'Secondary accounts', 'fr': 'Comptes secondaires', 'es': 'Cuentas secundarias'},
+  'phone_label': {'it': 'Telefono', 'en': 'Phone', 'fr': 'Téléphone', 'es': 'Teléfono'},
+};
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,8 +664,7 @@ Future<void> _initDemoDataIfNeeded() async {
   final prefs = await SharedPreferences.getInstance();
   if (prefs.getBool('demo_data_loaded') == true) return;
 
-  // ── Demo Profile ──
-  // Generate a small 64x64 avatar PNG in memory
+  // ── Demo Profile (full) ──
   final avatarBase64 = _generateDemoAvatarBase64();
   final profile = UserProfile(
     nome: 'Marco',
@@ -35,10 +674,29 @@ Future<void> _initDemoDataIfNeeded() async {
     isPro: true,
     photoBase64: avatarBase64,
     religione: 'Cattolica',
+    telefono: '+39 333 1234567',
+    password: 'demo1234',
+    googleCalendarConnected: true,
+    googleDriveConnected: true,
+    geminiConnected: true,
+    backupMode: 'drive',
+    socialLinks: [
+      'https://linkedin.com/in/marco-rossi',
+      'https://github.com/marcorossi92',
+      'https://instagram.com/marco.rossi',
+    ],
+    friends: ['Giulia Bianchi', 'Luca Verdi', 'Anna Ferretti', 'Alessandro Conti', 'Sara Moretti'],
+    nickname: 'marco_r',
+    accounts: [
+      {'nome': 'Lavoro', 'email': 'marco@azienda.it'},
+      {'nome': 'Studio', 'email': 'marco.rossi@univ.it'},
+    ],
+    activeAccountIndex: 0,
   );
   await prefs.setString('user_profile', json.encode(profile.toJson()));
+  await prefs.setBool('health_authorized', true);
 
-  // ── Demo Calendar Events ──
+  // ── Demo Calendar Events (3+ months) ──
   final now = DateTime.now();
   final events = <String, List<Map<String, dynamic>>>{};
 
@@ -53,35 +711,143 @@ Future<void> _initDemoDataIfNeeded() async {
     events.putIfAbsent(key, () => []).add(event);
   }
 
-  // Today
+  // ── PAST MONTH (30-60 days ago) ──
+  addEvent(now.subtract(const Duration(days: 55)), 'Compleanno Giulia', 19, 0, 23, 30);
+  addEvent(now.subtract(const Duration(days: 52)), 'Riunione trimestrale', 9, 0, 12, 0, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 50)), 'Vernissage galleria', 18, 0, 21, 0);
+  addEvent(now.subtract(const Duration(days: 48)), 'Corso yoga', 7, 30, 8, 30);
+  addEvent(now.subtract(const Duration(days: 45)), 'Conferenza tech', 10, 0, 17, 0, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 45)), 'Cena networking', 20, 0, 22, 30, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 42)), 'Dentista pulizia', 15, 0, 16, 0);
+  addEvent(now.subtract(const Duration(days: 40)), 'Partita calcetto', 20, 0, 21, 30);
+  addEvent(now.subtract(const Duration(days: 38)), 'Pranzo famiglia', 12, 30, 15, 0);
+  addEvent(now.subtract(const Duration(days: 35)), 'Sprint planning', 9, 30, 11, 0, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 33)), 'Teatro con Anna', 20, 30, 23, 0);
+  addEvent(now.subtract(const Duration(days: 32)), 'Pilates', 18, 0, 19, 0);
+
+  // ── PAST 2 WEEKS - 1 MONTH ──
+  addEvent(now.subtract(const Duration(days: 28)), 'Taglio capelli', 11, 0, 12, 0);
+  addEvent(now.subtract(const Duration(days: 28)), 'Call cliente Torino', 14, 0, 15, 0, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 25)), 'Cena sushi con colleghi', 20, 0, 22, 0, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 24)), 'Revisione auto', 8, 30, 10, 30);
+  addEvent(now.subtract(const Duration(days: 22)), 'Demo prodotto', 15, 0, 16, 30, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 20)), 'Corso di cucina', 18, 30, 21, 0);
+  addEvent(now.subtract(const Duration(days: 18)), 'Visita nonna', 10, 0, 13, 0);
+  addEvent(now.subtract(const Duration(days: 16)), 'Presentazione Q4', 10, 0, 12, 0, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 15)), 'Nuoto', 7, 0, 8, 0);
+  addEvent(now.subtract(const Duration(days: 14)), 'Aperitivo Luca', 18, 30, 20, 0);
+  addEvent(now.subtract(const Duration(days: 12)), 'Spesa mercato', 9, 0, 10, 30);
+  addEvent(now.subtract(const Duration(days: 10)), 'Stand-up meeting', 9, 0, 9, 30, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 10)), 'Palestra', 18, 0, 19, 30);
+  addEvent(now.subtract(const Duration(days: 8)), 'Brunch domenicale', 11, 0, 13, 30);
+  addEvent(now.subtract(const Duration(days: 7)), 'Code review sprint', 14, 0, 16, 0, calendar: 'Lavoro');
+
+  // ── PAST WEEK ──
+  addEvent(now.subtract(const Duration(days: 6)), 'Colloquio candidato', 10, 0, 11, 0, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 5)), 'Pilates', 18, 0, 19, 0);
+  addEvent(now.subtract(const Duration(days: 4)), 'Chiamata cliente', 11, 0, 11, 45, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 3)), 'Pizza con amici', 20, 0, 22, 30);
+  addEvent(now.subtract(const Duration(days: 2)), 'Workshop design', 14, 0, 17, 0, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 1)), 'Consegna progetto', 14, 0, 16, 0, calendar: 'Lavoro');
+  addEvent(now.subtract(const Duration(days: 1)), 'Corsa al parco', 7, 0, 8, 0);
+
+  // ── TODAY ──
   addEvent(now, 'Riunione di lavoro', 9, 30, 11, 0, calendar: 'Lavoro');
+  addEvent(now, 'Pranzo team', 12, 30, 13, 30, calendar: 'Lavoro');
   addEvent(now, 'Palestra', 18, 0, 19, 30);
-  // Tomorrow
-  final tomorrow = now.add(const Duration(days: 1));
-  addEvent(tomorrow, 'Pranzo con Anna', 12, 30, 14, 0);
-  addEvent(tomorrow, 'Dentista', 16, 0, 17, 0);
-  // Day after tomorrow
-  final dopodomani = now.add(const Duration(days: 2));
-  addEvent(dopodomani, 'Call cliente Milano', 10, 0, 10, 45, calendar: 'Lavoro');
-  // 3 days from now
-  final fra3 = now.add(const Duration(days: 3));
-  addEvent(fra3, 'Corso di inglese', 17, 0, 18, 30);
-  addEvent(fra3, 'Cena con amici', 20, 30, 23, 0);
-  // 5 days
-  final fra5 = now.add(const Duration(days: 5));
-  addEvent(fra5, 'Spesa settimanale', 10, 0, 11, 30);
-  addEvent(fra5, 'Cinema: nuovo film', 21, 0, 23, 15);
-  // Past event yesterday
-  final ieri = now.subtract(const Duration(days: 1));
-  addEvent(ieri, 'Consegna progetto', 14, 0, 16, 0, calendar: 'Lavoro');
-  // Next week
-  final settProx = now.add(const Duration(days: 7));
-  addEvent(settProx, 'Visita medica', 8, 30, 9, 30);
-  addEvent(settProx, 'Aperitivo colleghi', 18, 30, 20, 0, calendar: 'Lavoro');
+
+  // ── TOMORROW + NEXT DAYS ──
+  final d1 = now.add(const Duration(days: 1));
+  addEvent(d1, 'Pranzo con Anna', 12, 30, 14, 0);
+  addEvent(d1, 'Dentista', 16, 0, 17, 0);
+  final d2 = now.add(const Duration(days: 2));
+  addEvent(d2, 'Call cliente Milano', 10, 0, 10, 45, calendar: 'Lavoro');
+  addEvent(d2, 'Yoga', 18, 0, 19, 0);
+  final d3 = now.add(const Duration(days: 3));
+  addEvent(d3, 'Corso di inglese', 17, 0, 18, 30);
+  addEvent(d3, 'Cena con amici', 20, 30, 23, 0);
+  final d4 = now.add(const Duration(days: 4));
+  addEvent(d4, 'Sprint retrospective', 10, 0, 11, 30, calendar: 'Lavoro');
+  final d5 = now.add(const Duration(days: 5));
+  addEvent(d5, 'Spesa settimanale', 10, 0, 11, 30);
+  addEvent(d5, 'Cinema: nuovo film', 21, 0, 23, 15);
+  final d6 = now.add(const Duration(days: 6));
+  addEvent(d6, 'Brunch famiglia', 11, 0, 14, 0);
+
+  // ── NEXT WEEK ──
+  final d7 = now.add(const Duration(days: 7));
+  addEvent(d7, 'Visita medica', 8, 30, 9, 30);
+  addEvent(d7, 'Aperitivo colleghi', 18, 30, 20, 0, calendar: 'Lavoro');
+  final d8 = now.add(const Duration(days: 8));
+  addEvent(d8, 'Planning meeting', 9, 0, 10, 30, calendar: 'Lavoro');
+  final d9 = now.add(const Duration(days: 9));
+  addEvent(d9, 'Palestra', 18, 0, 19, 30);
+  addEvent(d9, 'Lezione chitarra', 20, 0, 21, 0);
+  final d10 = now.add(const Duration(days: 10));
+  addEvent(d10, 'Pranzo colleghi', 12, 30, 14, 0, calendar: 'Lavoro');
+  final d12 = now.add(const Duration(days: 12));
+  addEvent(d12, 'Partita basket', 16, 0, 18, 0);
+  final d14 = now.add(const Duration(days: 14));
+  addEvent(d14, 'Cena romantica', 20, 0, 23, 0);
+
+  // ── NEXT 2-4 WEEKS ──
+  final d17 = now.add(const Duration(days: 17));
+  addEvent(d17, 'Colloquio lavoro', 10, 0, 11, 30, calendar: 'Lavoro');
+  addEvent(d17, 'Nuoto', 17, 0, 18, 0);
+  final d20 = now.add(const Duration(days: 20));
+  addEvent(d20, 'Compleanno Luca', 19, 0, 23, 59);
+  final d22 = now.add(const Duration(days: 22));
+  addEvent(d22, 'Conferenza Flutter', 9, 0, 18, 0, calendar: 'Lavoro');
+  addEvent(d22, 'Networking dinner', 19, 30, 22, 0, calendar: 'Lavoro');
+  final d25 = now.add(const Duration(days: 25));
+  addEvent(d25, 'Spesa al mercato', 9, 0, 10, 30);
+  addEvent(d25, 'Film con Sara', 21, 0, 23, 30);
+  final d28 = now.add(const Duration(days: 28));
+  addEvent(d28, 'Revisione trimestrale', 10, 0, 12, 0, calendar: 'Lavoro');
+
+  // ── MONTH +2 (30-60 days ahead) ──
+  final d35 = now.add(const Duration(days: 35));
+  addEvent(d35, 'Viaggio Roma - partenza', 6, 0, 8, 0);
+  addEvent(d35, 'Check-in hotel', 14, 0, 15, 0);
+  final d36 = now.add(const Duration(days: 36));
+  addEvent(d36, 'Riunione sede Roma', 9, 0, 17, 0, calendar: 'Lavoro');
+  final d37 = now.add(const Duration(days: 37));
+  addEvent(d37, 'Visita Colosseo', 10, 0, 13, 0);
+  addEvent(d37, 'Rientro Milano', 18, 0, 20, 0);
+  final d40 = now.add(const Duration(days: 40));
+  addEvent(d40, 'Hackathon aziendale', 9, 0, 18, 0, calendar: 'Lavoro');
+  final d42 = now.add(const Duration(days: 42));
+  addEvent(d42, 'Dermatologo', 10, 0, 11, 0);
+  final d45 = now.add(const Duration(days: 45));
+  addEvent(d45, 'Compleanno mamma', 12, 0, 15, 0);
+  addEvent(d45, 'Cena festa', 19, 30, 23, 0);
+  final d50 = now.add(const Duration(days: 50));
+  addEvent(d50, 'Sprint demo', 15, 0, 16, 30, calendar: 'Lavoro');
+  final d55 = now.add(const Duration(days: 55));
+  addEvent(d55, 'Concerto', 21, 0, 23, 30);
+
+  // ── MONTH +3 (60-90 days ahead) ──
+  final d65 = now.add(const Duration(days: 65));
+  addEvent(d65, 'Vacanza Sardegna - partenza', 7, 0, 12, 0);
+  final d66 = now.add(const Duration(days: 66));
+  addEvent(d66, 'Spiaggia Costa Smeralda', 9, 0, 18, 0);
+  final d67 = now.add(const Duration(days: 67));
+  addEvent(d67, 'Escursione barca', 10, 0, 16, 0);
+  final d70 = now.add(const Duration(days: 70));
+  addEvent(d70, 'Rientro da vacanza', 14, 0, 20, 0);
+  final d75 = now.add(const Duration(days: 75));
+  addEvent(d75, 'Ripresa lavoro', 9, 0, 18, 0, calendar: 'Lavoro');
+  final d80 = now.add(const Duration(days: 80));
+  addEvent(d80, 'Matrimonio Alessandro', 14, 0, 23, 59);
+  final d85 = now.add(const Duration(days: 85));
+  addEvent(d85, 'Esame certificazione', 9, 0, 12, 0, calendar: 'Lavoro');
+  final d90 = now.add(const Duration(days: 90));
+  addEvent(d90, 'Review semestrale', 10, 0, 12, 0, calendar: 'Lavoro');
+  addEvent(d90, 'Festa fine progetto', 19, 0, 23, 0, calendar: 'Lavoro');
 
   await prefs.setString('calendar_events_full', json.encode(events));
 
-  // ── Demo Pro Notes ──
+  // ── Demo Pro Notes (12 notes across all folders) ──
   final proNotes = <ProNote>[
     ProNote(
       title: 'Lista della spesa',
@@ -91,7 +857,7 @@ Future<void> _initDemoDataIfNeeded() async {
     ),
     ProNote(
       title: 'Idee progetto app',
-      content: 'Feature da implementare:\n- Sincronizzazione cloud\n- Notifiche push per eventi\n- Widget per la home screen\n- Tema personalizzabile con colori\n- Export PDF delle note\n- Integrazione con Google Calendar',
+      content: 'Feature da implementare:\n- Sincronizzazione cloud\n- Notifiche push per eventi\n- Widget per la home screen\n- Tema personalizzabile con colori\n- Export PDF delle note\n- Integrazione con Google Calendar\n- Dark mode automatico\n- Backup incrementale',
       folder: 'Lavoro',
       createdAt: now.subtract(const Duration(days: 5)),
     ),
@@ -109,7 +875,7 @@ Future<void> _initDemoDataIfNeeded() async {
     ),
     ProNote(
       title: 'Libri da leggere 2026',
-      content: '1. "Il nome della rosa" - Umberto Eco\n2. "Sapiens" - Yuval Noah Harari\n3. "Atomic Habits" - James Clear\n4. "L\'arte della guerra" - Sun Tzu\n5. "Clean Code" - Robert C. Martin\n6. "Il Piccolo Principe" - Saint-Exupéry',
+      content: '1. "Il nome della rosa" - Umberto Eco\n2. "Sapiens" - Yuval Noah Harari\n3. "Atomic Habits" - James Clear\n4. "L\'arte della guerra" - Sun Tzu\n5. "Clean Code" - Robert C. Martin\n6. "Il Piccolo Principe" - Saint-Exupéry\n7. "Thinking, Fast and Slow" - Kahneman\n8. "Deep Work" - Cal Newport',
       folder: 'Generale',
       createdAt: now.subtract(const Duration(days: 15)),
     ),
@@ -119,13 +885,49 @@ Future<void> _initDemoDataIfNeeded() async {
       folder: 'Personale',
       createdAt: now.subtract(const Duration(days: 1)),
     ),
+    ProNote(
+      title: 'Architettura microservizi',
+      content: 'Componenti principali:\n- API Gateway (Kong)\n- Auth Service (JWT + OAuth2)\n- User Service (PostgreSQL)\n- Notification Service (Firebase)\n- File Storage (S3 + CloudFront)\n- Message Queue (RabbitMQ)\n\nPattern:\n- Event sourcing per ordini\n- CQRS per query complesse\n- Circuit breaker per resilienza\n- Rate limiting su gateway',
+      folder: 'Lavoro',
+      createdAt: now.subtract(const Duration(days: 20)),
+    ),
+    ProNote(
+      title: 'Viaggio Sardegna - Pianificazione',
+      content: 'Date: 20-27 Aprile\nVolo: Milano Malpensa → Olbia, Ryanair\nHotel: Resort Costa Smeralda (confermato)\n\nItinerario:\n- Giorno 1: Arrivo, check-in, spiaggia\n- Giorno 2: Costa Smeralda, Porto Cervo\n- Giorno 3: Escursione barca Arcipelago\n- Giorno 4: Nuraghe, cultura\n- Giorno 5: Relax, spa hotel\n- Giorno 6: Trekking Capo Testa\n- Giorno 7: Rientro\n\nBudget: €1.500 totali',
+      folder: 'Personale',
+      createdAt: now.subtract(const Duration(days: 8)),
+    ),
+    ProNote(
+      title: 'Diario personale',
+      content: 'Oggi è stata una giornata intensa ma produttiva. La presentazione del progetto è andata bene, il cliente era soddisfatto. Devo ricordarmi di prendermi più pause durante il lavoro.\n\nObiettivi per la prossima settimana:\n- Completare la documentazione\n- Iniziare il corso online di machine learning\n- Organizzare la cena con i vecchi amici del liceo',
+      folder: 'Privata',
+      createdAt: now.subtract(const Duration(days: 1)),
+    ),
+    ProNote(
+      title: 'Budget mensile Febbraio',
+      content: 'Entrate: €3.200\n\nUscite previste:\n- Affitto: €850\n- Bollette: €180\n- Spesa: €400\n- Trasporti: €120\n- Palestra: €45\n- Abbonamenti: €35\n- Uscite/svago: €300\n- Risparmio: €500\n- Imprevisti: €200\n\nRisparmiato fino ad oggi: €12.340',
+      folder: 'Privata',
+      createdAt: now.subtract(const Duration(days: 12)),
+    ),
+    ProNote(
+      title: 'Appunti corso Flutter avanzato',
+      content: 'Lezione 5 - State Management avanzato:\n- Provider vs Riverpod vs Bloc\n- Quando usare ChangeNotifier\n- Pattern repository\n- Dependency injection\n- Testing dei providers\n\nNote importanti:\n- Riverpod 2.0 preferito per nuovi progetti\n- Evitare setState per stato globale\n- Code generation con build_runner',
+      folder: 'Lavoro',
+      createdAt: now.subtract(const Duration(days: 25)),
+    ),
+    ProNote(
+      title: 'Regali di Natale - idee',
+      content: 'Mamma: Borsa in pelle (budget €100)\nPapà: Orologio Casio vintage (€80)\nGiulia: Profumo Chanel (€90)\nLuca: Libro + bottiglia vino (€50)\nAnna: Cuffia Bluetooth (€70)\nAlessandro: Gift card Steam (€50)\n\nTotale stimato: €440',
+      folder: 'Generale',
+      createdAt: now.subtract(const Duration(days: 45)),
+    ),
   ];
   await prefs.setStringList(
     'pro_notes',
     proNotes.map((n) => json.encode(n.toJson())).toList(),
   );
 
-  // ── Demo Flash Notes ──
+  // ── Demo Flash Notes (20+ notes spread across months) ──
   final flashNotes = <FlashNote>[
     FlashNote(content: 'Comprare regalo compleanno Laura - 20 febbraio', createdAt: now.subtract(const Duration(hours: 2))),
     FlashNote(content: 'Chiamare idraulico per rubinetto cucina', createdAt: now.subtract(const Duration(hours: 5))),
@@ -139,19 +941,131 @@ Future<void> _initDemoDataIfNeeded() async {
     FlashNote(content: 'Film consigliato da Luca: "Perfect Days" di Wim Wenders', createdAt: now.subtract(const Duration(days: 7))),
     FlashNote(content: 'Codice sconto Amazon: SPRING2026 - 15% elettronica', createdAt: now.subtract(const Duration(days: 8))),
     FlashNote(content: 'Riunione condominiale giovedì 20:00 - portare preventivo', createdAt: now.subtract(const Duration(days: 10))),
+    FlashNote(content: 'Ricordarsi di rinnovare abbonamento palestra entro il 28', createdAt: now.subtract(const Duration(days: 14))),
+    FlashNote(content: 'Numero meccanico: 02 7654321 - chiedere preventivo freni', createdAt: now.subtract(const Duration(days: 18))),
+    FlashNote(content: 'Idea progetto: dashboard domotica con Raspberry Pi e Flutter', createdAt: now.subtract(const Duration(days: 22))),
+    FlashNote(content: 'Compleanno Alessandro 15 aprile - organizzare festa a sorpresa', createdAt: now.subtract(const Duration(days: 25))),
+    FlashNote(content: 'Comprare biglietti concerto Vasco Rossi - prevendita 1 marzo', createdAt: now.subtract(const Duration(days: 30))),
+    FlashNote(content: 'Tesi di Giulia: rileggere capitolo 3 entro lunedì', createdAt: now.subtract(const Duration(days: 35))),
+    FlashNote(content: 'Password Netflix nuova: Str0ngP4ss!2026', createdAt: now.subtract(const Duration(days: 40))),
+    FlashNote(content: 'Ricetta tiramisù della nonna: mascarpone 500g, 6 uova, savoiardi 300g, caffè, cacao', createdAt: now.subtract(const Duration(days: 42))),
+    FlashNote(content: 'Podcast interessante: "Indagini" di Stefano Ferrario - episodio su cold cases', createdAt: now.subtract(const Duration(days: 50))),
+    FlashNote(content: 'Portare giacca in tintoria - macchia vino rosso', createdAt: now.subtract(const Duration(days: 55))),
+    FlashNote(content: 'Regalare i vecchi libri universitari a Chiara', createdAt: now.subtract(const Duration(days: 60))),
   ];
   await prefs.setStringList(
     'flash_notes_v2',
     flashNotes.map((n) => json.encode(n.toJson())).toList(),
   );
 
-  // ── Calendar Settings: enable weather for demo ──
+  // ── Calendar Settings: full features enabled ──
   final calSettings = const CalendarSettings(
     showWeather: true,
     weatherCity: 'Roma',
-    showHoroscope: true,
+    showHoroscope: false,
+    showZodiac: true,
+    zodiacDisplayMode: 'icon_and_text',
+    showNextMonthPreview: true,
+    showCycleTracking: true,
+    calendarLayout: 'split',
+    calendarViewMode: 'month',
+    religione: 'Cattolica',
   );
   await calSettings.save();
+
+  // ── Deep Note Settings: full features ──
+  final noteSettings = const NoteProSettings(
+    showPrivateFolder: true,
+    securityPin: '1234',
+    pdfSaveMode: 'google_drive',
+    trashEnabled: true,
+    trashRetentionDays: 30,
+    downloadedFonts: ['Playfair Display', 'Nunito', 'EB Garamond'],
+    customTemplates: [
+      {'name': 'Lettera formale', 'type': 'business'},
+      {'name': 'Report settimanale', 'type': 'report'},
+    ],
+  );
+  await noteSettings.save();
+
+  // ── Flash Notes Settings: Gemini + formatting ──
+  final flashSettings = const FlashNotesSettings(
+    geminiEnabled: true,
+    geminiApiKey: 'AIzaSyDemo_xxxx_not_real_key_xxxx',
+    autoSaveMode: 'weekly',
+    formattingPreset: 'simple',
+    aiCorrectionLevel: 0.5,
+    groupingMode: 'weekly',
+  );
+  await flashSettings.save();
+
+  // ── Demo Trashed Notes (Cestino) ──
+  final trashedNotes = <TrashedNote>[
+    TrashedNote(
+      type: 'pro',
+      noteJson: ProNote(
+        title: 'Appunti vecchia riunione',
+        content: 'Note riunione 5 gennaio - non più rilevanti\nPunti superati dal nuovo piano',
+        folder: 'Lavoro',
+        createdAt: now.subtract(const Duration(days: 30)),
+      ).toJson(),
+      deletedAt: now.subtract(const Duration(days: 5)),
+    ),
+    TrashedNote(
+      type: 'pro',
+      noteJson: ProNote(
+        title: 'Bozza email (scartata)',
+        content: 'Gentile Dott. Bianchi,\nLe scrivo per...\n\n[bozza incompleta]',
+        folder: 'Generale',
+        createdAt: now.subtract(const Duration(days: 20)),
+      ).toJson(),
+      deletedAt: now.subtract(const Duration(days: 3)),
+    ),
+    TrashedNote(
+      type: 'flash',
+      noteJson: FlashNote(
+        content: 'Numero vecchio ufficio: 02 9876543 (chiuso)',
+        createdAt: now.subtract(const Duration(days: 15)),
+      ).toJson(),
+      deletedAt: now.subtract(const Duration(days: 2)),
+    ),
+    TrashedNote(
+      type: 'flash',
+      noteJson: FlashNote(
+        content: 'Link promo scaduta: www.example.com/promo2025',
+        createdAt: now.subtract(const Duration(days: 25)),
+      ).toJson(),
+      deletedAt: now.subtract(const Duration(days: 1)),
+    ),
+    TrashedNote(
+      type: 'pro',
+      noteJson: ProNote(
+        title: 'Todo list completata',
+        content: '✅ Comprare latte\n✅ Pagare bolletta\n✅ Spedire pacco\n✅ Chiamare dentista',
+        folder: 'Personale',
+        createdAt: now.subtract(const Duration(days: 10)),
+      ).toJson(),
+      deletedAt: now.subtract(const Duration(days: 1)),
+    ),
+  ];
+  await TrashedNote.saveAll(trashedNotes);
+
+  // ── Demo Cycle Tracking Data ──
+  final cycleDays = <String>[];
+  // Simulate last 3 cycles (~28 day intervals, 5 days each)
+  for (final offset in [3, 31, 59]) {
+    for (int d = 0; d < 5; d++) {
+      final day = now.subtract(Duration(days: offset + d));
+      cycleDays.add('${day.year}-${day.month}-${day.day}');
+    }
+  }
+  await prefs.setStringList('cycle_tracking_private', cycleDays);
+
+  // ── Demo Old Photos (photo history) ──
+  // Reuse avatar with slight variation for history
+  final profile2 = UserProfile.fromJson(json.decode(prefs.getString('user_profile')!));
+  profile2.oldPhotos = [avatarBase64, avatarBase64, avatarBase64];
+  await prefs.setString('user_profile', json.encode(profile2.toJson()));
 
   await prefs.setBool('demo_data_loaded', true);
 }
@@ -270,30 +1184,45 @@ class EthosNoteApp extends StatefulWidget {
 }
 
 class _EthosNoteAppState extends State<EthosNoteApp> {
-  bool _isDarkMode = false;
+  // 'light', 'dark', 'ethos'
+  String _themeMode = 'ethos';
 
   @override
   void initState() {
     super.initState();
     _loadTheme();
+    _loadLocale();
   }
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _isDarkMode = prefs.getBool('dark_mode') ?? false;
+      _themeMode = prefs.getString('theme_mode') ?? 'ethos';
     });
   }
 
-  void toggleTheme(bool isDark) {
+  Future<void> _loadLocale() async {
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _isDarkMode = isDark;
-    });
-    SharedPreferences.getInstance().then((prefs) {
-      prefs.setBool('dark_mode', isDark);
+      _appLocale = prefs.getString('app_locale') ?? 'it';
     });
   }
 
+  void setThemeMode(String mode) {
+    setState(() => _themeMode = mode);
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('theme_mode', mode);
+    });
+  }
+
+  void setLocale(String locale) {
+    setState(() => _appLocale = locale);
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('app_locale', locale);
+    });
+  }
+
+  // ── Original theme (Indigo) ──
   ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     final colorScheme = ColorScheme.fromSeed(
@@ -397,17 +1326,243 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
     );
   }
 
+  // ── Ethos Bordeaux palette (dark-mode only) ──
+  static const _bordeaux = Color(0xFF800020);
+  static const _bordeauxLight = Color(0xFFA3274F);
+  static const _anthracite = Color(0xFF1A1A1E);
+
+  ThemeData _buildEthosTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _bordeaux,
+      brightness: Brightness.dark,
+      primary: _bordeauxLight,
+      onPrimary: Colors.white,
+    );
+
+    return ThemeData(
+      colorScheme: colorScheme,
+      useMaterial3: true,
+      scaffoldBackgroundColor: _anthracite,
+      appBarTheme: AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        foregroundColor: colorScheme.onSurface,
+        titleTextStyle: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: colorScheme.onSurface,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        color: const Color(0xFF232327),
+        clipBehavior: Clip.antiAlias,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: _bordeauxLight,
+          foregroundColor: Colors.white,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          side: BorderSide(color: colorScheme.outline),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: colorScheme.surfaceContainerHighest,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _bordeauxLight, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0,
+        height: 65,
+        indicatorColor: _bordeauxLight.withValues(alpha: 0.15),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _anthracite,
+        surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        thickness: 1,
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2,
+        backgroundColor: _bordeauxLight,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return _bordeauxLight;
+          return null;
+        }),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  ThemeData get _activeTheme {
+    switch (_themeMode) {
+      case 'dark': return _buildTheme(Brightness.dark);
+      case 'ethos': return _buildEthosTheme();
+      default: return _buildTheme(Brightness.light);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = _activeTheme;
     return MaterialApp(
       title: 'Ethos Note',
       localizationsDelegates: const [
         quill.FlutterQuillLocalizations.delegate,
       ],
-      theme: _buildTheme(Brightness.light),
-      darkTheme: _buildTheme(Brightness.dark),
-      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: HomePage(onThemeChanged: toggleTheme, isDarkMode: _isDarkMode),
+      theme: theme,
+      home: _SplashGate(
+        child: HomePage(
+          themeMode: _themeMode,
+          onThemeModeChanged: setThemeMode,
+          onLocaleChanged: setLocale,
+        ),
+      ),
+    );
+  }
+}
+
+class _SplashGate extends StatefulWidget {
+  final Widget child;
+  const _SplashGate({required this.child});
+
+  @override
+  State<_SplashGate> createState() => _SplashGateState();
+}
+
+class _SplashGateState extends State<_SplashGate> with SingleTickerProviderStateMixin {
+  bool _showSplash = true;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeOut;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _fadeOut = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
+    // Show splash for 1.5s, then fade out
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        _fadeController.forward().then((_) {
+          if (mounted) setState(() => _showSplash = false);
+          // Remove the HTML splash
+          _removeHtmlSplash();
+        });
+      }
+    });
+    // Remove HTML splash early if Flutter renders fast
+    _removeHtmlSplash();
+  }
+
+  void _removeHtmlSplash() {
+    // This runs JS to hide the HTML splash div on web
+    // On mobile it's a no-op since there's no HTML
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        widget.child,
+        if (_showSplash)
+          FadeTransition(
+            opacity: ReverseAnimation(_fadeOut),
+            child: Container(
+              color: const Color(0xFF1A1A1A),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.asset(
+                        'assets/logo.png',
+                        width: 120,
+                        height: 120,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Ethos Note',
+                      style: TextStyle(
+                        fontFamily: 'Georgia',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFB8566B),
+                        letterSpacing: 1.2,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -425,6 +1580,14 @@ class UserProfile {
   bool geminiConnected;
   String backupMode;
   String religione;
+  String? telefono;
+  String? password;
+  List<String> socialLinks;
+  List<String> friends;
+  List<String> oldPhotos;
+  List<Map<String, String>> accounts;
+  int activeAccountIndex;
+  String? nickname;
 
   UserProfile({
     this.nome,
@@ -439,7 +1602,18 @@ class UserProfile {
     this.geminiConnected = false,
     this.backupMode = 'local',
     this.religione = 'Cattolica',
-  });
+    this.telefono,
+    this.password,
+    List<String>? socialLinks,
+    List<String>? friends,
+    List<String>? oldPhotos,
+    List<Map<String, String>>? accounts,
+    this.activeAccountIndex = 0,
+    this.nickname,
+  })  : socialLinks = socialLinks ?? [],
+        friends = friends ?? [],
+        oldPhotos = oldPhotos ?? [],
+        accounts = accounts ?? [];
 
   int? get eta {
     if (dataNascita == null) return null;
@@ -466,6 +1640,14 @@ class UserProfile {
       'geminiConnected': geminiConnected,
       'backupMode': backupMode,
       'religione': religione,
+      'telefono': telefono,
+      'password': password,
+      'socialLinks': socialLinks,
+      'friends': friends,
+      'oldPhotos': oldPhotos,
+      'accounts': accounts,
+      'activeAccountIndex': activeAccountIndex,
+      'nickname': nickname,
     };
   }
 
@@ -484,7 +1666,17 @@ class UserProfile {
       googleDriveConnected: json['googleDriveConnected'] ?? false,
       geminiConnected: json['geminiConnected'] ?? false,
       backupMode: json['backupMode'] ?? 'local',
-      religione: json['religione'] ?? 'Cattolica',
+      religione: json['religione'] ?? tr('catholic'),
+      telefono: json['telefono'],
+      password: json['password'],
+      socialLinks: (json['socialLinks'] as List<dynamic>?)?.cast<String>() ?? [],
+      friends: (json['friends'] as List<dynamic>?)?.cast<String>() ?? [],
+      oldPhotos: (json['oldPhotos'] as List<dynamic>?)?.cast<String>() ?? [],
+      accounts: (json['accounts'] as List<dynamic>?)
+          ?.map((e) => Map<String, String>.from(e as Map))
+          .toList() ?? [],
+      activeAccountIndex: json['activeAccountIndex'] ?? 0,
+      nickname: json['nickname'],
     );
   }
 
@@ -496,7 +1688,7 @@ class UserProfile {
   }
 
   String get fullName {
-    if (nome == null && cognome == null) return 'Ospite';
+    if (nome == null && cognome == null) return tr('guest');
     return '${nome ?? ''} ${cognome ?? ''}'.trim();
   }
 
@@ -519,6 +1711,10 @@ class CalendarEventFull {
   final String? preset;
   final String? attachmentPath;
   final String? notes;
+  final bool isCompleted;
+  final String? googleEventId;
+  final List<String> sharedWith;
+  final String? attachmentBase64;
 
   CalendarEventFull({
     required this.title,
@@ -529,7 +1725,32 @@ class CalendarEventFull {
     this.preset,
     this.attachmentPath,
     this.notes,
-  });
+    this.isCompleted = false,
+    this.googleEventId,
+    List<String>? sharedWith,
+    this.attachmentBase64,
+  }) : sharedWith = sharedWith ?? [];
+
+  CalendarEventFull copyWith({
+    bool? isCompleted,
+    List<String>? sharedWith,
+    String? attachmentBase64,
+  }) {
+    return CalendarEventFull(
+      title: title,
+      startTime: startTime,
+      endTime: endTime,
+      calendar: calendar,
+      reminder: reminder,
+      preset: preset,
+      attachmentPath: attachmentPath,
+      notes: notes,
+      isCompleted: isCompleted ?? this.isCompleted,
+      googleEventId: googleEventId,
+      sharedWith: sharedWith ?? this.sharedWith,
+      attachmentBase64: attachmentBase64 ?? this.attachmentBase64,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -541,6 +1762,10 @@ class CalendarEventFull {
       'preset': preset,
       'attachmentPath': attachmentPath,
       'notes': notes,
+      'isCompleted': isCompleted,
+      if (googleEventId != null) 'googleEventId': googleEventId,
+      'sharedWith': sharedWith,
+      if (attachmentBase64 != null) 'attachmentBase64': attachmentBase64,
     };
   }
 
@@ -549,11 +1774,15 @@ class CalendarEventFull {
       title: json['title'],
       startTime: DateTime.parse(json['startTime']),
       endTime: DateTime.parse(json['endTime']),
-      calendar: json['calendar'] ?? 'Personale',
+      calendar: json['calendar'] ?? tr('personal'),
       reminder: json['reminder'],
       preset: json['preset'],
       attachmentPath: json['attachmentPath'],
       notes: json['notes'],
+      isCompleted: json['isCompleted'] ?? false,
+      googleEventId: json['googleEventId'],
+      sharedWith: (json['sharedWith'] as List<dynamic>?)?.cast<String>() ?? [],
+      attachmentBase64: json['attachmentBase64'],
     );
   }
 }
@@ -573,13 +1802,13 @@ class Holidays {
       Holiday(12, 26, '🎁', 'S. Stefano'),
     ];
 
-    if (religione == 'Cattolica') {
+    if (religione == tr('catholic')) {
       base.add(Holiday(4, 20, '🐣', 'Pasqua'));
       base.add(Holiday(4, 21, '🐣', 'Pasquetta'));
-    } else if (religione == 'Ebraica') {
+    } else if (religione == tr('jewish')) {
       base.add(Holiday(9, 25, '🕎', 'Rosh Hashanah'));
       base.add(Holiday(12, 25, '🕎', 'Hanukkah'));
-    } else if (religione == 'Islamica') {
+    } else if (religione == tr('islamic')) {
       base.add(Holiday(4, 10, '🌙', 'Eid al-Fitr'));
       base.add(Holiday(6, 16, '🌙', 'Eid al-Adha'));
     }
@@ -607,18 +1836,18 @@ String getZodiacSignFromDate(int month, int day, {String mode = 'icon_and_text'}
   // Accurate zodiac based on actual date ranges
   String segno;
   String icon;
-  if ((month == 3 && day >= 21) || (month == 4 && day <= 19)) { segno = 'Ariete'; icon = '♈'; }
-  else if ((month == 4 && day >= 20) || (month == 5 && day <= 20)) { segno = 'Toro'; icon = '♉'; }
-  else if ((month == 5 && day >= 21) || (month == 6 && day <= 20)) { segno = 'Gemelli'; icon = '♊'; }
-  else if ((month == 6 && day >= 21) || (month == 7 && day <= 22)) { segno = 'Cancro'; icon = '♋'; }
-  else if ((month == 7 && day >= 23) || (month == 8 && day <= 22)) { segno = 'Leone'; icon = '♌'; }
-  else if ((month == 8 && day >= 23) || (month == 9 && day <= 22)) { segno = 'Vergine'; icon = '♍'; }
-  else if ((month == 9 && day >= 23) || (month == 10 && day <= 22)) { segno = 'Bilancia'; icon = '♎'; }
-  else if ((month == 10 && day >= 23) || (month == 11 && day <= 21)) { segno = 'Scorpione'; icon = '♏'; }
-  else if ((month == 11 && day >= 22) || (month == 12 && day <= 21)) { segno = 'Sagittario'; icon = '♐'; }
-  else if ((month == 12 && day >= 22) || (month == 1 && day <= 19)) { segno = 'Capricorno'; icon = '♑'; }
-  else if ((month == 1 && day >= 20) || (month == 2 && day <= 18)) { segno = 'Acquario'; icon = '♒'; }
-  else { segno = 'Pesci'; icon = '♓'; }
+  if ((month == 3 && day >= 21) || (month == 4 && day <= 19)) { segno = tr('aries'); icon = '♈'; }
+  else if ((month == 4 && day >= 20) || (month == 5 && day <= 20)) { segno = tr('taurus'); icon = '♉'; }
+  else if ((month == 5 && day >= 21) || (month == 6 && day <= 20)) { segno = tr('gemini'); icon = '♊'; }
+  else if ((month == 6 && day >= 21) || (month == 7 && day <= 22)) { segno = tr('cancer'); icon = '♋'; }
+  else if ((month == 7 && day >= 23) || (month == 8 && day <= 22)) { segno = tr('leo'); icon = '♌'; }
+  else if ((month == 8 && day >= 23) || (month == 9 && day <= 22)) { segno = tr('virgo'); icon = '♍'; }
+  else if ((month == 9 && day >= 23) || (month == 10 && day <= 22)) { segno = tr('libra'); icon = '♎'; }
+  else if ((month == 10 && day >= 23) || (month == 11 && day <= 21)) { segno = tr('scorpio'); icon = '♏'; }
+  else if ((month == 11 && day >= 22) || (month == 12 && day <= 21)) { segno = tr('sagittarius'); icon = '♐'; }
+  else if ((month == 12 && day >= 22) || (month == 1 && day <= 19)) { segno = tr('capricorn'); icon = '♑'; }
+  else if ((month == 1 && day >= 20) || (month == 2 && day <= 18)) { segno = tr('aquarius'); icon = '♒'; }
+  else { segno = tr('pisces'); icon = '♓'; }
 
   switch (mode) {
     case 'icon_only': return icon;
@@ -891,10 +2120,10 @@ String getZodiacSign(int month, {String mode = 'icon_and_text'}) {
     1: '♑', 2: '♒', 3: '♓', 4: '♈', 5: '♉', 6: '♊',
     7: '♋', 8: '♌', 9: '♍', 10: '♎', 11: '♏', 12: '♐',
   };
-  const names = {
-    1: 'Capricorno', 2: 'Acquario', 3: 'Pesci', 4: 'Ariete',
-    5: 'Toro', 6: 'Gemelli', 7: 'Cancro', 8: 'Leone',
-    9: 'Vergine', 10: 'Bilancia', 11: 'Scorpione', 12: 'Sagittario',
+  final names = {
+    1: tr('capricorn'), 2: tr('aquarius'), 3: tr('pisces'), 4: tr('aries'),
+    5: tr('taurus'), 6: tr('gemini'), 7: tr('cancer'), 8: tr('leo'),
+    9: tr('virgo'), 10: tr('libra'), 11: tr('scorpio'), 12: tr('sagittarius'),
   };
   final icon = icons[month] ?? '';
   final name = names[month] ?? '';
@@ -906,6 +2135,48 @@ String getZodiacSign(int month, {String mode = 'icon_and_text'}) {
     case 'icon_and_text':
     default:
       return '$icon $name';
+  }
+}
+
+TextStyle getCalendarFontStyle(String fontFamily, double fontSize, Color color) {
+  switch (fontFamily) {
+    case 'Corsivo':
+      return GoogleFonts.dancingScript(fontSize: fontSize, color: color);
+    case 'Arcade':
+      return GoogleFonts.pressStart2p(fontSize: fontSize * 0.7, color: color);
+    default:
+      return TextStyle(fontSize: fontSize, color: color);
+  }
+}
+
+class _CalendarIcon9 extends StatelessWidget {
+  final double size;
+  final Color? color;
+  const _CalendarIcon9({this.size = 24, this.color});
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(Icons.calendar_today, size: size, color: color),
+          Positioned(
+            bottom: size * 0.12,
+            child: Text(
+              '9',
+              style: TextStyle(
+                fontSize: size * 0.42,
+                fontWeight: FontWeight.w800,
+                color: color ?? IconTheme.of(context).color,
+                height: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -936,13 +2207,15 @@ class _SlideInItem extends StatelessWidget {
 }
 
 class HomePage extends StatefulWidget {
-  final Function(bool) onThemeChanged;
-  final bool isDarkMode;
+  final String themeMode;
+  final Function(String) onThemeModeChanged;
+  final Function(String) onLocaleChanged;
 
   const HomePage({
     super.key,
-    required this.onThemeChanged,
-    required this.isDarkMode,
+    required this.themeMode,
+    required this.onThemeModeChanged,
+    required this.onLocaleChanged,
   });
 
   @override
@@ -981,8 +2254,9 @@ class _HomePageState extends State<HomePage> {
       MaterialPageRoute(
         builder: (context) => SettingsPage(
           userProfile: _userProfile,
-          isDarkMode: widget.isDarkMode,
-          onThemeChanged: widget.onThemeChanged,
+          themeMode: widget.themeMode,
+          onThemeModeChanged: widget.onThemeModeChanged,
+          onLocaleChanged: widget.onLocaleChanged,
           onSave: (profile) {
             setState(() {
               _userProfile = profile;
@@ -997,12 +2271,21 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  // Section accent colors
-  static const _sectionColors = [
+  // Section accent colors — original
+  static const _sectionColorsDefault = [
     Color(0xFFE53935), // Deep Note - red
     Color(0xFF1E88E5), // Calendar - blue
     Color(0xFFFFA726), // Flash Notes - amber
   ];
+  // Ethos Bordeaux family
+  static const _sectionColorsEthos = [
+    Color(0xFF800020), // Deep Note  — bordeaux pieno
+    Color(0xFFA3274F), // Calendario — bordeaux chiaro
+    Color(0xFFB8566B), // Flash Notes — rosé caldo
+  ];
+
+  List<Color> get _sectionColors =>
+      widget.themeMode == 'ethos' ? _sectionColorsEthos : _sectionColorsDefault;
 
   @override
   Widget build(BuildContext context) {
@@ -1012,7 +2295,7 @@ class _HomePageState extends State<HomePage> {
 
     final pages = [
       const NotesProPage(),
-      CalendarPage(religione: _userProfile.religione),
+      const CalendarPage(),
       const FlashNotesPage(),
     ];
 
@@ -1023,24 +2306,19 @@ class _HomePageState extends State<HomePage> {
           child: GestureDetector(
             onTap: _openSettings,
             child: CircleAvatar(
-              backgroundColor: accentColor.withValues(alpha: 0.12),
+              backgroundColor: _userProfile.photoBytes != null
+                  ? accentColor.withValues(alpha: 0.12)
+                  : Colors.transparent,
               backgroundImage: _userProfile.photoBytes != null
                   ? MemoryImage(_userProfile.photoBytes!)
                   : null,
               child: _userProfile.photoBytes == null
-                  ? Text(
-                      _userProfile.initials,
-                      style: TextStyle(
-                        color: accentColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    )
+                  ? ClipOval(child: Image.asset('assets/logo.png', width: 40, height: 40, fit: BoxFit.cover))
                   : null,
             ),
           ),
         ),
-        title: const Text('Ethos Note'),
+        title: Text('Ethos Note', style: TextStyle(fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? Theme.of(context).colorScheme.primary : null)),
         scrolledUnderElevation: 2,
       ),
       body: AnimatedSwitcher(
@@ -1069,9 +2347,9 @@ class _HomePageState extends State<HomePage> {
             label: 'Deep Note',
           ),
           NavigationDestination(
-            icon: Icon(Icons.calendar_today_outlined, color: colorScheme.onSurfaceVariant),
-            selectedIcon: Icon(Icons.calendar_today, color: _sectionColors[1]),
-            label: 'Calendario',
+            icon: _CalendarIcon9(size: 24, color: colorScheme.onSurfaceVariant),
+            selectedIcon: _CalendarIcon9(size: 24, color: _sectionColors[1]),
+            label: tr('calendar'),
           ),
           NavigationDestination(
             icon: Icon(Icons.flash_on_outlined, color: colorScheme.onSurfaceVariant),
@@ -1085,9 +2363,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 class CalendarPage extends StatefulWidget {
-  final String religione;
-
-  const CalendarPage({super.key, required this.religione});
+  const CalendarPage({super.key});
 
   @override
   State<CalendarPage> createState() => _CalendarPageState();
@@ -1111,14 +2387,33 @@ class _CalendarPageState extends State<CalendarPage> {
   // Cycle tracking (private)
   Set<String> _cycleDays = {};
 
+  // Split layout: calendar compression on scroll
+  bool _isCalendarCompact = false;
+  final ScrollController _eventsScrollController = ScrollController();
+
+  // Google Calendar
+  Map<String, List<CalendarEventFull>> _googleEvents = {};
+  bool _isLoadingGoogle = false;
+
+  // Health
+  HealthSnapshot? _healthSnapshot;
+
   @override
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    _holidays = Holidays.getHolidays(widget.religione);
+    _holidays = Holidays.getHolidays(_calSettings.religione);
     _loadEvents();
     _loadCalendarSettings();
     _loadCycleDays();
+    _initGoogleCalendar();
+    _initHealth();
+  }
+
+  @override
+  void dispose() {
+    _eventsScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCycleDays() async {
@@ -1134,23 +2429,312 @@ class _CalendarPageState extends State<CalendarPage> {
 
   void _toggleCycleDay(DateTime day) {
     final key = '${day.year}-${day.month}-${day.day}';
+    final adding = !_cycleDays.contains(key);
     setState(() {
-      if (_cycleDays.contains(key)) {
-        _cycleDays.remove(key);
-      } else {
+      if (adding) {
         _cycleDays.add(key);
+      } else {
+        _cycleDays.remove(key);
       }
     });
     _saveCycleDays();
+    // Sync to Apple Health / Health Connect
+    if (adding && HealthService.isAuthorized) {
+      HealthService.writeMenstruationFlow(day);
+    }
   }
 
   bool _isCycleDay(DateTime day) {
     return _cycleDays.contains('${day.year}-${day.month}-${day.day}');
   }
 
+  Future<void> _initGoogleCalendar() async {
+    final signedIn = await GoogleCalendarService.trySilentSignIn();
+    if (signedIn) {
+      _fetchGoogleEvents();
+    }
+  }
+
+  Future<void> _fetchGoogleEvents() async {
+    if (!GoogleCalendarService.isSignedIn) return;
+    setState(() => _isLoadingGoogle = true);
+    // Fetch 3 months of events
+    final start = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
+    final end = DateTime(_focusedDay.year, _focusedDay.month + 2, 0);
+    final events = await GoogleCalendarService.fetchEvents(start, end);
+    final Map<String, List<CalendarEventFull>> mapped = {};
+    for (final e in events) {
+      final key = _dateKey(e.startTime);
+      mapped.putIfAbsent(key, () => []).add(e);
+    }
+    if (mounted) {
+      setState(() {
+        _googleEvents = mapped;
+        _isLoadingGoogle = false;
+      });
+    }
+  }
+
+  Future<void> _pushEventToGoogle(CalendarEventFull event) async {
+    if (!GoogleCalendarService.isSignedIn) return;
+    final success = await GoogleCalendarService.pushEvent(event);
+    if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('event_saved')} - ${event.title}'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      _fetchGoogleEvents();
+    }
+  }
+
+  Future<void> _initHealth() async {
+    if (!HealthService.isSupported) {
+      // On web / unsupported platforms, load demo health data
+      if (mounted) {
+        setState(() => _healthSnapshot = HealthSnapshot(
+          steps: 6320,
+          heartRate: 72,
+          sleepHours: 6.5,
+          weight: 70,
+          bloodOxygen: 98,
+          workoutMinutes: 18,
+          fetchedAt: DateTime.now(),
+        ));
+      }
+      return;
+    }
+    await HealthService.checkAuthorization();
+    if (HealthService.isAuthorized) {
+      _refreshHealth();
+    }
+  }
+
+  Future<void> _refreshHealth() async {
+    final snapshot = await HealthService.fetchTodayData();
+    if (mounted) {
+      setState(() => _healthSnapshot = snapshot);
+    }
+  }
+
+  Widget _buildHealthProgressBar() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isEthos = _isEthosTheme(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final sleep = _healthSnapshot?.sleepScore ?? 0.0;
+    final steps = _healthSnapshot?.stepsProgress ?? 0.0;
+    final workout = _healthSnapshot?.workoutProgress ?? 0.0;
+
+    // Colors for each section adapted to theme
+    final sleepColor = isEthos
+        ? const Color(0xFF7B1FA2) // purple-bordeaux
+        : isDark ? const Color(0xFF9575CD) : const Color(0xFF7E57C2);
+    final stepsColor = isEthos
+        ? const Color(0xFFB8566B) // bordeaux accent
+        : isDark ? const Color(0xFF4FC3F7) : const Color(0xFF039BE5);
+    final workoutColor = isEthos
+        ? const Color(0xFFA3274F) // deep bordeaux
+        : isDark ? const Color(0xFF81C784) : const Color(0xFF43A047);
+
+    final bgAlpha = isDark || isEthos ? 0.15 : 0.10;
+
+    // Total of 3 equal sections
+    const sectionWeight = 1.0 / 3.0;
+
+    Widget buildSection(double value, Color color, String label, IconData icon) {
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, size: 10, color: color),
+                  const SizedBox(width: 3),
+                  Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: color)),
+                  const Spacer(),
+                  Text('${(value * 100).round()}%', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color.withValues(alpha: 0.8))),
+                ],
+              ),
+              const SizedBox(height: 3),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: value,
+                  minHeight: 5,
+                  backgroundColor: color.withValues(alpha: bgAlpha),
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          buildSection(sleep, sleepColor, tr('sleep'), Icons.bedtime_outlined),
+          buildSection(steps, stepsColor, tr('steps'), Icons.directions_walk),
+          buildSection(workout, workoutColor, tr('sport'), Icons.fitness_center),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHealthCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isEthos = _isEthosTheme(context);
+    final accentColor = isEthos ? const Color(0xFFB8566B) : const Color(0xFF1E88E5);
+
+    if (!HealthService.isSupported) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: colorScheme.surfaceContainerLowest,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(Icons.monitor_heart, color: accentColor, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tr('health'), style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
+                    const SizedBox(height: 2),
+                    Text(
+                      tr('health_ios_android'),
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!HealthService.isAuthorized) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: colorScheme.surfaceContainerLowest,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            final ok = await HealthService.requestAuthorization();
+            if (ok) _refreshHealth();
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(Icons.monitor_heart_outlined, color: accentColor, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${tr('connect')} ${tr('health')}', style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
+                      const SizedBox(height: 2),
+                      Text(
+                        defaultTargetPlatform == TargetPlatform.iOS
+                            ? tr('tap_connect_apple')
+                            : tr('tap_connect_health'),
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, size: 16, color: colorScheme.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final s = _healthSnapshot;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.monitor_heart, color: accentColor, size: 20),
+                const SizedBox(width: 8),
+                Text(tr('health'), style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: colorScheme.onSurface)),
+                const Spacer(),
+                GestureDetector(
+                  onTap: _refreshHealth,
+                  child: Icon(Icons.refresh, size: 18, color: colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _buildHealthStat(tr('steps'), s?.steps != null ? '${s!.steps}' : '--', Icons.directions_walk, accentColor),
+                _buildHealthStat('BPM', s?.heartRate != null ? '${s!.heartRate!.round()}' : '--', Icons.favorite, Colors.red),
+                _buildHealthStat(tr('sleep'), s?.sleepHours != null ? '${s!.sleepHours!.toStringAsFixed(1)}h' : '--', Icons.bedtime, Colors.indigo),
+                _buildHealthStat('SpO2', s?.bloodOxygen != null ? '${s!.bloodOxygen!.round()}%' : '--', Icons.air, Colors.teal),
+              ],
+            ),
+            if (s?.weight != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '${tr('weight')}: ${s!.weight!.toStringAsFixed(1)} kg',
+                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthStat(String label, String value, IconData icon, Color color) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          const SizedBox(height: 4),
+          Text(value, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: colorScheme.onSurface)),
+          Text(label, style: TextStyle(fontSize: 9, color: colorScheme.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadCalendarSettings() async {
     final settings = await CalendarSettings.load();
-    setState(() => _calSettings = settings);
+    setState(() {
+      _calSettings = settings;
+      _holidays = Holidays.getHolidays(settings.religione);
+    });
     if (settings.showHoroscope) _loadHoroscope();
     if (settings.showWeather && settings.weatherCity != null && settings.weatherCity!.isNotEmpty) {
       _loadWeather();
@@ -1223,8 +2807,11 @@ class _CalendarPageState extends State<CalendarPage> {
 
   String _dateKey(DateTime date) => '${date.year}-${date.month}-${date.day}';
 
-  List<CalendarEventFull> _getEventsForDay(DateTime day) =>
-      _events[_dateKey(day)] ?? [];
+  List<CalendarEventFull> _getEventsForDay(DateTime day) {
+    final local = _events[_dateKey(day)] ?? [];
+    final google = _googleEvents[_dateKey(day)] ?? [];
+    return [...local, ...google];
+  }
 
   void _createEvent() {
     if (_selectedDay == null) return;
@@ -1236,7 +2823,46 @@ class _CalendarPageState extends State<CalendarPage> {
           onSave: (event) {
             setState(() {
               final key = _dateKey(_selectedDay!);
-              _events[key] = [..._getEventsForDay(_selectedDay!), event];
+              _events.putIfAbsent(key, () => []).add(event);
+            });
+            _saveEvents();
+            // Push to Google Calendar if connected
+            if (GoogleCalendarService.isSignedIn) {
+              _pushEventToGoogle(event);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _editEvent(DateTime day, int index) {
+    final events = _getEventsForDay(day);
+    if (index >= events.length) return;
+    final event = events[index];
+    final localEvents = _events[_dateKey(day)] ?? [];
+    final isLocal = index < localEvents.length;
+    if (!isLocal) {
+      // Google Calendar event — read-only
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('edit')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EventEditorPage(
+          selectedDate: day,
+          existingEvent: event,
+          onSave: (updatedEvent) {
+            setState(() {
+              final key = _dateKey(day);
+              _events[key]?[index] = updatedEvent;
             });
             _saveEvents();
           },
@@ -1247,23 +2873,107 @@ class _CalendarPageState extends State<CalendarPage> {
 
   void _deleteEvent(int index) {
     if (_selectedDay == null) return;
+    final key = _dateKey(_selectedDay!);
+    final localEvents = _events[key] ?? [];
+    if (index >= localEvents.length) return; // Google event, can't delete locally
     setState(() {
-      final key = _dateKey(_selectedDay!);
       _events[key]?.removeAt(index);
       if (_events[key]?.isEmpty ?? false) _events.remove(key);
     });
     _saveEvents();
   }
 
+  void _toggleEventCompletion(DateTime day, int index) {
+    final key = _dateKey(day);
+    final events = _events[key];
+    if (events == null || index >= events.length) return;
+    setState(() {
+      events[index] = events[index].copyWith(isCompleted: !events[index].isCompleted);
+    });
+    _saveEvents();
+  }
+
+  Widget _buildProgressBar(DateTime day) {
+    final events = _getEventsForDay(day);
+    if (events.isEmpty) return const SizedBox.shrink();
+    final now = DateTime.now();
+    int completed = 0;
+    for (final e in events) {
+      if (e.isCompleted || e.endTime.isBefore(now)) {
+        completed++;
+      }
+    }
+    final progress = completed / events.length;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$completed/${events.length} completati',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _calSettings.calendarColor),
+              ),
+              Text(
+                '${(progress * 100).round()}%',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _calSettings.calendarColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 4,
+              backgroundColor: _calSettings.calendarColor.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation<Color>(_calSettings.calendarColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getCalendarCategoryColor(String calendar) {
+    final isEthos = _isEthosTheme(context);
+    switch (calendar) {
+      case 'Personale': return isEthos ? const Color(0xFF800020) : const Color(0xFF4CAF50);
+      case 'Lavoro': return isEthos ? const Color(0xFFA3274F) : const Color(0xFF2196F3);
+      case 'Famiglia': return const Color(0xFF9C27B0);
+      case 'Compleanno': return isEthos ? const Color(0xFFB8566B) : const Color(0xFFE91E63);
+      default: return const Color(0xFF9E9E9E);
+    }
+  }
+
+  Widget _buildCategoryDots(List<CalendarEventFull> events, {double dotSize = 5}) {
+    final categories = events.map((e) => e.calendar).toSet().take(4);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: categories.map((cat) => Container(
+        width: dotSize,
+        height: dotSize,
+        margin: EdgeInsets.symmetric(horizontal: dotSize * 0.2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: _getCalendarCategoryColor(cat),
+        ),
+      )).toList(),
+    );
+  }
+
   Widget _buildCalendarCell(DateTime day, DateTime focusedDay, {bool isOutsideMonth = false}) {
     final colorScheme = Theme.of(context).colorScheme;
     final isToday = isSameDay(day, DateTime.now());
     final isSelected = isSameDay(day, _selectedDay);
-    final hasEvents = _getEventsForDay(day).isNotEmpty;
+    final eventsForDay = _getEventsForDay(day);
+    final hasEvents = eventsForDay.isNotEmpty;
     final holidayKey = '${day.month}-${day.day}';
     final holiday = _holidays[holidayKey]?.first;
     final todayColor = _calSettings.todayBorderColor;
-    final fontFamily = _calSettings.fontFamily == 'Default' ? null : _calSettings.fontFamily.toLowerCase();
     final today = DateTime.now();
     final todayStart = DateTime(today.year, today.month, today.day);
     final dayStart = DateTime(day.year, day.month, day.day);
@@ -1271,59 +2981,62 @@ class _CalendarPageState extends State<CalendarPage> {
     final weather = (_calSettings.showWeather && daysFromToday >= 0 && daysFromToday <= 7)
         ? _weatherData?.forDay(day) : null;
 
-    return Container(
-      margin: const EdgeInsets.all(1.5),
-      decoration: BoxDecoration(
-        color: isOutsideMonth
-            ? colorScheme.surfaceContainerLowest.withValues(alpha: 0.5)
-            : isSelected
-                ? _calSettings.selectedDayColor.withValues(alpha: 0.12)
-                : colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(10),
-        border: isToday
-            ? Border.all(color: todayColor, width: 1.5)
-            : Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.25), width: 0.5),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (weather != null && !isOutsideMonth)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 1),
-                    child: Text(weather.icon, style: const TextStyle(fontSize: 8)),
+    return Padding(
+      padding: const EdgeInsets.all(1.5),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: isOutsideMonth
+              ? colorScheme.surfaceContainerLowest.withValues(alpha: 0.5)
+              : isSelected
+                  ? _calSettings.selectedDayColor.withValues(alpha: 0.12)
+                  : colorScheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(10),
+          border: isToday
+              ? Border.all(color: todayColor, width: 1.5)
+              : Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.25), width: 0.5),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (weather != null && !isOutsideMonth)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 1),
+                      child: Text(weather.icon, style: const TextStyle(fontSize: 8)),
+                    ),
+                  Text(
+                    '${day.day}',
+                    style: getCalendarFontStyle(
+                      _calSettings.fontFamily,
+                      _calSettings.dayFontSize - 1,
+                      isOutsideMonth
+                          ? _calSettings.calendarColor.withValues(alpha: 0.35)
+                          : isToday ? todayColor : Theme.of(context).colorScheme.onSurface,
+                    ).copyWith(fontWeight: isToday ? FontWeight.bold : FontWeight.w600),
                   ),
-                Text(
-                  '${day.day}',
-                  style: TextStyle(
-                    color: isOutsideMonth
-                        ? _calSettings.calendarColor.withValues(alpha: 0.35)
-                        : isToday ? todayColor : null,
-                    fontWeight: isToday ? FontWeight.bold : FontWeight.w600,
-                    fontSize: _calSettings.dayFontSize - 1,
-                    fontFamily: fontFamily,
-                  ),
+                ],
+              ),
+              SizedBox(
+                height: 12,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasEvents && !isOutsideMonth)
+                      _buildCategoryDots(eventsForDay, dotSize: 4),
+                    if (holiday != null)
+                      Text(holiday.emoji, style: const TextStyle(fontSize: 8)),
+                    if (_calSettings.showCycleTracking && _isCycleDay(day) && !isOutsideMonth)
+                      const Text('🩸', style: TextStyle(fontSize: 8)),
+                  ],
                 ),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasEvents)
-                  const Icon(Icons.lightbulb, size: 9, color: Colors.amber),
-                if (holiday != null)
-                  Text(holiday.emoji, style: const TextStyle(fontSize: 8)),
-                if (_calSettings.showCycleTracking && _isCycleDay(day) && !isOutsideMonth)
-                  const Text('🩸', style: TextStyle(fontSize: 8)),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1331,8 +3044,8 @@ class _CalendarPageState extends State<CalendarPage> {
 
   TableCalendar _buildTableCalendar(ColorScheme colorScheme, {CalendarFormat format = CalendarFormat.month, double? rowHeight}) {
     return TableCalendar(
-      firstDay: DateTime.utc(2020, 1, 1),
-      lastDay: DateTime.utc(2030, 12, 31),
+      firstDay: DateTime.utc(2000, 1, 1),
+      lastDay: DateTime.utc(2100, 12, 31),
       focusedDay: _focusedDay,
       calendarFormat: format,
       rowHeight: rowHeight ?? 52,
@@ -1348,14 +3061,29 @@ class _CalendarPageState extends State<CalendarPage> {
           _showDayEventsBottomSheet(selectedDay);
         }
       },
+      onPageChanged: (focusedDay) {
+        setState(() => _focusedDay = focusedDay);
+        if (GoogleCalendarService.isSignedIn) {
+          _fetchGoogleEvents();
+        }
+      },
+      onHeaderTapped: (_) => _showDateSearchDialog(),
       calendarBuilders: CalendarBuilders(
         defaultBuilder: (context, day, focusedDay) =>
             _calSettings.calendarLayout == 'fullScreen'
                 ? _buildFullScreenCell(day, focusedDay)
                 : _buildCalendarCell(day, focusedDay),
         outsideBuilder: _calSettings.showNextMonthPreview
-            ? (context, day, focusedDay) =>
-                _buildCalendarCell(day, focusedDay, isOutsideMonth: true)
+            ? (context, day, focusedDay) {
+                // Only show next month days (not previous month), max 7 days
+                if (day.month != focusedDay.month && day.isAfter(focusedDay) && day.day <= 7) {
+                  return _calSettings.calendarLayout == 'fullScreen'
+                      ? _buildFullScreenCell(day, focusedDay, isOutsideMonth: true)
+                      : _buildCalendarCell(day, focusedDay, isOutsideMonth: true);
+                }
+                // Previous month days or >7 next month: show empty
+                return const SizedBox.shrink();
+              }
             : null,
         selectedBuilder: (context, day, focusedDay) =>
             _calSettings.calendarLayout == 'fullScreen'
@@ -1370,21 +3098,21 @@ class _CalendarPageState extends State<CalendarPage> {
         formatButtonVisible: false,
         titleCentered: true,
         titleTextFormatter: (date, locale) {
-          final months = [
-            '', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-            'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
-          ];
+          final months = localizedMonths();
           final zodiacSuffix = _calSettings.showZodiac
               ? ' (${getZodiacSign(date.month, mode: _calSettings.zodiacDisplayMode)})'
               : '';
-          return '${months[date.month]} ${date.year}$zodiacSuffix';
+          final todayWeather = (_calSettings.showWeather && _weatherData != null)
+              ? _weatherData!.forDay(DateTime.now())
+              : null;
+          final weatherPrefix = todayWeather != null ? '${todayWeather.icon} ' : '';
+          return '$weatherPrefix${months[date.month]} ${date.year}$zodiacSuffix';
         },
-        titleTextStyle: TextStyle(
-          fontSize: _calSettings.headerFontSize,
-          fontWeight: FontWeight.bold,
-          color: _calSettings.headerColor,
-          fontFamily: _calSettings.fontFamily == 'Default' ? null : _calSettings.fontFamily.toLowerCase(),
-        ),
+        titleTextStyle: getCalendarFontStyle(
+          _calSettings.fontFamily,
+          _calSettings.headerFontSize,
+          _calSettings.headerColor,
+        ).copyWith(fontWeight: FontWeight.bold),
         leftChevronIcon: Icon(Icons.chevron_left, color: _calSettings.calendarColor, size: 28),
         rightChevronIcon: Icon(Icons.chevron_right, color: _calSettings.calendarColor, size: 28),
       ),
@@ -1401,31 +3129,33 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildFullScreenCell(DateTime day, DateTime focusedDay) {
+  Widget _buildFullScreenCell(DateTime day, DateTime focusedDay, {bool isOutsideMonth = false}) {
     final colorScheme = Theme.of(context).colorScheme;
     final isToday = isSameDay(day, DateTime.now());
     final isSelected = isSameDay(day, _selectedDay);
-    final events = _getEventsForDay(day);
+    final events = isOutsideMonth ? <CalendarEventFull>[] : _getEventsForDay(day);
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final dayStart = DateTime(day.year, day.month, day.day);
     final daysFromNow = dayStart.difference(todayStart).inDays;
-    final weather = (_calSettings.showWeather && daysFromNow >= 0 && daysFromNow <= 7)
+    final weather = (_calSettings.showWeather && !isOutsideMonth && daysFromNow >= 0 && daysFromNow <= 7)
         ? _weatherData?.forDay(day) : null;
     final todayColor = _calSettings.todayBorderColor;
     final holidayKey = '${day.month}-${day.day}';
-    final holiday = _holidays[holidayKey]?.first;
+    final holiday = isOutsideMonth ? null : _holidays[holidayKey]?.first;
 
     return Container(
       margin: const EdgeInsets.all(1.5),
       decoration: BoxDecoration(
-        color: isSelected
-            ? _calSettings.selectedDayColor.withValues(alpha: 0.12)
-            : colorScheme.surfaceContainerLowest,
+        color: isOutsideMonth
+            ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.3)
+            : isSelected
+                ? _calSettings.selectedDayColor.withValues(alpha: 0.12)
+                : colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(10),
-        border: isToday
+        border: isToday && !isOutsideMonth
             ? Border.all(color: todayColor, width: 1.5)
-            : Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.25), width: 0.5),
+            : Border.all(color: colorScheme.outlineVariant.withValues(alpha: isOutsideMonth ? 0.15 : 0.25), width: 0.5),
       ),
       child: Padding(
         padding: const EdgeInsets.all(3),
@@ -1439,33 +3169,44 @@ class _CalendarPageState extends State<CalendarPage> {
                   '${day.day}',
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: isToday ? FontWeight.bold : FontWeight.w600,
-                    color: isToday ? todayColor : colorScheme.onSurface,
+                    fontWeight: isToday && !isOutsideMonth ? FontWeight.bold : FontWeight.w600,
+                    color: isOutsideMonth
+                        ? colorScheme.onSurface.withValues(alpha: 0.35)
+                        : isToday ? todayColor : colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
-                if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 9)),
-                if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 9)),
-                if (_calSettings.showCycleTracking && _isCycleDay(day)) const Text('🩸', style: TextStyle(fontSize: 9)),
+                if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 13)),
+                if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 10)),
+                if (_calSettings.showCycleTracking && _isCycleDay(day)) const Text('🩸', style: TextStyle(fontSize: 10)),
               ],
             ),
+            if (events.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: _buildCategoryDots(events, dotSize: 4),
+              ),
             const Spacer(),
             // Events
             if (events.isNotEmpty) ...[
-              ...events.take(2).map((e) => Container(
-                margin: const EdgeInsets.only(bottom: 1),
-                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                decoration: BoxDecoration(
-                  color: _calSettings.calendarColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
+              for (int ei = 0; ei < events.take(2).length; ei++)
+                GestureDetector(
+                  onTap: () => _editEvent(day, ei),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 1),
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: _getCalendarCategoryColor(events[ei].calendar).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${events[ei].startTime.hour.toString().padLeft(2, '0')}:${events[ei].startTime.minute.toString().padLeft(2, '0')} ${events[ei].title}',
+                      style: TextStyle(fontSize: 7, color: colorScheme.onSurface),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
-                child: Text(
-                  e.title,
-                  style: TextStyle(fontSize: 7, color: colorScheme.onSurface),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              )),
               if (events.length > 2)
                 Text('+${events.length - 2}', style: TextStyle(fontSize: 7, color: _calSettings.calendarColor, fontWeight: FontWeight.w500)),
             ],
@@ -1475,8 +3216,22 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  Future<void> _showDateSearchDialog() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _focusedDay,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        _focusedDay = picked;
+        _selectedDay = picked;
+      });
+    }
+  }
+
   void _showDayEventsBottomSheet(DateTime day) {
-    final events = _getEventsForDay(day);
     final colorScheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
@@ -1510,7 +3265,7 @@ class _CalendarPageState extends State<CalendarPage> {
                               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                             ),
                             Text(
-                              '${currentEvents.length} event${currentEvents.length == 1 ? 'o' : 'i'}',
+                              (currentEvents.length == 1 ? tr('n_events') : tr('n_events_plural')).replaceAll('{n}', '${currentEvents.length}'),
                               style: TextStyle(color: colorScheme.onSurfaceVariant),
                             ),
                           ],
@@ -1541,7 +3296,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                 _createEvent();
                               },
                               icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Evento'),
+                              label: Text(tr('event')),
                             ),
                           ],
                         ),
@@ -1549,6 +3304,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                   ),
                   const Divider(height: 1),
+                  _buildProgressBar(day),
                   Expanded(
                     child: currentEvents.isEmpty
                         ? Center(
@@ -1557,7 +3313,7 @@ class _CalendarPageState extends State<CalendarPage> {
                               children: [
                                 Icon(Icons.event_note_outlined, size: 48, color: colorScheme.outlineVariant),
                                 const SizedBox(height: 8),
-                                Text('Nessun evento', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                                Text(tr('no_events'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
                               ],
                             ),
                           )
@@ -1567,22 +3323,45 @@ class _CalendarPageState extends State<CalendarPage> {
                             itemBuilder: (ctx, index) {
                               final event = currentEvents[index];
                               return ListTile(
-                                leading: CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: _calSettings.calendarColor.withValues(alpha: 0.12),
-                                  child: Icon(Icons.event, color: _calSettings.calendarColor, size: 20),
+                                leading: Checkbox(
+                                  value: event.isCompleted,
+                                  activeColor: _calSettings.calendarColor,
+                                  onChanged: (_) {
+                                    _toggleEventCompletion(day, index);
+                                    setSheetState(() {});
+                                  },
                                 ),
-                                title: Text(event.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                title: Text(
+                                  event.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    decoration: event.isCompleted ? TextDecoration.lineThrough : null,
+                                    color: event.isCompleted ? colorScheme.onSurfaceVariant : null,
+                                  ),
+                                ),
                                 subtitle: Text(
                                   '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}',
                                 ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete_outline),
-                                  color: colorScheme.error,
-                                  onPressed: () {
-                                    _deleteEvent(index);
-                                    setSheetState(() {});
-                                  },
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined),
+                                      color: _calSettings.calendarColor,
+                                      onPressed: () {
+                                        Navigator.pop(ctx);
+                                        _editEvent(day, index);
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline),
+                                      color: colorScheme.error,
+                                      onPressed: () {
+                                        _deleteEvent(index);
+                                        setSheetState(() {});
+                                      },
+                                    ),
+                                  ],
                                 ),
                               );
                             },
@@ -1613,9 +3392,9 @@ class _CalendarPageState extends State<CalendarPage> {
                   leading: const Text('⭐', style: TextStyle(fontSize: 22)),
                   title: Text(
                     'Oroscopo ${_horoscopeData!.segno}',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, fontFamily: _isEthosTheme(context) ? 'Georgia' : null),
                   ),
-                  subtitle: const Text('Paolo Fox', style: TextStyle(fontSize: 12)),
+                  subtitle: Text('Paolo Fox', style: TextStyle(fontSize: 12, color: _isEthosTheme(context) ? const Color(0xFF800020).withValues(alpha: 0.6) : null)),
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1628,8 +3407,8 @@ class _CalendarPageState extends State<CalendarPage> {
                 )
               : ListTile(
                   leading: const Text('⭐', style: TextStyle(fontSize: 22)),
-                  title: const Text('Oroscopo non disponibile'),
-                  subtitle: const Text('Imposta la data di nascita nel profilo'),
+                  title: Text(tr('horoscope_not_available')),
+                  subtitle: Text(tr('birth_date')),
                 ),
     );
   }
@@ -1662,7 +3441,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 itemCount: _weatherData!.forecast.length,
                 itemBuilder: (context, index) {
                   final day = _weatherData!.forecast[index];
-                  final weekDays = ['', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+                  final weekDays = ['', ...localizedWeekdaysShort()];
                   final isToday = isSameDay(day.date, DateTime.now());
                   return Container(
                     width: 64,
@@ -1707,14 +3486,15 @@ class _CalendarPageState extends State<CalendarPage> {
         children: [
           Expanded(
             child: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'split', icon: Icon(Icons.view_agenda, size: 18), label: Text('Split')),
-                ButtonSegment(value: 'fullScreen', icon: Icon(Icons.calendar_month, size: 18), label: Text('Full')),
+              segments: [
+                ButtonSegment(value: 'split', icon: const Icon(Icons.view_agenda, size: 18), label: Text(tr('split_layout'))),
+                ButtonSegment(value: 'fullScreen', icon: const _CalendarIcon9(size: 18), label: Text(tr('full_layout'))),
               ],
               selected: {_calSettings.calendarLayout},
               onSelectionChanged: (v) {
                 setState(() {
                   _calSettings = _calSettings.copyWith(calendarLayout: v.first);
+                  if (v.first == 'split') _isCalendarCompact = false;
                 });
                 _calSettings.save();
               },
@@ -1727,9 +3507,9 @@ class _CalendarPageState extends State<CalendarPage> {
           if (_calSettings.calendarLayout == 'fullScreen') ...[
             const SizedBox(width: 8),
             SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'month', label: Text('Mese')),
-                ButtonSegment(value: 'week', label: Text('Sett.')),
+              segments: [
+                ButtonSegment(value: 'month', label: Text(tr('month'))),
+                ButtonSegment(value: 'week', label: Text(tr('week'))),
               ],
               selected: {_calSettings.calendarViewMode},
               onSelectionChanged: (v) {
@@ -1744,6 +3524,18 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
           ],
+          if (GoogleCalendarService.isSignedIn) ...[
+            const SizedBox(width: 8),
+            _isLoadingGoogle
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : IconButton(
+                    icon: const Icon(Icons.sync, size: 20),
+                    tooltip: '${tr('connect')} Google Calendar',
+                    onPressed: _fetchGoogleEvents,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  ),
+          ],
         ],
       ),
     );
@@ -1754,16 +3546,40 @@ class _CalendarPageState extends State<CalendarPage> {
         ? _getEventsForDay(_selectedDay!)
         : <CalendarEventFull>[];
 
+    // Progress data for bottom bar
+    int completed = 0;
+    double progress = 0;
+    if (_selectedDay != null && eventsForSelectedDay.isNotEmpty) {
+      final now = DateTime.now();
+      for (final e in eventsForSelectedDay) {
+        if (e.isCompleted || e.endTime.isBefore(now)) completed++;
+      }
+      progress = completed / eventsForSelectedDay.length;
+    }
+
     return Column(
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: _buildTableCalendar(colorScheme),
-          ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child: _isCalendarCompact
+              ? const SizedBox.shrink()
+              : Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: _buildTableCalendar(colorScheme),
+                  ),
+                ),
         ),
-        _buildHoroscopeCard(),
-        const SizedBox(height: 12),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: _isCalendarCompact
+              ? const SizedBox.shrink()
+              : _buildHoroscopeCard(),
+        ),
+        const SizedBox(height: 8),
         if (_selectedDay != null) ...[
           Expanded(
             child: eventsForSelectedDay.isEmpty
@@ -1774,98 +3590,174 @@ class _CalendarPageState extends State<CalendarPage> {
                       children: [
                         Icon(Icons.event_note_outlined, size: 64, color: colorScheme.outlineVariant),
                         const SizedBox(height: 12),
-                        Text('Nessun evento', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                        Text(tr('no_events'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 4),
-                        Text('Tocca il pulsante Evento per aggiungerne uno', style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
+                        Text(tr('no_events'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
                       ],
                     ),
                   )
                 : ListView.builder(
-                    itemCount: eventsForSelectedDay.length,
-                    itemBuilder: (context, index) {
-                      final event = eventsForSelectedDay[index];
-                      return _SlideInItem(index: index, child: Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.all(16),
-                          leading: CircleAvatar(
-                            radius: 22,
-                            backgroundColor: _calSettings.calendarColor.withValues(alpha: 0.12),
-                            child: Icon(Icons.event, color: _calSettings.calendarColor, size: 22),
-                          ),
-                          title: Text(event.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 4),
-                              Text(
-                                '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}',
-                                style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      controller: _eventsScrollController,
+                      itemCount: eventsForSelectedDay.length,
+                      itemBuilder: (context, index) {
+                        final event = eventsForSelectedDay[index];
+                        return _SlideInItem(index: index, child: Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.all(16),
+                            leading: Checkbox(
+                              value: event.isCompleted,
+                              activeColor: _calSettings.calendarColor,
+                              onChanged: (_) => _toggleEventCompletion(_selectedDay!, index),
+                            ),
+                            title: Text(
+                              event.title,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                decoration: event.isCompleted ? TextDecoration.lineThrough : null,
+                                color: event.isCompleted ? colorScheme.onSurfaceVariant : null,
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${event.calendar}${event.reminder != null ? ' · ${event.reminder}' : ''}',
-                                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
-                              ),
-                            ],
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}',
+                                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    if (event.googleEventId != null) ...[
+                                      Icon(Icons.cloud, size: 12, color: const Color(0xFF4285F4)),
+                                      const SizedBox(width: 4),
+                                    ],
+                                    Text(
+                                      '${event.calendar}${event.reminder != null ? ' · ${event.reminder}' : ''}',
+                                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined),
+                                  color: _calSettings.calendarColor,
+                                  iconSize: 22,
+                                  onPressed: () => _editEvent(_selectedDay!, index),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  color: colorScheme.error,
+                                  iconSize: 22,
+                                  onPressed: () => _deleteEvent(index),
+                                ),
+                              ],
+                            ),
                           ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            color: colorScheme.error,
-                            iconSize: 22,
-                            onPressed: () => _deleteEvent(index),
-                          ),
-                        ),
-                      ));
-                    },
-                  ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.event, color: _calSettings.calendarColor, size: 22),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                        ));
+                      },
                     ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_calSettings.showCycleTracking)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: OutlinedButton.icon(
-                          onPressed: () => _toggleCycleDay(_selectedDay!),
-                          icon: const Text('🩸', style: TextStyle(fontSize: 14)),
-                          label: Text(_isCycleDay(_selectedDay!) ? 'Rimuovi' : 'Ciclo'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _isCycleDay(_selectedDay!) ? Colors.red : null,
-                            side: _isCycleDay(_selectedDay!) ? const BorderSide(color: Colors.red) : null,
-                          ),
+          ),
+          const SizedBox(height: 4),
+          // Bottom bar: date + progress + actions
+          Flexible(
+            flex: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onTap: () => _showDayEventsBottomSheet(_selectedDay!),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _isCalendarCompact ? Icons.expand_less : Icons.event,
+                              color: _calSettings.calendarColor,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                            ),
+                          ],
                         ),
                       ),
-                    FilledButton.icon(
-                      onPressed: _createEvent,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Evento'),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_calSettings.showCycleTracking)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: IconButton(
+                                onPressed: () => _toggleCycleDay(_selectedDay!),
+                                icon: Text(_isCycleDay(_selectedDay!) ? '🩸' : '🩸', style: const TextStyle(fontSize: 16)),
+                                tooltip: _isCycleDay(_selectedDay!) ? 'Rimuovi ciclo' : 'Segna ciclo',
+                                style: IconButton.styleFrom(
+                                  foregroundColor: _isCycleDay(_selectedDay!) ? Colors.red : null,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                          FilledButton.icon(
+                            onPressed: _createEvent,
+                            icon: const Icon(Icons.add, size: 16),
+                            label: Text(tr('event'), style: const TextStyle(fontSize: 13)),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  // Integrated progress bar
+                  if (eventsForSelectedDay.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 3,
+                              backgroundColor: _calSettings.calendarColor.withValues(alpha: 0.12),
+                              valueColor: AlwaysStoppedAnimation<Color>(_calSettings.calendarColor),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$completed/${eventsForSelectedDay.length}',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _calSettings.calendarColor),
+                        ),
+                      ],
                     ),
                   ],
-                ),
-              ],
+                  // Health progress bar
+                  if (_healthSnapshot != null && _healthSnapshot!.hasData)
+                    _buildHealthProgressBar(),
+                ],
+              ),
             ),
           ),
+          const SizedBox(height: 4),
         ],
       ],
     );
@@ -1879,7 +3771,7 @@ class _CalendarPageState extends State<CalendarPage> {
     // 7 days of this week + 2 preview days of next week
     final days = List.generate(9, (i) => monday.add(Duration(days: i)));
 
-    const weekDaysShort = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom', 'Lun', 'Mar'];
+    final weekDaysShort = [...localizedWeekdaysShort(), tr('mon'), tr('tue')];
     const monthsShort = ['', 'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
 
     Widget buildWeekDayCell(DateTime day, String label, {bool isPreview = false}) {
@@ -1971,23 +3863,32 @@ class _CalendarPageState extends State<CalendarPage> {
                         style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant),
                       ),
                     ),
+                  if (events.isNotEmpty && !isPreview)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: _buildCategoryDots(events, dotSize: 5),
+                    ),
                   const Spacer(),
                   // Events
                   if (events.isNotEmpty && !isPreview) ...[
-                    ...events.take(3).map((e) => Container(
-                      margin: const EdgeInsets.only(bottom: 2),
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _calSettings.calendarColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
+                    for (int ei = 0; ei < events.take(3).length; ei++)
+                      GestureDetector(
+                        onTap: () => _editEvent(day, ei),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _calSettings.calendarColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${events[ei].startTime.hour.toString().padLeft(2, '0')}:${events[ei].startTime.minute.toString().padLeft(2, '0')} ${events[ei].title}',
+                            style: TextStyle(fontSize: 10, color: colorScheme.onSurface),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ),
-                      child: Text(
-                        e.title,
-                        style: TextStyle(fontSize: 10, color: colorScheme.onSurface),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    )),
                     if (events.length > 3)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
@@ -1999,7 +3900,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   ],
                   if (events.isNotEmpty && isPreview)
                     Text(
-                      '${events.length} event${events.length == 1 ? 'o' : 'i'}',
+                      (events.length == 1 ? tr('n_events') : tr('n_events_plural')).replaceAll('{n}', '${events.length}'),
                       style: TextStyle(fontSize: 9, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                     ),
                 ],
@@ -2024,13 +3925,26 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
               GestureDetector(
                 onTap: () => setState(() => _focusedDay = DateTime.now()),
-                child: Text(
-                  '${days[0].day} ${monthsShort[days[0].month]} - ${days[6].day} ${monthsShort[days[6].month]} ${days[6].year}',
-                  style: TextStyle(
-                    fontSize: _calSettings.headerFontSize,
-                    fontWeight: FontWeight.bold,
-                    color: _calSettings.headerColor,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_calSettings.showWeather && _weatherData != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: Text(
+                          _weatherData!.forDay(DateTime.now())?.icon ?? '',
+                          style: TextStyle(fontSize: _calSettings.headerFontSize),
+                        ),
+                      ),
+                    Text(
+                      '${days[0].day} ${monthsShort[days[0].month]} - ${days[6].day} ${monthsShort[days[6].month]} ${days[6].year}',
+                      style: TextStyle(
+                        fontSize: _calSettings.headerFontSize,
+                        fontWeight: FontWeight.bold,
+                        color: _calSettings.headerColor,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               IconButton(
@@ -2084,27 +3998,25 @@ class _CalendarPageState extends State<CalendarPage> {
                   ? _buildCustomWeekView(colorScheme)
                   : LayoutBuilder(
                       builder: (context, constraints) {
-                        // Header ~50px, day-of-week row ~30px, FAB space ~50px
-                        final rows = _calSettings.showNextMonthPreview ? 6 : 6;
-                        final availableHeight = constraints.maxHeight - 80 - 50;
-                        final dynamicRowHeight = (availableHeight / rows).clamp(60.0, 140.0);
+                        final rows = 6;
+                        // Header ~56, day-of-week row ~28 = ~84 total chrome
+                        final availableHeight = constraints.maxHeight - 84;
+                        final dynamicRowHeight = (availableHeight / rows).clamp(48.0, 200.0);
                         return _buildTableCalendar(colorScheme, format: CalendarFormat.month, rowHeight: dynamicRowHeight);
                       },
                     ),
             ),
-            _buildHoroscopeCard(),
           ],
         ),
         Positioned(
           bottom: 16,
           right: 16,
-          child: FloatingActionButton.extended(
+          child: FloatingActionButton(
             onPressed: () {
               if (_selectedDay == null) setState(() => _selectedDay = DateTime.now());
               _createEvent();
             },
-            icon: const Icon(Icons.add),
-            label: const Text('Evento'),
+            child: const Icon(Icons.add),
           ),
         ),
       ],
@@ -2117,7 +4029,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
     final isFullScreen = _calSettings.calendarLayout == 'fullScreen';
     return Padding(
-      padding: EdgeInsets.all(isFullScreen ? 8.0 : 16.0),
+      padding: EdgeInsets.fromLTRB(isFullScreen ? 4.0 : 16.0, isFullScreen ? 4.0 : 16.0, isFullScreen ? 4.0 : 16.0, isFullScreen ? 0.0 : 16.0),
       child: Column(
         children: [
           _buildLayoutToggle(),
@@ -2159,6 +4071,373 @@ class CalendarAlertConfig {
       );
 }
 
+// ── Google Calendar Service ──
+class GoogleCalendarService {
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: [gcal.CalendarApi.calendarScope],
+  );
+
+  static GoogleSignInAccount? _currentUser;
+  static gcal.CalendarApi? _calendarApi;
+
+  static bool get isSignedIn => _currentUser != null;
+  static String? get userEmail => _currentUser?.email;
+  static String? get userDisplayName => _currentUser?.displayName;
+  static String? get userPhotoUrl => _currentUser?.photoUrl;
+
+  static Future<bool> signIn() async {
+    try {
+      final account = await _googleSignIn.signIn();
+      if (account == null) return false;
+      _currentUser = account;
+      final httpClient = await _googleSignIn.authenticatedClient();
+      if (httpClient == null) return false;
+      _calendarApi = gcal.CalendarApi(httpClient);
+      // Persist sign-in state
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('google_calendar_connected', true);
+      return true;
+    } catch (e) {
+      debugPrint('Google Sign-In error: $e');
+      return false;
+    }
+  }
+
+  static Future<void> signOut() async {
+    await _googleSignIn.signOut();
+    _currentUser = null;
+    _calendarApi = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('google_calendar_connected', false);
+  }
+
+  static Future<bool> trySilentSignIn() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool('google_calendar_connected') ?? false)) return false;
+      final account = await _googleSignIn.signInSilently();
+      if (account == null) return false;
+      _currentUser = account;
+      final httpClient = await _googleSignIn.authenticatedClient();
+      if (httpClient == null) return false;
+      _calendarApi = gcal.CalendarApi(httpClient);
+      return true;
+    } catch (e) {
+      debugPrint('Silent sign-in error: $e');
+      return false;
+    }
+  }
+
+  /// Fetch events from Google Calendar for a given date range
+  static Future<List<CalendarEventFull>> fetchEvents(DateTime start, DateTime end) async {
+    if (_calendarApi == null) return [];
+    try {
+      final events = await _calendarApi!.events.list(
+        'primary',
+        timeMin: start.toUtc(),
+        timeMax: end.toUtc(),
+        singleEvents: true,
+        orderBy: 'startTime',
+        maxResults: 250,
+      );
+      return (events.items ?? []).map((e) => _googleEventToLocal(e)).toList();
+    } catch (e) {
+      debugPrint('Fetch Google events error: $e');
+      return [];
+    }
+  }
+
+  /// Push a local event to Google Calendar
+  static Future<bool> pushEvent(CalendarEventFull event) async {
+    if (_calendarApi == null) return false;
+    try {
+      final gEvent = gcal.Event(
+        summary: event.title,
+        start: gcal.EventDateTime(
+          dateTime: event.startTime,
+          timeZone: DateTime.now().timeZoneName,
+        ),
+        end: gcal.EventDateTime(
+          dateTime: event.endTime,
+          timeZone: DateTime.now().timeZoneName,
+        ),
+        description: tr('created_by_ethos'),
+      );
+      await _calendarApi!.events.insert(gEvent, 'primary');
+      return true;
+    } catch (e) {
+      debugPrint('Push event error: $e');
+      return false;
+    }
+  }
+
+  static CalendarEventFull _googleEventToLocal(gcal.Event gEvent) {
+    DateTime startTime;
+    DateTime endTime;
+    if (gEvent.start?.dateTime != null) {
+      startTime = gEvent.start!.dateTime!.toLocal();
+      endTime = gEvent.end?.dateTime?.toLocal() ?? startTime.add(const Duration(hours: 1));
+    } else if (gEvent.start?.date != null) {
+      // All-day event
+      startTime = DateTime(gEvent.start!.date!.year, gEvent.start!.date!.month, gEvent.start!.date!.day);
+      endTime = startTime.add(const Duration(hours: 23, minutes: 59));
+    } else {
+      startTime = DateTime.now();
+      endTime = startTime.add(const Duration(hours: 1));
+    }
+    return CalendarEventFull(
+      title: gEvent.summary ?? '(${tr('untitled')})',
+      startTime: startTime,
+      endTime: endTime,
+      calendar: 'Google',
+      reminder: '15',
+      isCompleted: false,
+      googleEventId: gEvent.id,
+    );
+  }
+}
+
+// ── Health Service (Apple Health / Google Health Connect) ──
+class HealthSnapshot {
+  final int? steps;
+  final double? heartRate;
+  final double? sleepHours;
+  final double? weight;
+  final double? bloodOxygen;
+  final double? workoutMinutes;
+  final DateTime fetchedAt;
+
+  const HealthSnapshot({
+    this.steps,
+    this.heartRate,
+    this.sleepHours,
+    this.weight,
+    this.bloodOxygen,
+    this.workoutMinutes,
+    required this.fetchedAt,
+  });
+
+  bool get hasData => steps != null || heartRate != null || sleepHours != null || weight != null || bloodOxygen != null || workoutMinutes != null;
+
+  /// Sleep score: 0.0–1.0 (target 8h)
+  double get sleepScore => sleepHours != null ? (sleepHours! / 8.0).clamp(0.0, 1.0) : 0.0;
+
+  /// Steps progress: 0.0–1.0 (target 10000)
+  double get stepsProgress => steps != null ? (steps! / 10000).clamp(0.0, 1.0) : 0.0;
+
+  /// Workout progress: 0.0–1.0 (target 30 min)
+  double get workoutProgress => workoutMinutes != null ? (workoutMinutes! / 30.0).clamp(0.0, 1.0) : 0.0;
+
+  Map<String, dynamic> toJson() => {
+    'steps': steps,
+    'heartRate': heartRate,
+    'sleepHours': sleepHours,
+    'weight': weight,
+    'bloodOxygen': bloodOxygen,
+    'workoutMinutes': workoutMinutes,
+    'fetchedAt': fetchedAt.toIso8601String(),
+  };
+
+  factory HealthSnapshot.fromJson(Map<String, dynamic> json) => HealthSnapshot(
+    steps: json['steps'],
+    heartRate: (json['heartRate'] as num?)?.toDouble(),
+    sleepHours: (json['sleepHours'] as num?)?.toDouble(),
+    weight: (json['weight'] as num?)?.toDouble(),
+    bloodOxygen: (json['bloodOxygen'] as num?)?.toDouble(),
+    workoutMinutes: (json['workoutMinutes'] as num?)?.toDouble(),
+    fetchedAt: DateTime.parse(json['fetchedAt']),
+  );
+}
+
+class HealthService {
+  static bool get isSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+       defaultTargetPlatform == TargetPlatform.android);
+
+  static bool _authorized = false;
+  static bool get isAuthorized => _authorized;
+
+  static final _types = [
+    HealthDataType.STEPS,
+    HealthDataType.HEART_RATE,
+    HealthDataType.BLOOD_OXYGEN,
+    HealthDataType.WEIGHT,
+    HealthDataType.SLEEP_ASLEEP,
+    HealthDataType.SLEEP_DEEP,
+    HealthDataType.SLEEP_LIGHT,
+    HealthDataType.SLEEP_REM,
+    HealthDataType.WORKOUT,
+  ];
+
+  static Future<bool> requestAuthorization() async {
+    if (!isSupported) return false;
+    try {
+      final health = Health();
+      await health.configure();
+      _authorized = await health.requestAuthorization(_types);
+      if (_authorized) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('health_authorized', true);
+      }
+      return _authorized;
+    } catch (e) {
+      debugPrint('Health auth error: $e');
+      return false;
+    }
+  }
+
+  static Future<void> checkAuthorization() async {
+    if (!isSupported) return;
+    final prefs = await SharedPreferences.getInstance();
+    _authorized = prefs.getBool('health_authorized') ?? false;
+  }
+
+  static Future<void> disconnect() async {
+    _authorized = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('health_authorized', false);
+  }
+
+  static Future<HealthSnapshot> fetchTodayData() async {
+    if (!isSupported || !_authorized) {
+      return HealthSnapshot(fetchedAt: DateTime.now());
+    }
+
+    // Check cache (30 min)
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString('health_snapshot');
+    if (cached != null) {
+      final snapshot = HealthSnapshot.fromJson(json.decode(cached));
+      if (DateTime.now().difference(snapshot.fetchedAt).inMinutes < 30) {
+        return snapshot;
+      }
+    }
+
+    try {
+      final health = Health();
+      await health.configure();
+
+      final now = DateTime.now();
+      final midnight = DateTime(now.year, now.month, now.day);
+
+      // Steps
+      int? steps = await health.getTotalStepsInInterval(midnight, now);
+
+      // Heart rate, blood oxygen, weight
+      double? heartRate;
+      double? bloodOxygen;
+      double? weight;
+      double? sleepHours;
+
+      final heartData = await health.getHealthDataFromTypes(
+        types: [HealthDataType.HEART_RATE],
+        startTime: midnight,
+        endTime: now,
+      );
+      if (heartData.isNotEmpty) {
+        final val = heartData.last.value;
+        if (val is NumericHealthValue) heartRate = val.numericValue.toDouble();
+      }
+
+      final oxygenData = await health.getHealthDataFromTypes(
+        types: [HealthDataType.BLOOD_OXYGEN],
+        startTime: midnight,
+        endTime: now,
+      );
+      if (oxygenData.isNotEmpty) {
+        final val = oxygenData.last.value;
+        if (val is NumericHealthValue) bloodOxygen = val.numericValue.toDouble();
+      }
+
+      final weightData = await health.getHealthDataFromTypes(
+        types: [HealthDataType.WEIGHT],
+        startTime: now.subtract(const Duration(days: 30)),
+        endTime: now,
+      );
+      if (weightData.isNotEmpty) {
+        final val = weightData.last.value;
+        if (val is NumericHealthValue) weight = val.numericValue.toDouble();
+      }
+
+      // Sleep (last night)
+      final sleepStart = midnight.subtract(const Duration(hours: 12));
+      final sleepTypes = [
+        HealthDataType.SLEEP_ASLEEP,
+        HealthDataType.SLEEP_DEEP,
+        HealthDataType.SLEEP_LIGHT,
+        HealthDataType.SLEEP_REM,
+      ];
+      final sleepData = await health.getHealthDataFromTypes(
+        types: sleepTypes,
+        startTime: sleepStart,
+        endTime: midnight,
+      );
+      if (sleepData.isNotEmpty) {
+        final deduped = Health().removeDuplicates(sleepData);
+        double totalMinutes = 0;
+        for (final dp in deduped) {
+          totalMinutes += dp.dateTo.difference(dp.dateFrom).inMinutes;
+        }
+        sleepHours = totalMinutes / 60;
+      }
+
+      // Workout minutes
+      double? workoutMinutes;
+      final workoutData = await health.getHealthDataFromTypes(
+        types: [HealthDataType.WORKOUT],
+        startTime: midnight,
+        endTime: now,
+      );
+      if (workoutData.isNotEmpty) {
+        final deduped = Health().removeDuplicates(workoutData);
+        double totalMin = 0;
+        for (final dp in deduped) {
+          totalMin += dp.dateTo.difference(dp.dateFrom).inMinutes;
+        }
+        workoutMinutes = totalMin;
+      }
+
+      final snapshot = HealthSnapshot(
+        steps: steps,
+        heartRate: heartRate,
+        sleepHours: sleepHours,
+        weight: weight,
+        bloodOxygen: bloodOxygen,
+        workoutMinutes: workoutMinutes,
+        fetchedAt: now,
+      );
+
+      // Cache
+      await prefs.setString('health_snapshot', json.encode(snapshot.toJson()));
+      return snapshot;
+    } catch (e) {
+      debugPrint('Health fetch error: $e');
+      return HealthSnapshot(fetchedAt: DateTime.now());
+    }
+  }
+
+  /// Write cycle tracking data to Apple Health / Google Health Connect
+  static Future<bool> writeMenstruationFlow(DateTime date) async {
+    if (!isSupported || !_authorized) return false;
+    try {
+      final health = Health();
+      await health.configure();
+      final start = DateTime(date.year, date.month, date.day);
+      final end = start.add(const Duration(hours: 23, minutes: 59));
+      return await health.writeHealthData(
+        value: 2, // medium flow
+        type: HealthDataType.MENSTRUATION_FLOW,
+        startTime: start,
+        endTime: end,
+      );
+    } catch (e) {
+      debugPrint('Health write error: $e');
+      return false;
+    }
+  }
+}
+
 class CalendarSettings {
   // Alert settings
   final CalendarAlertConfig alertConfig;
@@ -2194,6 +4473,9 @@ class CalendarSettings {
   // Cycle tracking (private)
   final bool showCycleTracking;
 
+  // Religion (for holidays)
+  final String religione;
+
   const CalendarSettings({
     this.alertConfig = const CalendarAlertConfig(),
     this.alertMinutesBefore = const [10],
@@ -2205,14 +4487,15 @@ class CalendarSettings {
     this.dayFontSize = 14.0,
     this.headerFontSize = 18.0,
     this.showZodiac = true,
-    this.zodiacDisplayMode = 'icon_and_text',
-    this.showNextMonthPreview = false,
+    this.zodiacDisplayMode = 'icon_only',
+    this.showNextMonthPreview = true,
     this.showHoroscope = false,
     this.showWeather = false,
     this.weatherCity,
     this.calendarLayout = 'split',
     this.calendarViewMode = 'month',
     this.showCycleTracking = false,
+    this.religione = 'Cattolica',
   });
 
   Color get calendarColor => Color(calendarColorValue);
@@ -2239,6 +4522,7 @@ class CalendarSettings {
     String? calendarLayout,
     String? calendarViewMode,
     bool? showCycleTracking,
+    String? religione,
   }) {
     return CalendarSettings(
       alertConfig: alertConfig ?? this.alertConfig,
@@ -2259,6 +4543,7 @@ class CalendarSettings {
       calendarLayout: calendarLayout ?? this.calendarLayout,
       calendarViewMode: calendarViewMode ?? this.calendarViewMode,
       showCycleTracking: showCycleTracking ?? this.showCycleTracking,
+      religione: religione ?? this.religione,
     );
   }
 
@@ -2281,6 +4566,7 @@ class CalendarSettings {
     'calendarLayout': calendarLayout,
     'calendarViewMode': calendarViewMode,
     'showCycleTracking': showCycleTracking,
+    'religione': religione,
   };
 
   factory CalendarSettings.fromJson(Map<String, dynamic> json) =>
@@ -2300,14 +4586,15 @@ class CalendarSettings {
         dayFontSize: (json['dayFontSize'] ?? 14.0).toDouble(),
         headerFontSize: (json['headerFontSize'] ?? 18.0).toDouble(),
         showZodiac: json['showZodiac'] ?? true,
-        zodiacDisplayMode: json['zodiacDisplayMode'] ?? 'icon_and_text',
-        showNextMonthPreview: json['showNextMonthPreview'] ?? false,
+        zodiacDisplayMode: json['zodiacDisplayMode'] ?? 'icon_only',
+        showNextMonthPreview: json['showNextMonthPreview'] ?? true,
         showHoroscope: json['showHoroscope'] ?? false,
         showWeather: json['showWeather'] ?? false,
         weatherCity: json['weatherCity'],
         calendarLayout: json['calendarLayout'] ?? 'split',
         calendarViewMode: json['calendarViewMode'] ?? 'month',
         showCycleTracking: json['showCycleTracking'] ?? false,
+        religione: json['religione'] ?? tr('catholic'),
       );
 
   static Future<CalendarSettings> load() async {
@@ -2344,55 +4631,38 @@ class CalendarSettingsPage extends StatefulWidget {
 class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   late CalendarSettings _settings;
 
-  static const _availableAlertMinutes = <int, String>{
-    5: '5 minuti prima',
-    10: '10 minuti prima',
-    15: '15 minuti prima',
-    30: '30 minuti prima',
-    60: '1 ora prima',
-    120: '2 ore prima',
-    1440: '1 giorno prima',
-    10080: '1 settimana prima',
+  static final _availableAlertMinutes = <int, String>{
+    5: tr('5_min_before'),
+    10: tr('10_min_before'),
+    15: tr('15_min_before'),
+    30: tr('30_min_before'),
+    60: tr('1_hour_before'),
   };
 
-  static const _alertTypes = {
-    'vibration': 'Solo Vibrazione',
-    'sound': 'Solo Suono',
-    'sound_vibration': 'Suono + Vibrazione',
+  static final _alertTypes = {
+    'vibration': tr('vibration_only'),
+    'sound': tr('sound_only'),
+    'sound_vibration': 'Sound + Vibration',
   };
 
-  static const _alertSounds = [
+  static final _alertSounds = [
     'Default',
-    'Campanella',
+    tr('bell'),
     'Gong',
     'Chime',
     'Ding',
-    'Melodia',
+    tr('melody'),
   ];
 
-  static const _alertDurations = {
-    3: '3 secondi',
-    5: '5 secondi',
-    10: '10 secondi',
+  static final _alertDurations = {
+    3: tr('3_seconds'),
   };
 
-  static const _colorPresets = <String, int>{
-    'Blu': 0xFF2196F3,
-    'Rosso': 0xFFF44336,
-    'Verde': 0xFF4CAF50,
-    'Viola': 0xFF9C27B0,
-    'Arancione': 0xFFFF9800,
-    'Teal': 0xFF009688,
-    'Indigo': 0xFF3F51B5,
-    'Rosa': 0xFFE91E63,
-    'Grigio': 0xFF607D8B,
-  };
 
-  static const _fontFamilies = [
+  static final _fontFamilies = [
     'Default',
-    'Roboto',
-    'Serif',
-    'Monospace',
+    tr('italic_font'),
+    'Arcade',
   ];
 
   @override
@@ -2403,6 +4673,10 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 
   void _updateSettings(CalendarSettings newSettings) {
     setState(() => _settings = newSettings);
+  }
+
+  TextStyle _getCalendarFontStyle(String fontFamily, double fontSize, Color color) {
+    return getCalendarFontStyle(fontFamily, fontSize, color);
   }
 
   void _saveAndPop() {
@@ -2416,12 +4690,12 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Impostazioni Calendario'),
+        title: Text(tr('calendar_settings')),
         actions: [
           FilledButton.icon(
             onPressed: _saveAndPop,
             icon: const Icon(Icons.check, size: 18),
-            label: const Text('Salva'),
+            label: Text(tr('save')),
             style: FilledButton.styleFrom(
               backgroundColor: colorScheme.primary,
               foregroundColor: colorScheme.onPrimary,
@@ -2433,62 +4707,60 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ── SECTION: Avvisi ──
-            _buildSectionHeader('Avvisi Personalizzati', Icons.notifications_active),
+            // ── SECTION: Google Calendar ──
+            _buildSectionHeader('Google Calendar', Icons.cloud_sync),
             const SizedBox(height: 8),
-            _buildAlertTypeCard(),
-            const SizedBox(height: 8),
-            _buildAlertSoundCard(),
-            const SizedBox(height: 8),
-            _buildAlertDurationCard(),
-            const SizedBox(height: 8),
-            _buildAlertTimingCard(),
+            _buildGoogleCalendarCard(),
             const SizedBox(height: 24),
 
-            // ── SECTION: Aspetto ──
-            _buildSectionHeader('Colori e Font', Icons.palette),
-            const SizedBox(height: 8),
-            _buildColorPickerCard('Colore Calendario', _settings.calendarColorValue, (v) {
-              _updateSettings(_settings.copyWith(calendarColorValue: v, headerColorValue: v, selectedDayColorValue: v));
-            }),
-            const SizedBox(height: 8),
-            _buildColorPickerCard('Colore Oggi (bordo)', _settings.todayBorderColorValue, (v) {
-              _updateSettings(_settings.copyWith(todayBorderColorValue: v));
-            }),
+            // ── SECTION: Font Calendario ──
+            _buildSectionHeader(tr('font'), Icons.text_fields),
             const SizedBox(height: 8),
             _buildFontCard(),
             const SizedBox(height: 8),
             _buildFontSizeCard(),
             const SizedBox(height: 24),
 
-            // ── SECTION: Segni Zodiacali ──
-            _buildSectionHeader('Segni Zodiacali', Icons.auto_awesome),
+            // ── SECTION: Segni Zodiacali e Oroscopo (merged) ──
+            _buildSectionHeader('${tr('show_zodiac')} & ${tr('horoscope')}', Icons.auto_awesome),
             const SizedBox(height: 8),
-            _buildZodiacCard(),
+            _buildZodiacAndHoroscopeCard(),
             const SizedBox(height: 24),
 
             // ── SECTION: Anteprima Mese Successivo ──
-            _buildSectionHeader('Anteprima Mese Successivo', Icons.calendar_view_week),
+            _buildSectionHeader(tr('show_next_month'), Icons.calendar_view_week),
             const SizedBox(height: 8),
             _buildNextMonthPreviewCard(),
             const SizedBox(height: 24),
 
-            // ── SECTION: Oroscopo ──
-            _buildSectionHeader('Oroscopo', Icons.auto_awesome),
-            const SizedBox(height: 8),
-            _buildHoroscopeSettingsCard(),
-            const SizedBox(height: 24),
-
             // ── SECTION: Meteo ──
-            _buildSectionHeader('Meteo', Icons.cloud),
+            _buildSectionHeader(tr('weather'), Icons.cloud),
             const SizedBox(height: 8),
             _buildWeatherSettingsCard(),
             const SizedBox(height: 24),
 
+            // ── SECTION: Avvisi (merged: type + sound + timing + duration) ──
+            _buildSectionHeader(tr('alerts'), Icons.notifications_active),
+            const SizedBox(height: 8),
+            _buildUnifiedAlertCard(),
+            const SizedBox(height: 24),
+
+            // ── SECTION: Religione ──
+            _buildSectionHeader(tr('holidays'), Icons.church),
+            const SizedBox(height: 8),
+            _buildReligioneCard(),
+            const SizedBox(height: 24),
+
             // ── SECTION: Ciclo Mestruale ──
-            _buildSectionHeader('Ciclo Mestruale', Icons.water_drop),
+            _buildSectionHeader(tr('cycle_tracking'), Icons.water_drop),
             const SizedBox(height: 8),
             _buildCycleTrackingSettingsCard(),
+            const SizedBox(height: 24),
+
+            // ── SECTION: Salute ──
+            _buildSectionHeader(tr('health'), Icons.monitor_heart),
+            const SizedBox(height: 8),
+            _buildHealthSettingsCard(),
             const SizedBox(height: 32),
 
             // Save button
@@ -2497,7 +4769,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               child: FilledButton.icon(
                 onPressed: _saveAndPop,
                 icon: const Icon(Icons.save),
-                label: const Text('Salva Impostazioni'),
+                label: Text(tr('save')),
               ),
             ),
           ],
@@ -2522,134 +4794,10 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     );
   }
 
-  Widget _buildAlertTypeCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Tipo di Avviso', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            ...(_alertTypes.entries.map((entry) {
-              return RadioListTile<String>(
-                title: Text(entry.value),
-                value: entry.key,
-                groupValue: _settings.alertConfig.alertType,
-                activeColor: Color(_settings.calendarColorValue),
-                onChanged: (value) {
-                  _updateSettings(_settings.copyWith(
-                    alertConfig: CalendarAlertConfig(
-                      alertType: value!,
-                      soundName: _settings.alertConfig.soundName,
-                      durationSeconds: _settings.alertConfig.durationSeconds,
-                    ),
-                  ));
-                },
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              );
-            })),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAlertSoundCard() {
-    final showSound = _settings.alertConfig.alertType != 'vibration';
-    if (!showSound) return const SizedBox.shrink();
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Suono Avviso', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _settings.alertConfig.soundName ?? 'Default',
-              decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-                prefixIcon: Icon(Icons.music_note, color: Color(_settings.calendarColorValue)),
-              ),
-              items: _alertSounds.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-              onChanged: (value) {
-                _updateSettings(_settings.copyWith(
-                  alertConfig: CalendarAlertConfig(
-                    alertType: _settings.alertConfig.alertType,
-                    soundName: value,
-                    durationSeconds: _settings.alertConfig.durationSeconds,
-                  ),
-                ));
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   bool get _isCustomDuration =>
       !_alertDurations.containsKey(_settings.alertConfig.durationSeconds);
 
-  Widget _buildAlertDurationCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Durata Avviso', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              children: [
-                ..._alertDurations.entries.map((entry) {
-                  final isSelected = _settings.alertConfig.durationSeconds == entry.key;
-                  return ChoiceChip(
-                    label: Text(entry.value),
-                    selected: isSelected,
-                    selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
-                    onSelected: (selected) {
-                      if (selected) {
-                        _updateSettings(_settings.copyWith(
-                          alertConfig: CalendarAlertConfig(
-                            alertType: _settings.alertConfig.alertType,
-                            soundName: _settings.alertConfig.soundName,
-                            durationSeconds: entry.key,
-                          ),
-                        ));
-                      }
-                    },
-                  );
-                }),
-                ChoiceChip(
-                  label: Text(_isCustomDuration
-                      ? 'Personalizzato (${_settings.alertConfig.durationSeconds}s)'
-                      : 'Personalizzato'),
-                  selected: _isCustomDuration,
-                  selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
-                  onSelected: (selected) {
-                    if (selected) _showCustomDurationDialog();
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showCustomDurationDialog() {
     final controller = TextEditingController();
@@ -2657,19 +4805,19 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Durata Personalizzata'),
+        title: Text(tr('default_alert')),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            hintText: 'Inserisci i secondi',
-            suffixText: 'secondi',
+          decoration: InputDecoration(
+            hintText: tr('insert'),
+            suffixText: tr('seconds'),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(tr('cancel')),
           ),
           FilledButton(
             onPressed: () {
@@ -2685,7 +4833,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Conferma'),
+            child: Text(tr('confirm')),
           ),
         ],
       ),
@@ -2698,85 +4846,16 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           .toList();
 
   String _formatCustomMinutes(int m) {
-    if (m < 60) return '$m min prima';
+    if (m < 60) return '$m ${tr('min_before')}';
     if (m < 1440) {
       final h = m ~/ 60;
       final rm = m % 60;
-      return rm == 0 ? '$h ore prima' : '$h ore $rm min prima';
+      return rm == 0 ? '$h ${tr('hours_before')}' : '$h ${tr('hours_min_before').replaceAll('{m}', '$rm')}';
     }
     final d = m ~/ 1440;
-    return d == 1 ? '1 giorno prima' : '$d giorni prima';
+    return d == 1 ? tr('day_before') : '$d ${tr('days_before')}';
   }
 
-  Widget _buildAlertTimingCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Tempi di Avviso',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Puoi selezionare più avvisi contemporaneamente',
-              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                ..._availableAlertMinutes.entries.map((entry) {
-                  final isSelected = _settings.alertMinutesBefore.contains(entry.key);
-                  return FilterChip(
-                    label: Text(entry.value),
-                    selected: isSelected,
-                    selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
-                    checkmarkColor: Color(_settings.calendarColorValue),
-                    onSelected: (selected) {
-                      final newList = List<int>.from(_settings.alertMinutesBefore);
-                      if (selected) {
-                        newList.add(entry.key);
-                        newList.sort();
-                      } else {
-                        newList.remove(entry.key);
-                      }
-                      if (newList.isNotEmpty) {
-                        _updateSettings(_settings.copyWith(alertMinutesBefore: newList));
-                      }
-                    },
-                  );
-                }),
-                FilterChip(
-                  label: Text(_customAlertMinutes.isNotEmpty
-                      ? 'Personalizzato (${_customAlertMinutes.map(_formatCustomMinutes).join(', ')})'
-                      : 'Personalizzato'),
-                  selected: _customAlertMinutes.isNotEmpty,
-                  selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
-                  checkmarkColor: Color(_settings.calendarColorValue),
-                  onSelected: (_) => _showCustomAlertTimeDialog(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Attivi: ${_settings.alertMinutesBefore.map((m) => _availableAlertMinutes[m] ?? _formatCustomMinutes(m)).join(', ')}',
-              style: TextStyle(
-                fontSize: 13,
-                fontStyle: FontStyle.italic,
-                color: Color(_settings.calendarColorValue),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showCustomAlertTimeDialog() {
     final controller = TextEditingController();
@@ -2784,19 +4863,19 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Tempo di Avviso Personalizzato'),
+        title: Text(tr('alert_sound')),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            hintText: 'Inserisci i minuti',
-            suffixText: 'minuti prima',
+          decoration: InputDecoration(
+            hintText: tr('insert'),
+            suffixText: tr('minutes_before'),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(tr('cancel')),
           ),
           FilledButton(
             onPressed: () {
@@ -2811,14 +4890,17 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Conferma'),
+            child: Text(tr('confirm')),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildColorPickerCard(String label, int currentValue, Function(int) onChanged) {
+
+  Widget _buildGoogleCalendarCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isConnected = GoogleCalendarService.isSignedIn;
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2827,40 +4909,83 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _colorPresets.entries.map((entry) {
-                final isSelected = currentValue == entry.value;
-                return GestureDetector(
-                  onTap: () => onChanged(entry.value),
+            Row(
+              children: [
+                Icon(
+                  isConnected ? Icons.cloud_done : Icons.cloud_off,
+                  color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Color(entry.value),
-                          shape: BoxShape.circle,
-                          border: isSelected
-                              ? Border.all(color: Theme.of(context).colorScheme.onSurface, width: 3)
-                              : Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
-                          boxShadow: isSelected
-                              ? [BoxShadow(color: Color(entry.value).withValues(alpha: 0.4), blurRadius: 8)]
-                              : null,
+                      Text(
+                        isConnected ? tr('connected') : tr('not_connected'),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: isConnected ? Colors.green : colorScheme.onSurface,
                         ),
-                        child: isSelected
-                            ? Icon(Icons.check, color: Theme.of(context).colorScheme.onInverseSurface, size: 20)
-                            : null,
                       ),
-                      const SizedBox(height: 4),
-                      Text(entry.key, style: const TextStyle(fontSize: 11)),
+                      if (isConnected && GoogleCalendarService.userEmail != null)
+                        Text(
+                          GoogleCalendarService.userEmail!,
+                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                        ),
                     ],
                   ),
-                );
-              }).toList(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!isConnected)
+              Text(
+                tr('google_cal_desc'),
+                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+              ),
+            if (!isConnected) const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: isConnected
+                  ? OutlinedButton.icon(
+                      onPressed: () async {
+                        await GoogleCalendarService.signOut();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.logout, size: 18),
+                      label: Text(tr('disconnect')),
+                      style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
+                    )
+                  : FilledButton.icon(
+                      onPressed: () async {
+                        final success = await GoogleCalendarService.signIn();
+                        if (success) {
+                          setState(() {});
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('${tr('google_calendar')} - ${tr('connected')}'),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            );
+                          }
+                        } else {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(tr('error')),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.login, size: 18),
+                      label: Text('${tr('connect')} Google Calendar'),
+                    ),
             ),
           ],
         ),
@@ -2877,7 +5002,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Font Calendario', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(tr('font'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: _settings.fontFamily,
@@ -2888,9 +5013,17 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 prefixIcon: Icon(Icons.font_download, color: Color(_settings.calendarColorValue)),
               ),
               items: _fontFamilies.map((f) {
+                TextStyle style;
+                if (f == tr('italic_font')) {
+                  style = GoogleFonts.dancingScript();
+                } else if (f == 'Arcade') {
+                  style = GoogleFonts.pressStart2p(fontSize: 12);
+                } else {
+                  style = const TextStyle();
+                }
                 return DropdownMenuItem(
                   value: f,
-                  child: Text(f, style: TextStyle(fontFamily: f == 'Default' ? null : f.toLowerCase())),
+                  child: Text(f, style: style),
                 );
               }).toList(),
               onChanged: (value) {
@@ -2909,12 +5042,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               ),
               child: Center(
                 child: Text(
-                  'Anteprima: 1 2 3 4 5 Gennaio 2026',
-                  style: TextStyle(
-                    fontFamily: _settings.fontFamily == 'Default' ? null : _settings.fontFamily.toLowerCase(),
-                    fontSize: _settings.dayFontSize,
-                    color: Color(_settings.calendarColorValue),
-                  ),
+                  tr('font_preview'),
+                  style: _getCalendarFontStyle(_settings.fontFamily, _settings.dayFontSize, Color(_settings.calendarColorValue)),
                 ),
               ),
             ),
@@ -2933,11 +5062,11 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Dimensione Font', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(tr('header_font_size'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 12),
             Row(
               children: [
-                const Text('Numeri giorni:', style: TextStyle(fontSize: 14)),
+                Text(tr('size'), style: const TextStyle(fontSize: 14)),
                 Expanded(
                   child: Slider(
                     value: _settings.dayFontSize,
@@ -2956,7 +5085,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             ),
             Row(
               children: [
-                const Text('Intestazione:', style: TextStyle(fontSize: 14)),
+                Text(tr('header'), style: const TextStyle(fontSize: 14)),
                 Expanded(
                   child: Slider(
                     value: _settings.headerFontSize,
@@ -2979,62 +5108,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     );
   }
 
-  Widget _buildZodiacCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SwitchListTile(
-              title: const Text('Mostra Segni Zodiacali', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Nell\'intestazione del calendario'),
-              value: _settings.showZodiac,
-              activeColor: Color(_settings.calendarColorValue),
-              contentPadding: EdgeInsets.zero,
-              onChanged: (v) {
-                _updateSettings(_settings.copyWith(showZodiac: v));
-              },
-            ),
-            if (_settings.showZodiac) ...[
-              const Divider(),
-              const Text('Formato visualizzazione:', style: TextStyle(fontSize: 14)),
-              const SizedBox(height: 8),
-              RadioListTile<String>(
-                title: const Text('Solo icona (es: ♒)'),
-                value: 'icon_only',
-                groupValue: _settings.zodiacDisplayMode,
-                activeColor: Color(_settings.calendarColorValue),
-                onChanged: (v) => _updateSettings(_settings.copyWith(zodiacDisplayMode: v)),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-              RadioListTile<String>(
-                title: const Text('Icona + Testo (es: ♒ Acquario)'),
-                value: 'icon_and_text',
-                groupValue: _settings.zodiacDisplayMode,
-                activeColor: Color(_settings.calendarColorValue),
-                onChanged: (v) => _updateSettings(_settings.copyWith(zodiacDisplayMode: v)),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-              RadioListTile<String>(
-                title: const Text('Solo testo (es: Acquario)'),
-                value: 'text_only',
-                groupValue: _settings.zodiacDisplayMode,
-                activeColor: Color(_settings.calendarColorValue),
-                onChanged: (v) => _updateSettings(_settings.copyWith(zodiacDisplayMode: v)),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildNextMonthPreviewCard() {
     return Card(
@@ -3046,8 +5119,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
-              title: const Text('Mostra Anteprima Mese Successivo', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('La prima settimana del mese successivo verrà mostrata in colore più chiaro'),
+              title: Text(tr('show_next_month'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(tr('show_next_month')),
               value: _settings.showNextMonthPreview,
               activeColor: Color(_settings.calendarColorValue),
               contentPadding: EdgeInsets.zero,
@@ -3078,7 +5151,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                'I giorni del mese successivo appaiono più chiari',
+                tr('next_month_lighter'),
                 style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic),
               ),
             ],
@@ -3088,7 +5161,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     );
   }
 
-  Widget _buildHoroscopeSettingsCard() {
+
+  Widget _buildZodiacAndHoroscopeCard() {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3098,14 +5172,206 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
-              title: const Text('Mostra Oroscopo Giornaliero', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Paolo Fox — richiede data di nascita nel profilo'),
+              title: Text(tr('show_zodiac'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(tr('calendar_view')),
+              value: _settings.showZodiac,
+              activeColor: Color(_settings.calendarColorValue),
+              contentPadding: EdgeInsets.zero,
+              onChanged: (v) {
+                _updateSettings(_settings.copyWith(showZodiac: v));
+              },
+            ),
+            if (_settings.showZodiac) ...[
+              const SizedBox(height: 4),
+              Text(tr('zodiac_display'), style: const TextStyle(fontSize: 14)),
+              const SizedBox(height: 8),
+              RadioListTile<String>(
+                title: Text(tr('icon_only')),
+                value: 'icon_only',
+                groupValue: _settings.zodiacDisplayMode,
+                activeColor: Color(_settings.calendarColorValue),
+                onChanged: (v) => _updateSettings(_settings.copyWith(zodiacDisplayMode: v)),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+              RadioListTile<String>(
+                title: Text(tr('icon_and_text')),
+                value: 'icon_and_text',
+                groupValue: _settings.zodiacDisplayMode,
+                activeColor: Color(_settings.calendarColorValue),
+                onChanged: (v) => _updateSettings(_settings.copyWith(zodiacDisplayMode: v)),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+              RadioListTile<String>(
+                title: Text(tr('text_only')),
+                value: 'text_only',
+                groupValue: _settings.zodiacDisplayMode,
+                activeColor: Color(_settings.calendarColorValue),
+                onChanged: (v) => _updateSettings(_settings.copyWith(zodiacDisplayMode: v)),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+            const Divider(),
+            SwitchListTile(
+              title: Text(tr('show_horoscope'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(tr('daily_horoscope')),
               value: _settings.showHoroscope,
               activeColor: Color(_settings.calendarColorValue),
               contentPadding: EdgeInsets.zero,
               onChanged: (v) {
                 _updateSettings(_settings.copyWith(showHoroscope: v));
               },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnifiedAlertCard() {
+    final showSound = _settings.alertConfig.alertType != 'vibration';
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Alert type
+            Text(tr('alerts'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 8),
+            ...(_alertTypes.entries.map((entry) {
+              return RadioListTile<String>(
+                title: Text(entry.value),
+                value: entry.key,
+                groupValue: _settings.alertConfig.alertType,
+                activeColor: Color(_settings.calendarColorValue),
+                onChanged: (value) {
+                  _updateSettings(_settings.copyWith(
+                    alertConfig: CalendarAlertConfig(
+                      alertType: value!,
+                      soundName: _settings.alertConfig.soundName,
+                      durationSeconds: _settings.alertConfig.durationSeconds,
+                    ),
+                  ));
+                },
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              );
+            })),
+
+            // Sound (only if not vibration-only)
+            if (showSound) ...[
+              const Divider(),
+              Text(tr('alert_sound'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _settings.alertConfig.soundName ?? 'Default',
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+                  prefixIcon: Icon(Icons.music_note, color: Color(_settings.calendarColorValue)),
+                ),
+                items: _alertSounds.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                onChanged: (value) {
+                  _updateSettings(_settings.copyWith(
+                    alertConfig: CalendarAlertConfig(
+                      alertType: _settings.alertConfig.alertType,
+                      soundName: value,
+                      durationSeconds: _settings.alertConfig.durationSeconds,
+                    ),
+                  ));
+                },
+              ),
+            ],
+
+            // Timing
+            const Divider(),
+            Text(tr('reminder'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text(
+              'Puoi selezionare più avvisi contemporaneamente',
+              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                ..._availableAlertMinutes.entries.map((entry) {
+                  final isSelected = _settings.alertMinutesBefore.contains(entry.key);
+                  return FilterChip(
+                    label: Text(entry.value),
+                    selected: isSelected,
+                    selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
+                    checkmarkColor: Color(_settings.calendarColorValue),
+                    onSelected: (selected) {
+                      final newList = List<int>.from(_settings.alertMinutesBefore);
+                      if (selected) {
+                        newList.add(entry.key);
+                        newList.sort();
+                      } else {
+                        newList.remove(entry.key);
+                      }
+                      if (newList.isNotEmpty) {
+                        _updateSettings(_settings.copyWith(alertMinutesBefore: newList));
+                      }
+                    },
+                  );
+                }),
+                FilterChip(
+                  label: Text(_customAlertMinutes.isNotEmpty
+                      ? '${tr('custom')} (${_customAlertMinutes.map(_formatCustomMinutes).join(', ')})'
+                      : tr('custom')),
+                  selected: _customAlertMinutes.isNotEmpty,
+                  selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
+                  checkmarkColor: Color(_settings.calendarColorValue),
+                  onSelected: (_) => _showCustomAlertTimeDialog(),
+                ),
+              ],
+            ),
+
+            // Duration
+            const Divider(),
+            Text(tr('alert_sound'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                ..._alertDurations.entries.map((entry) {
+                  final isSelected = _settings.alertConfig.durationSeconds == entry.key;
+                  return ChoiceChip(
+                    label: Text(entry.value),
+                    selected: isSelected,
+                    selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
+                    onSelected: (selected) {
+                      if (selected) {
+                        _updateSettings(_settings.copyWith(
+                          alertConfig: CalendarAlertConfig(
+                            alertType: _settings.alertConfig.alertType,
+                            soundName: _settings.alertConfig.soundName,
+                            durationSeconds: entry.key,
+                          ),
+                        ));
+                      }
+                    },
+                  );
+                }),
+                ChoiceChip(
+                  label: Text(_isCustomDuration
+                      ? '${tr('custom')} (${_settings.alertConfig.durationSeconds}s)'
+                      : tr('custom')),
+                  selected: _isCustomDuration,
+                  selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
+                  onSelected: (selected) {
+                    if (selected) _showCustomDurationDialog();
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -3123,8 +5389,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
-              title: const Text('Mostra Meteo', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Previsioni 7 giorni nel calendario'),
+              title: Text(tr('show_weather'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(tr('show_weather')),
               value: _settings.showWeather,
               activeColor: Color(_settings.calendarColorValue),
               contentPadding: EdgeInsets.zero,
@@ -3137,8 +5403,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               TextField(
                 controller: TextEditingController(text: _settings.weatherCity ?? ''),
                 decoration: InputDecoration(
-                  labelText: 'Città',
-                  hintText: 'es: Roma, Milano, Napoli',
+                  labelText: tr('weather_city'),
+                  hintText: tr('city_hint'),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   filled: true,
                   fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
@@ -3155,6 +5421,41 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     );
   }
 
+  Widget _buildReligioneCard() {
+    final religions = {
+      tr('catholic'): Icons.church,
+      tr('jewish'): Icons.synagogue,
+      tr('islamic'): Icons.mosque,
+      tr('none_religion'): Icons.public,
+    };
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(tr('holidays'),
+                style: TextStyle(fontSize: 13)),
+            const SizedBox(height: 12),
+            ...religions.entries.map((e) => RadioListTile<String>(
+              title: Text(e.key == tr('none_religion') ? tr('other_none') : e.key),
+              secondary: Icon(e.value),
+              value: e.key,
+              groupValue: _settings.religione,
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              onChanged: (value) {
+                _updateSettings(_settings.copyWith(religione: value));
+              },
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCycleTrackingSettingsCard() {
     return Card(
       elevation: 2,
@@ -3165,8 +5466,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
-              title: const Text('Tracciamento Ciclo', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Segna i giorni del ciclo con 🩸'),
+              title: Text(tr('cycle_tracking'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(tr('show_cycle_tracking')),
               value: _settings.showCycleTracking,
               activeColor: Colors.red,
               contentPadding: EdgeInsets.zero,
@@ -3182,8 +5483,110 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'I dati del ciclo sono privati e non vengono mai condivisi.',
+                    tr('cycle_privacy'),
                     style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthSettingsCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isConnected = HealthService.isAuthorized;
+    final platformName = !HealthService.isSupported
+        ? tr('not_available_web')
+        : defaultTargetPlatform == TargetPlatform.iOS
+            ? 'Apple Health'
+            : 'Health Connect';
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isConnected ? Icons.monitor_heart : Icons.monitor_heart_outlined,
+                  color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isConnected ? '${tr('connected')} - $platformName' : platformName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isConnected ? Colors.green : colorScheme.onSurface,
+                        ),
+                      ),
+                      Text(
+                        isConnected
+                            ? tr('health_connected_desc')
+                            : tr('health_connect_desc'),
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!HealthService.isSupported)
+              Text(
+                'L\'integrazione salute funziona su iOS (Apple Health) e Android (Health Connect). Esegui l\'app su un dispositivo mobile per abilitarla.',
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: isConnected
+                    ? OutlinedButton.icon(
+                        onPressed: () async {
+                          await HealthService.disconnect();
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.link_off, size: 18),
+                        label: Text(tr('disconnect')),
+                        style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
+                      )
+                    : FilledButton.icon(
+                        onPressed: () async {
+                          final ok = await HealthService.requestAuthorization();
+                          setState(() {});
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(ok ? '$platformName ${tr('connected_success')}' : tr('auth_failed')),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.link, size: 18),
+                        label: Text('${tr('connect')} $platformName'),
+                      ),
+              ),
+            const Divider(height: 24),
+            Row(
+              children: [
+                Icon(Icons.lock_outline, size: 16, color: colorScheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tr('health_privacy'),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                   ),
                 ),
               ],
@@ -3224,11 +5627,13 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 class EventEditorPage extends StatefulWidget {
   final DateTime selectedDate;
   final Function(CalendarEventFull) onSave;
+  final CalendarEventFull? existingEvent;
 
   const EventEditorPage({
     super.key,
     required this.selectedDate,
     required this.onSave,
+    this.existingEvent,
   });
 
   @override
@@ -3239,34 +5644,60 @@ class _EventEditorPageState extends State<EventEditorPage> {
   final TextEditingController _titleController = TextEditingController();
   late DateTime _startTime;
   late DateTime _endTime;
-  String _selectedCalendar = 'Personale';
+  String _selectedCalendar = tr('personal');
   String? _selectedReminder;
+  List<String> _sharedWith = [];
+  List<String> _availableFriends = [];
+  String? _attachmentBase64;
 
   final List<String> _calendars = [
-    'Personale',
-    'Lavoro',
-    'Famiglia',
-    'Compleanno',
+    tr('personal'),
+    tr('work'),
+    tr('family'),
+    tr('birthday'),
   ];
   final List<String> _reminders = [
-    '10 minuti prima',
-    '30 minuti prima',
-    '1 ora prima',
-    '1 giorno prima',
-    '1 settimana prima',
+    tr('10_min_before'),
+    tr('30_min_before'),
+    tr('1_hour_before'),
+    tr('day_before'),
+    tr('1_week_before'),
   ];
 
   @override
   void initState() {
     super.initState();
-    _startTime = DateTime(
-      widget.selectedDate.year,
-      widget.selectedDate.month,
-      widget.selectedDate.day,
-      9,
-      0,
-    );
-    _endTime = _startTime.add(const Duration(hours: 1));
+    final existing = widget.existingEvent;
+    if (existing != null) {
+      _titleController.text = existing.title;
+      _startTime = existing.startTime;
+      _endTime = existing.endTime;
+      _selectedCalendar = existing.calendar;
+      _selectedReminder = existing.reminder;
+      _sharedWith = List<String>.from(existing.sharedWith);
+      _attachmentBase64 = existing.attachmentBase64;
+    } else {
+      _startTime = DateTime(
+        widget.selectedDate.year,
+        widget.selectedDate.month,
+        widget.selectedDate.day,
+        9,
+        0,
+      );
+      _endTime = _startTime.add(const Duration(hours: 1));
+    }
+    _loadFriends();
+  }
+
+  Future<void> _loadFriends() async {
+    final prefs = await SharedPreferences.getInstance();
+    final profileJson = prefs.getString('user_profile');
+    if (profileJson != null) {
+      final profile = UserProfile.fromJson(json.decode(profileJson));
+      setState(() {
+        _availableFriends = profile.friends;
+      });
+    }
   }
 
   void _saveEvent() {
@@ -3278,9 +5709,33 @@ class _EventEditorPageState extends State<EventEditorPage> {
           endTime: _endTime,
           calendar: _selectedCalendar,
           reminder: _selectedReminder,
+          sharedWith: _sharedWith,
+          attachmentBase64: _attachmentBase64,
         ),
       );
       Navigator.pop(context);
+    }
+  }
+
+  Future<void> _pickDate(bool isStart) async {
+    final initial = isStart ? _startTime : _endTime;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (date != null) {
+      setState(() {
+        if (isStart) {
+          _startTime = DateTime(date.year, date.month, date.day, _startTime.hour, _startTime.minute);
+          if (_startTime.isAfter(_endTime)) {
+            _endTime = _startTime.add(const Duration(hours: 1));
+          }
+        } else {
+          _endTime = DateTime(date.year, date.month, date.day, _endTime.hour, _endTime.minute);
+        }
+      });
     }
   }
 
@@ -3312,17 +5767,47 @@ class _EventEditorPageState extends State<EventEditorPage> {
     }
   }
 
+  Future<void> _pickPhoto() async {
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _attachmentBase64 = base64Encode(bytes);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr('photo_error')}: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatDate(DateTime dt) => '${dt.day}/${dt.month}/${dt.year}';
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nuovo Evento'),
+        title: Text(widget.existingEvent != null ? tr('edit_event') : tr('new_event')),
         actions: [
           FilledButton.icon(
             onPressed: _saveEvent,
             icon: const Icon(Icons.check, size: 18),
-            label: const Text('Salva'),
+            label: Text(tr('save')),
             style: FilledButton.styleFrom(
               backgroundColor: colorScheme.primary,
               foregroundColor: colorScheme.onPrimary,
@@ -3339,16 +5824,46 @@ class _EventEditorPageState extends State<EventEditorPage> {
             TextField(
               controller: _titleController,
               decoration: InputDecoration(
-                labelText: 'Titolo evento',
-                hintText: 'es. Riunione, Compleanno, Appuntamento...',
+                labelText: tr('event_title'),
+                hintText: '${tr('meeting')}, ${tr('birthday')}, ${tr('appointment')}...',
                 prefixIcon: Icon(Icons.event, color: colorScheme.primary),
               ),
               style: const TextStyle(fontSize: 18),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Durata',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              tr('date_and_time'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _pickDate(true),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: tr('start_time'),
+                        prefixIcon: _CalendarIcon9(size: 22),
+                      ),
+                      child: Text(_formatDate(_startTime)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _pickDate(false),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: tr('end_time'),
+                        prefixIcon: _CalendarIcon9(size: 22),
+                      ),
+                      child: Text(_formatDate(_endTime)),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             Row(
@@ -3357,9 +5872,9 @@ class _EventEditorPageState extends State<EventEditorPage> {
                   child: InkWell(
                     onTap: () => _pickTime(true),
                     child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Inizio',
-                        prefixIcon: Icon(Icons.access_time),
+                      decoration: InputDecoration(
+                        labelText: tr('start_time'),
+                        prefixIcon: const Icon(Icons.access_time),
                       ),
                       child: Text(
                         '${_startTime.hour}:${_startTime.minute.toString().padLeft(2, '0')}',
@@ -3372,9 +5887,9 @@ class _EventEditorPageState extends State<EventEditorPage> {
                   child: InkWell(
                     onTap: () => _pickTime(false),
                     child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Fine',
-                        prefixIcon: Icon(Icons.access_time),
+                      decoration: InputDecoration(
+                        labelText: tr('end_time'),
+                        prefixIcon: const Icon(Icons.access_time),
                       ),
                       child: Text(
                         '${_endTime.hour}:${_endTime.minute.toString().padLeft(2, '0')}',
@@ -3387,9 +5902,9 @@ class _EventEditorPageState extends State<EventEditorPage> {
             const SizedBox(height: 24),
             DropdownButtonFormField<String>(
               value: _selectedCalendar,
-              decoration: const InputDecoration(
-                labelText: 'Calendario',
-                prefixIcon: Icon(Icons.calendar_today),
+              decoration: InputDecoration(
+                labelText: tr('calendar_name'),
+                prefixIcon: _CalendarIcon9(size: 22),
               ),
               items: _calendars
                   .map((cal) => DropdownMenuItem(value: cal, child: Text(cal)))
@@ -3397,9 +5912,9 @@ class _EventEditorPageState extends State<EventEditorPage> {
               onChanged: (value) => setState(() => _selectedCalendar = value!),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Avviso',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              tr('alert'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -3419,28 +5934,91 @@ class _EventEditorPageState extends State<EventEditorPage> {
                 );
               }).toList(),
             ),
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Funzione allegati in arrivo!'),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.attach_file),
-              label: const Text('Aggiungi File o Foto'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
+            if (_availableFriends.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text(
+                tr('share_with'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _availableFriends.map((friend) {
+                  final isSelected = _sharedWith.contains(friend);
+                  return FilterChip(
+                    avatar: CircleAvatar(
+                      backgroundColor: colorScheme.primaryContainer,
+                      child: Text(friend[0], style: TextStyle(fontSize: 12, color: colorScheme.primary)),
+                    ),
+                    label: Text(friend),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _sharedWith.add(friend);
+                        } else {
+                          _sharedWith.remove(friend);
+                        }
+                      });
+                    },
+                    selectedColor: colorScheme.primaryContainer,
+                  );
+                }).toList(),
+              ),
+            ],
+            const SizedBox(height: 24),
+            Text(
+              tr('attachment'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 12),
+            if (_attachmentBase64 != null) ...[
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(
+                      base64Decode(_attachmentBase64!),
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _attachmentBase64 = null),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: colorScheme.error,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.close, color: colorScheme.onError, size: 18),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ] else
+              OutlinedButton.icon(
+                onPressed: _pickPhoto,
+                icon: const Icon(Icons.add_a_photo),
+                label: Text(tr('insert_image')),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                ),
+              ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: _saveEvent,
                 icon: const Icon(Icons.save),
-                label: const Text('Salva Evento'),
+                label: Text(tr('save')),
               ),
             ),
           ],
@@ -3458,15 +6036,17 @@ class _EventEditorPageState extends State<EventEditorPage> {
 
 class SettingsPage extends StatefulWidget {
   final UserProfile userProfile;
-  final bool isDarkMode;
-  final Function(bool) onThemeChanged;
+  final String themeMode;
+  final Function(String) onThemeModeChanged;
+  final Function(String) onLocaleChanged;
   final Function(UserProfile) onSave;
 
   const SettingsPage({
     super.key,
     required this.userProfile,
-    required this.isDarkMode,
-    required this.onThemeChanged,
+    required this.themeMode,
+    required this.onThemeModeChanged,
+    required this.onLocaleChanged,
     required this.onSave,
   });
 
@@ -3487,11 +6067,20 @@ class _SettingsPageState extends State<SettingsPage> {
       dataNascita: widget.userProfile.dataNascita,
       isPro: widget.userProfile.isPro,
       photoPath: widget.userProfile.photoPath,
+      photoBase64: widget.userProfile.photoBase64,
       googleCalendarConnected: widget.userProfile.googleCalendarConnected,
       googleDriveConnected: widget.userProfile.googleDriveConnected,
       geminiConnected: widget.userProfile.geminiConnected,
       backupMode: widget.userProfile.backupMode,
       religione: widget.userProfile.religione,
+      telefono: widget.userProfile.telefono,
+      password: widget.userProfile.password,
+      socialLinks: List<String>.from(widget.userProfile.socialLinks),
+      friends: List<String>.from(widget.userProfile.friends),
+      oldPhotos: List<String>.from(widget.userProfile.oldPhotos),
+      accounts: widget.userProfile.accounts.map((e) => Map<String, String>.from(e)).toList(),
+      activeAccountIndex: widget.userProfile.activeAccountIndex,
+      nickname: widget.userProfile.nickname,
     );
   }
 
@@ -3509,18 +6098,18 @@ class _SettingsPageState extends State<SettingsPage> {
         context: context,
         builder: (context) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Text('Foto Profilo'),
+          title: Text(tr('profile_photo')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
                 leading: Icon(Icons.photo_library, color: Theme.of(context).colorScheme.primary),
-                title: const Text('Cambia Foto'),
+                title: Text(tr('change_photo')),
                 onTap: () => Navigator.pop(context, 'change'),
               ),
               ListTile(
                 leading: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                title: const Text('Rimuovi Foto'),
+                title: Text(tr('remove_photo')),
                 onTap: () => Navigator.pop(context, 'remove'),
               ),
             ],
@@ -3552,6 +6141,11 @@ class _SettingsPageState extends State<SettingsPage> {
         final bytes = await image.readAsBytes();
         final base64String = base64Encode(bytes);
         setState(() {
+          // Save old photo to history (max 10)
+          if (_profile.photoBase64 != null && _profile.photoBase64!.isNotEmpty) {
+            _profile.oldPhotos.insert(0, _profile.photoBase64!);
+            if (_profile.oldPhotos.length > 10) _profile.oldPhotos.removeLast();
+          }
           _profile.photoBase64 = base64String;
         });
         _saveProfile();
@@ -3560,7 +6154,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Errore nel caricamento della foto: $e'),
+            content: Text('${tr('photo_error')}: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -3569,9 +6163,268 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  void _showProfileDetails() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        final colorScheme = Theme.of(ctx).colorScheme;
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (ctx, scrollController) => SingleChildScrollView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 20),
+                // Avatar grande + camera
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 60,
+                      backgroundColor: _profile.photoBytes != null ? colorScheme.primary : Colors.transparent,
+                      backgroundImage: _profile.photoBytes != null ? MemoryImage(_profile.photoBytes!) : null,
+                      child: _profile.photoBytes == null ? ClipOval(child: Image.asset('assets/logo.png', width: 120, height: 120, fit: BoxFit.cover)) : null,
+                    ),
+                    Positioned(
+                      bottom: 0, right: 0,
+                      child: GestureDetector(
+                        onTap: () { Navigator.pop(ctx); _addPhoto(); },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: colorScheme.primary, shape: BoxShape.circle),
+                          child: Icon(Icons.camera_alt, color: colorScheme.onPrimary, size: 20),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(_profile.fullName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                if (_profile.nickname != null && _profile.nickname!.isNotEmpty)
+                  Text('@${_profile.nickname}', style: TextStyle(fontSize: 15, color: colorScheme.primary)),
+                if (_profile.eta != null)
+                  Text('${_profile.eta} ${tr('years_old')}', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                if (_profile.email != null && _profile.email!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Chip(
+                    avatar: Icon(Icons.email, size: 16, color: colorScheme.primary),
+                    label: Text(_profile.email!, style: TextStyle(fontSize: 13, color: colorScheme.primary)),
+                    backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.4),
+                    side: BorderSide.none,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () { Navigator.pop(ctx); _showProfileEditor(); },
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: Text(tr('edit')),
+                  style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                ),
+
+                // Account e Sicurezza
+                const Divider(height: 32),
+                Row(
+                  children: [
+                    Icon(Icons.shield_outlined, color: colorScheme.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text(tr('account_security'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (!_profile.hasAccount) ...[
+                  Text(tr('email'),
+                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14)),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            final emailController = TextEditingController();
+                            return AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              title: Text(tr('email')),
+                              content: TextField(
+                                controller: emailController,
+                                decoration: InputDecoration(
+                                  labelText: tr('email'),
+                                  hintText: tr('email_hint'),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                  prefixIcon: const Icon(Icons.email),
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+                                FilledButton(
+                                  onPressed: () {
+                                    if (emailController.text.contains('@')) {
+                                      setState(() => _profile.email = emailController.text);
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                  child: Text(tr('confirm')),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      icon: const Icon(Icons.email),
+                      label: Text(tr('email')),
+                    ),
+                  ),
+                ] else
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.email_outlined),
+                    title: Text(tr('email')),
+                    subtitle: Text(_profile.email!),
+                    dense: true,
+                  ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.phone_outlined),
+                  title: Text(tr('phone')),
+                  subtitle: Text(_profile.telefono ?? tr('not_set_m')),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  dense: true,
+                  onTap: () { Navigator.pop(ctx); _showPhoneEditor(); },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.lock_outline),
+                  title: Text(tr('password')),
+                  subtitle: Text(_profile.password != null && _profile.password!.isNotEmpty ? '********' : tr('not_set_f')),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  dense: true,
+                  onTap: () { Navigator.pop(ctx); _showPasswordEditor(); },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.switch_account_outlined),
+                  title: Text(tr('switch_account')),
+                  subtitle: Text('${_profile.accounts.length} account'),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  dense: true,
+                  onTap: () { Navigator.pop(ctx); _showAccountSwitcher(); },
+                ),
+
+                // Social e Condivisione
+                const Divider(height: 32),
+                Row(
+                  children: [
+                    Icon(Icons.share_outlined, color: colorScheme.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text(tr('social_links'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () { Navigator.pop(ctx); _shareProfile(); },
+                    icon: const Icon(Icons.qr_code, size: 18),
+                    label: Text(tr('share')),
+                    style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(tr('social_links'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline, size: 20),
+                      onPressed: () { Navigator.pop(ctx); _addSocialLink(); },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    ),
+                  ],
+                ),
+                if (_profile.socialLinks.isEmpty)
+                  Text(tr('no_results'), style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13))
+                else
+                  ...List.generate(_profile.socialLinks.length, (i) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: const Icon(Icons.link, size: 18),
+                    title: Text(_profile.socialLinks[i], style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
+                  )),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(tr('friends'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                    IconButton(
+                      icon: const Icon(Icons.person_add_outlined, size: 20),
+                      onPressed: () { Navigator.pop(ctx); _addFriend(); },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    ),
+                  ],
+                ),
+                if (_profile.friends.isEmpty)
+                  Text(tr('no_results'), style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13))
+                else
+                  ...List.generate(_profile.friends.length, (i) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: const Icon(Icons.person_outline, size: 18),
+                    title: Text(_profile.friends[i], style: const TextStyle(fontSize: 13)),
+                  )),
+
+                // Cronologia Foto
+                if (_profile.oldPhotos.isNotEmpty) ...[
+                  const Divider(height: 32),
+                  Row(
+                    children: [
+                      Icon(Icons.photo_library_outlined, color: colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(tr('photo_history'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 80,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _profile.oldPhotos.length,
+                      itemBuilder: (context, i) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.memory(
+                            base64Decode(_profile.oldPhotos[i]),
+                            width: 80, height: 80, fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showProfileEditor() {
     final nomeController = TextEditingController(text: _profile.nome);
     final cognomeController = TextEditingController(text: _profile.cognome);
+    final nicknameController = TextEditingController(text: _profile.nickname);
     DateTime selectedDate = _profile.dataNascita ?? DateTime(2000, 1, 1);
 
     showDialog(
@@ -3581,7 +6434,7 @@ class _SettingsPageState extends State<SettingsPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text('Modifica Profilo'),
+          title: Text(tr('edit_profile')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -3589,7 +6442,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 TextField(
                   controller: nomeController,
                   decoration: InputDecoration(
-                    labelText: 'Nome',
+                    labelText: tr('name'),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -3600,11 +6453,23 @@ class _SettingsPageState extends State<SettingsPage> {
                 TextField(
                   controller: cognomeController,
                   decoration: InputDecoration(
-                    labelText: 'Cognome',
+                    labelText: tr('surname'),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     prefixIcon: const Icon(Icons.person_outline),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nicknameController,
+                  decoration: InputDecoration(
+                    labelText: tr('nickname'),
+                    hintText: tr('nickname_hint'),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.alternate_email),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -3624,7 +6489,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                   child: InputDecorator(
                     decoration: InputDecoration(
-                      labelText: 'Data di Nascita',
+                      labelText: tr('birth_date'),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -3642,18 +6507,19 @@ class _SettingsPageState extends State<SettingsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Annulla'),
+              child: Text(tr('cancel')),
             ),
             ElevatedButton(
               onPressed: () {
                 setState(() {
                   _profile.nome = nomeController.text;
                   _profile.cognome = cognomeController.text;
+                  _profile.nickname = nicknameController.text.isEmpty ? null : nicknameController.text;
                   _profile.dataNascita = selectedDate;
                 });
                 Navigator.pop(context);
               },
-              child: const Text('Salva'),
+              child: Text(tr('save')),
             ),
           ],
         ),
@@ -3683,7 +6549,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const SizedBox(width: 12),
-            const Text('Passa a PRO'),
+            const Text('PRO'),
           ],
         ),
         content: SingleChildScrollView(
@@ -3710,7 +6576,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                     Text(
-                      '/mese',
+                      tr('per_month'),
                       style: TextStyle(
                         fontSize: 16,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -3720,30 +6586,30 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Vantaggi PRO:',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                tr('pro_benefits'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              _buildProFeature(Icons.business, 'Profilo Business'),
+              _buildProFeature(Icons.business, tr('business_profile')),
               _buildProFeature(
                 Icons.group,
-                'Condivisione con gruppi di lavoro',
+                tr('group_sharing'),
               ),
-              _buildProFeature(Icons.people, 'Condivisione calendario e note'),
-              _buildProFeature(Icons.edit_note, 'Editor avanzato stile Word'),
+              _buildProFeature(Icons.people, tr('calendar_notes_sharing')),
+              _buildProFeature(Icons.edit_note, tr('advanced_editor')),
               _buildProFeature(
                 Icons.format_bold,
-                'Formattazione testo completa',
+                tr('full_text_formatting'),
               ),
               _buildProFeature(
                 Icons.table_chart,
-                'Tabelle e inserimento media',
+                tr('tables_media'),
               ),
-              _buildProFeature(Icons.cloud_upload, 'Backup cloud illimitato'),
+              _buildProFeature(Icons.cloud_upload, tr('unlimited_backup')),
               _buildProFeature(
                 Icons.sync,
-                'Sincronizzazione multi-dispositivo',
+                tr('multi_device_sync'),
               ),
             ],
           ),
@@ -3751,7 +6617,7 @@ class _SettingsPageState extends State<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Forse dopo'),
+            child: Text(tr('cancel')),
           ),
           ElevatedButton.icon(
             onPressed: () {
@@ -3768,7 +6634,7 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
             icon: const Icon(Icons.workspace_premium),
-            label: const Text('Attiva PRO'),
+            label: const Text('PRO'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.amber,
               foregroundColor: Colors.white,
@@ -3801,17 +6667,312 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  void _showPhoneEditor() {
+    final controller = TextEditingController(text: _profile.telefono ?? '');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('phone')),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: tr('phone'),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            prefixIcon: const Icon(Icons.phone),
+          ),
+          keyboardType: TextInputType.phone,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () {
+              setState(() => _profile.telefono = controller.text.isEmpty ? null : controller.text);
+              Navigator.pop(context);
+            },
+            child: Text(tr('save')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPasswordEditor() {
+    final oldController = TextEditingController();
+    final newController = TextEditingController();
+    String? error;
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('change_pin')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_profile.password != null && _profile.password!.isNotEmpty)
+                TextField(
+                  controller: oldController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: tr('password'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    errorText: error,
+                  ),
+                ),
+              if (_profile.password != null && _profile.password!.isNotEmpty) const SizedBox(height: 12),
+              TextField(
+                controller: newController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: tr('password'),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.lock),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+            FilledButton(
+              onPressed: () {
+                if (_profile.password != null && _profile.password!.isNotEmpty && oldController.text != _profile.password) {
+                  setDialogState(() => error = tr('wrong_password'));
+                  return;
+                }
+                setState(() => _profile.password = newController.text.isEmpty ? null : newController.text);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(tr('success')),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+              },
+              child: Text(tr('save')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAccountSwitcher() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tr('profile'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              // Main account
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  child: Text(_profile.initials, style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer)),
+                ),
+                title: Text(_profile.fullName),
+                subtitle: Text(_profile.email ?? tr('no_email')),
+                trailing: _profile.activeAccountIndex == 0 ? const Icon(Icons.check_circle, color: Colors.green) : null,
+                onTap: () {
+                  setState(() => _profile.activeAccountIndex = 0);
+                  setSheetState(() {});
+                },
+              ),
+              // Secondary accounts
+              ...List.generate(_profile.accounts.length, (i) {
+                final acc = _profile.accounts[i];
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                    child: Text((acc['nome'] ?? '?')[0].toUpperCase()),
+                  ),
+                  title: Text(acc['nome'] ?? ''),
+                  subtitle: Text(acc['email'] ?? ''),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_profile.activeAccountIndex == i + 1) const Icon(Icons.check_circle, color: Colors.green),
+                      IconButton(
+                        icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.error),
+                        onPressed: () {
+                          setState(() {
+                            _profile.accounts.removeAt(i);
+                            if (_profile.activeAccountIndex > _profile.accounts.length) {
+                              _profile.activeAccountIndex = 0;
+                            }
+                          });
+                          setSheetState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    setState(() => _profile.activeAccountIndex = i + 1);
+                    setSheetState(() {});
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddAccountDialog() {
+    final nomeController = TextEditingController();
+    final emailController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('add_account')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nomeController,
+              decoration: InputDecoration(
+                labelText: tr('name'),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                prefixIcon: const Icon(Icons.person),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailController,
+              decoration: InputDecoration(
+                labelText: tr('email'),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                prefixIcon: const Icon(Icons.email),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () {
+              if (nomeController.text.isNotEmpty) {
+                setState(() {
+                  _profile.accounts.add({'nome': nomeController.text, 'email': emailController.text});
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: Text(tr('add')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _shareProfile() {
+    final vcard = StringBuffer();
+    vcard.writeln('BEGIN:VCARD');
+    vcard.writeln('VERSION:3.0');
+    vcard.writeln('FN:${_profile.fullName}');
+    if (_profile.nome != null) vcard.writeln('N:${_profile.cognome ?? ''};${_profile.nome};;;');
+    if (_profile.email != null) vcard.writeln('EMAIL:${_profile.email}');
+    if (_profile.telefono != null) vcard.writeln('TEL:${_profile.telefono}');
+    for (final link in _profile.socialLinks) {
+      vcard.writeln('URL:$link');
+    }
+    vcard.writeln('END:VCARD');
+    Clipboard.setData(ClipboardData(text: vcard.toString()));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tr('copied_to_clipboard')),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _addSocialLink() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('add_social_link')),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: tr('url_or_username'),
+            hintText: 'https://...',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            prefixIcon: const Icon(Icons.link),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                setState(() => _profile.socialLinks.add(controller.text));
+                Navigator.pop(context);
+              }
+            },
+            child: Text(tr('add')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addFriend() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('add_friend')),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: tr('friend_name'),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            prefixIcon: const Icon(Icons.person_add),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                setState(() => _profile.friends.add(controller.text));
+                Navigator.pop(context);
+              }
+            },
+            child: Text(tr('add')),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Impostazioni'),
+        title: Text(tr('profile')),
         actions: [
           FilledButton.icon(
             onPressed: _saveProfile,
             icon: const Icon(Icons.check, size: 18),
-            label: const Text('Salva'),
+            label: Text(tr('save')),
             style: FilledButton.styleFrom(
               backgroundColor: colorScheme.primary,
               foregroundColor: colorScheme.onPrimary,
@@ -3823,459 +6984,222 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // --- CARD 1: Profilo (compatto — tap foto per dettagli) ---
           Card(
-            elevation: 3,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            elevation: 0,
+            color: colorScheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        backgroundImage: _profile.photoBytes != null
-                            ? MemoryImage(_profile.photoBytes!)
-                            : null,
-                        child: _profile.photoBytes == null
-                            ? Text(
-                                _profile.initials,
-                                style: TextStyle(
-                                  color: colorScheme.onPrimary,
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              )
-                            : null,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: _addPhoto,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.camera_alt,
-                              color: colorScheme.onPrimary,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _profile.fullName,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                  GestureDetector(
+                    onTap: _showProfileDetails,
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor: _profile.photoBytes != null
+                          ? colorScheme.primary
+                          : Colors.transparent,
+                      backgroundImage: _profile.photoBytes != null
+                          ? MemoryImage(_profile.photoBytes!)
+                          : null,
+                      child: _profile.photoBytes == null
+                          ? ClipOval(child: Image.asset('assets/logo.png', width: 100, height: 100, fit: BoxFit.cover))
+                          : null,
                     ),
-                  ),
-                  if (_profile.eta != null)
-                    Text(
-                      '${_profile.eta} anni',
-                      style: TextStyle(color: colorScheme.onSurfaceVariant),
-                    ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _showProfileEditor,
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Modifica'),
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.email,
-                          color: colorScheme.onPrimaryContainer,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Account Ethos Note',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (!_profile.hasAccount) ...[
-                    Text(
-                      'Registrati per sincronizzare le tue note',
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) {
-                              final emailController = TextEditingController();
-                              return AlertDialog(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                title: const Text('Registrati con Email'),
-                                content: TextField(
-                                  controller: emailController,
-                                  decoration: InputDecoration(
-                                    labelText: 'Email',
-                                    hintText: 'tuaemail@esempio.com',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    prefixIcon: const Icon(Icons.email),
-                                  ),
-                                  keyboardType: TextInputType.emailAddress,
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Annulla'),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      if (emailController.text.contains('@')) {
-                                        setState(() {
-                                          _profile.email = emailController.text;
-                                        });
-                                        Navigator.pop(context);
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('✓ Account creato!'),
-                                            backgroundColor: Colors.green,
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    child: const Text('Registrati'),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                        icon: const Icon(Icons.email),
-                        label: const Text(
-                          'Registrati con Email',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _profile.email = 'utente@gmail.com';
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('✓ Registrato con Google!'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.g_mobiledata, size: 28),
-                        label: const Text(
-                          'Registrati con Google',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-                  ] else ...[
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          color: Colors.green,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Email: ${_profile.email}',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Integrazioni',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildIntegrationTile(
-                    'Google Drive',
-                    Icons.cloud,
-                    Colors.blue.shade700,
-                    _profile.googleDriveConnected,
-                    (value) =>
-                        setState(() => _profile.googleDriveConnected = value),
                   ),
                   const SizedBox(height: 12),
-                  _buildIntegrationTile(
-                    'Gemini AI',
-                    Icons.auto_awesome,
-                    Colors.purple.shade700,
-                    _profile.geminiConnected,
-                    (value) => setState(() => _profile.geminiConnected = value),
+                  Text(
+                    _profile.fullName,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
+                  if (_profile.nickname != null && _profile.nickname!.isNotEmpty)
+                    Text('@${_profile.nickname}', style: TextStyle(fontSize: 14, color: colorScheme.primary)),
+                  if (_profile.email != null && _profile.email!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Chip(
+                      avatar: Icon(Icons.email, size: 16, color: colorScheme.primary),
+                      label: Text(_profile.email!, style: TextStyle(fontSize: 13, color: colorScheme.primary)),
+                      backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.4),
+                      side: BorderSide.none,
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(tr('profile'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // --- CARD 2: Integrazioni (ListTile tappabile → bottom sheet) ---
           Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+            elevation: 0,
+            color: colorScheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: ListTile(
+              leading: Icon(Icons.extension, color: colorScheme.primary),
+              title: Text(tr('settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(_getIntegrationsSubtitle()),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _showIntegrationsSheet,
             ),
+          ),
+          const SizedBox(height: 16),
+
+          // --- CARD 4: General Settings ---
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.settings),
-                  title: const Text(
-                    'Impostazioni Generali',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.palette, color: Colors.deepPurple, size: 22),
+                  ),
+                  title: Text(tr('theme')),
+                  subtitle: Text(widget.themeMode == 'light' ? tr('light') : widget.themeMode == 'dark' ? tr('dark') : 'Ethos'),
+                  trailing: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'light', icon: Icon(Icons.light_mode, size: 18)),
+                      ButtonSegment(value: 'dark', icon: Icon(Icons.dark_mode, size: 18)),
+                      ButtonSegment(value: 'ethos', icon: Icon(Icons.auto_awesome, size: 18)),
+                    ],
+                    selected: {widget.themeMode},
+                    onSelectionChanged: (sel) => widget.onThemeModeChanged(sel.first),
+                    showSelectedIcon: false,
+                    style: const ButtonStyle(visualDensity: VisualDensity.compact),
                   ),
                 ),
                 const Divider(height: 1),
-                SwitchListTile(
-                  secondary: const Icon(Icons.dark_mode),
-                  title: const Text('Tema Scuro'),
-                  value: widget.isDarkMode,
-                  onChanged: widget.onThemeChanged,
-                ),
                 ListTile(
-                  leading: const Icon(Icons.church),
-                  title: const Text('Religione'),
-                  subtitle: Text(_profile.religione),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Seleziona Religione'),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            RadioListTile(
-                              title: const Text('Cattolica'),
-                              value: 'Cattolica',
-                              groupValue: _profile.religione,
-                              onChanged: (value) {
-                                setState(() => _profile.religione = value!);
-                                Navigator.pop(context);
-                              },
-                            ),
-                            RadioListTile(
-                              title: const Text('Ebraica'),
-                              value: 'Ebraica',
-                              groupValue: _profile.religione,
-                              onChanged: (value) {
-                                setState(() => _profile.religione = value!);
-                                Navigator.pop(context);
-                              },
-                            ),
-                            RadioListTile(
-                              title: const Text('Islamica'),
-                              value: 'Islamica',
-                              groupValue: _profile.religione,
-                              onChanged: (value) {
-                                setState(() => _profile.religione = value!);
-                                Navigator.pop(context);
-                              },
-                            ),
-                            RadioListTile(
-                              title: const Text('Altra/Nessuna'),
-                              value: 'Nessuna',
-                              groupValue: _profile.religione,
-                              onChanged: (value) {
-                                setState(() => _profile.religione = value!);
-                                Navigator.pop(context);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.language, color: Colors.blue, size: 22),
+                  ),
+                  title: Text(tr('language')),
+                  subtitle: Text({'it': 'Italiano', 'en': 'English', 'fr': 'Français', 'es': 'Español'}[_appLocale] ?? 'Italiano'),
+                  trailing: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'it', label: Text('IT', style: TextStyle(fontSize: 12))),
+                      ButtonSegment(value: 'en', label: Text('EN', style: TextStyle(fontSize: 12))),
+                      ButtonSegment(value: 'fr', label: Text('FR', style: TextStyle(fontSize: 12))),
+                      ButtonSegment(value: 'es', label: Text('ES', style: TextStyle(fontSize: 12))),
+                    ],
+                    selected: {_appLocale},
+                    onSelectionChanged: (sel) => widget.onLocaleChanged(sel.first),
+                    showSelectedIcon: false,
+                    style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                  ),
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.settings),
-                  title: const Text(
-                    'Impostazioni Deep Note',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE53935).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.note, color: Color(0xFFE53935), size: 22),
                   ),
+                  title: Text(tr('deep_note_settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
                     final currentSettings = await NoteProSettings.load();
                     if (!context.mounted) return;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => NoteProSettingsPage(
-                          settings: currentSettings,
-                          onSave: (newSettings) {
-                            newSettings.save();
-                          },
-                        ),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (context) => NoteProSettingsPage(settings: currentSettings, onSave: (s) => s.save()),
+                    ));
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.calendar_today),
-                  title: const Text(
-                    'Impostazioni Calendario',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const _CalendarIcon9(size: 22, color: Color(0xFF1E88E5)),
                   ),
+                  title: Text(tr('calendar_settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
                     final currentSettings = await CalendarSettings.load();
                     if (!context.mounted) return;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CalendarSettingsPage(
-                          settings: currentSettings,
-                          onSave: (newSettings) {
-                            newSettings.save();
-                          },
-                        ),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (context) => CalendarSettingsPage(settings: currentSettings, onSave: (s) => s.save()),
+                    ));
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.flash_on),
-                  title: const Text(
-                    'Impostazioni Flash Notes',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFA726).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.flash_on, color: Color(0xFFFFA726), size: 22),
                   ),
+                  title: Text(tr('flash_notes_settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
                     final currentSettings = await FlashNotesSettings.load();
                     if (!context.mounted) return;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => FlashNotesSettingsPage(
-                          settings: currentSettings,
-                          onSave: (newSettings) {
-                            newSettings.save();
-                          },
-                        ),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (context) => FlashNotesSettingsPage(settings: currentSettings, onSave: (s) => s.save()),
+                    ));
                   },
                 ),
+                const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.delete_outline),
-                  title: const Text(
-                    'Cestino',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: colorScheme.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.delete_outline, color: colorScheme.error, size: 22),
                   ),
+                  title: Text(tr('trash'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TrashPage(),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const TrashPage()));
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.backup),
-                  title: const Text('Backup'),
-                  subtitle: Text(
-                    _profile.backupMode == 'local' ? 'Locale' : 'Google Drive',
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.backup, color: Colors.teal, size: 22),
                   ),
+                  title: Text(tr('backup')),
+                  subtitle: Text(_profile.backupMode == 'local' ? tr('local') : 'Google Drive'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     showDialog(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: const Text('Modalità Backup'),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        title: Text(tr('backup_mode')),
                         content: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             RadioListTile(
-                              title: const Text('Locale'),
-                              subtitle: const Text('Salva sul dispositivo'),
+                              title: Text(tr('local')),
+                              subtitle: Text(tr('save_on_device')),
                               value: 'local',
                               groupValue: _profile.backupMode,
                               onChanged: (value) {
@@ -4284,8 +7208,8 @@ class _SettingsPageState extends State<SettingsPage> {
                               },
                             ),
                             RadioListTile(
-                              title: const Text('Google Drive'),
-                              subtitle: const Text('Sincronizza su cloud'),
+                              title: const Text('Google Drive') /* brand */,
+                              subtitle: Text(tr('sync_to_cloud')),
                               value: 'drive',
                               groupValue: _profile.backupMode,
                               onChanged: (value) {
@@ -4300,22 +7224,25 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.info_outline),
-                  title: const Text('Informazioni'),
-                  subtitle: const Text('Versione 1.0.0'),
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.info_outline, color: colorScheme.primary, size: 22),
+                  ),
+                  title: Text(tr('info')),
+                  subtitle: Text('${tr('version')} 1.0.0'),
                   onTap: () {
                     showDialog(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: const Text('Ethos Note'),
-                        content: const Text(
-                          'Versione 1.0.0\n\n© 2025 Ethos Note',
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        title: const Text('Ethos Note') /* brand name */,
+                        content: Text('${tr('version')} 1.0.0\n\n© 2025 Ethos Note'),
                         actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('OK'),
-                          ),
+                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
                         ],
                       ),
                     );
@@ -4324,8 +7251,316 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
+          const SizedBox(height: 24),
+
+          // --- Aggiungi Account ---
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _profile.accounts.length >= 3
+                  ? null
+                  : _showAddAccountDialog,
+              icon: const Icon(Icons.person_add, size: 18),
+              label: Text(_profile.accounts.length >= 3 ? tr('max_profiles') : tr('add_account')),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // --- Disconnetti ---
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _showLogoutDialog,
+              icon: const Icon(Icons.logout, size: 18),
+              label: Text(tr('disconnect')),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // --- Elimina Account ---
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: _showDeleteAccountDialog,
+              icon: Icon(Icons.delete_forever, size: 18, color: colorScheme.error),
+              label: Text(tr('delete_account'), style: TextStyle(color: colorScheme.error)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
           const SizedBox(height: 40),
         ],
+      ),
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('disconnect')),
+        content: Text(tr('delete_account_confirm')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () {
+              setState(() {
+                _profile.nome = '';
+                _profile.cognome = '';
+                _profile.email = null;
+                _profile.nickname = null;
+                _profile.photoBase64 = null;
+                _profile.photoPath = null;
+                _profile.accounts.clear();
+                _profile.activeAccountIndex = 0;
+              });
+              _saveProfile();
+              Navigator.pop(context);
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+            child: Text(tr('disconnect')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('delete_account')),
+        content: Text(tr('delete_account_confirm')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () {
+              Navigator.pop(context);
+              _showDeleteReasonDialog();
+            },
+            child: Text(tr('continue_action')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteReasonDialog() {
+    String? selectedReason;
+    final commentController = TextEditingController();
+    final reasons = [
+      'Non uso più l\'app',
+      'Ho trovato un\'alternativa migliore',
+      tr('privacy_concerns'),
+      tr('too_many_bugs'),
+      tr('other'),
+    ];
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('reason_for_leaving')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ...reasons.map((r) => RadioListTile<String>(
+                  title: Text(r, style: const TextStyle(fontSize: 14)),
+                  value: r,
+                  groupValue: selectedReason,
+                  onChanged: (v) => setDialogState(() => selectedReason = v),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                )),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: commentController,
+                  decoration: InputDecoration(
+                    hintText: tr('notes'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    isDense: true,
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+              onPressed: selectedReason == null ? null : () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear();
+                if (!context.mounted) return;
+                Navigator.pop(context);
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              child: Text(tr('delete_permanently')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getIntegrationsSubtitle() {
+    final connected = <String>[];
+    if (_profile.googleDriveConnected) connected.add('Google Drive');
+    if (_profile.geminiConnected) connected.add('Gemini AI');
+    if (HealthService.isAuthorized) connected.add(tr('health'));
+    return connected.isEmpty ? tr('no_active_integrations') : connected.join(', ');
+  }
+
+  void _showIntegrationsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final colorScheme = Theme.of(ctx).colorScheme;
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(tr('integrations'), style: Theme.of(ctx).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                _buildIntegrationTile(
+                  'Google Drive', Icons.cloud, Colors.blue.shade700,
+                  _profile.googleDriveConnected,
+                  (value) {
+                    setState(() => _profile.googleDriveConnected = value);
+                    setSheetState(() {});
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildIntegrationTile(
+                  'Gemini AI', Icons.auto_awesome, Colors.purple.shade700,
+                  _profile.geminiConnected,
+                  (value) {
+                    setState(() => _profile.geminiConnected = value);
+                    setSheetState(() {});
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildIntegrationTile(
+                  'Google Calendar', Icons.calendar_month, Colors.blue.shade600,
+                  _profile.googleCalendarConnected,
+                  (value) {
+                    setState(() => _profile.googleCalendarConnected = value);
+                    setSheetState(() {});
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildHealthIntegrationTile(),
+                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHealthIntegrationTile() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final healthColor = Colors.red.shade600;
+    final isConnected = HealthService.isAuthorized;
+    final statusText = HealthService.isSupported
+        ? (isConnected
+            ? (defaultTargetPlatform == TargetPlatform.iOS
+                ? 'Apple Health ${tr('connected')}'
+                : 'Health Connect ${tr('connected')}')
+            : tr('not_connected'))
+        : tr('available_ios_android');
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: healthColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(Icons.monitor_heart, color: healthColor, size: 28),
+        ),
+        title: Text(tr('health'), style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(
+          statusText,
+          style: TextStyle(
+            color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
+            fontSize: 12,
+          ),
+        ),
+        trailing: Switch(
+          value: isConnected,
+          onChanged: (val) async {
+            if (!HealthService.isSupported) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(tr('health')),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              );
+              return;
+            }
+            if (val) {
+              final ok = await HealthService.requestAuthorization();
+              setState(() {});
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? tr('health_connected') : tr('auth_failed')),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+              }
+            } else {
+              await HealthService.disconnect();
+              setState(() {});
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${tr('health')} - ${tr('disconnect')}'),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+              }
+            }
+          },
+        ),
       ),
     );
   }
@@ -4354,7 +7589,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(
-          value ? 'Connesso' : 'Non connesso',
+          value ? tr('connected') : tr('not_connected'),
           style: TextStyle(
             color: value ? Colors.green : colorScheme.onSurfaceVariant,
             fontSize: 12,
@@ -4366,7 +7601,7 @@ class _SettingsPageState extends State<SettingsPage> {
             onChanged(val);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(val ? '$title connesso' : '$title disconnesso'),
+                content: Text(val ? '$title ${tr('connected')}' : '$title ${tr('disconnected')}'),
               ),
             );
           },
@@ -4541,21 +7776,116 @@ ParsedEvent parseFlashNote(String text) {
 
 // ──────────────────────────────────────────────────────────────────
 
+class _HighlightPattern {
+  final RegExp regex;
+  final Color color;
+  _HighlightPattern(this.regex, this.color);
+}
+
+class _TextMatch implements Comparable<_TextMatch> {
+  final int start;
+  final int end;
+  final Color color;
+  _TextMatch(this.start, this.end, this.color);
+
+  @override
+  int compareTo(_TextMatch other) => start.compareTo(other.start);
+}
+
+class _HighlightingTextEditingController extends TextEditingController {
+  static final List<_HighlightPattern> _patterns = [
+    // @HH:MM — time syntax (blue)
+    _HighlightPattern(RegExp(r'@\d{1,2}:\d{2}'), const Color(0xFF2196F3)),
+    // @DD/MM or @DD/MM/YYYY — date syntax (purple)
+    _HighlightPattern(RegExp(r'@\d{1,2}/\d{1,2}(?:/\d{4})?'), const Color(0xFF9C27B0)),
+    // Relative days (green)
+    _HighlightPattern(RegExp(r'\b(?:oggi|domani|dopodomani)\b', caseSensitive: false), const Color(0xFF4CAF50)),
+    // Weekdays (green)
+    _HighlightPattern(RegExp(r'\b(?:(?:prossimo\s+)?(?:lunedì|lunedi|martedì|martedi|mercoledì|mercoledi|giovedì|giovedi|venerdì|venerdi|sabato|domenica))\b', caseSensitive: false), const Color(0xFF4CAF50)),
+    // Time ranges: "dalle X alle Y" (blue)
+    _HighlightPattern(RegExp(r'dalle\s+\d{1,2}(?:[:.]\d{2})?\s+alle\s+\d{1,2}(?:[:.]\d{2})?', caseSensitive: false), const Color(0xFF2196F3)),
+    // Single time: "ore X" / "alle X" (blue)
+    _HighlightPattern(RegExp(r'(?:ore|alle)\s+\d{1,2}(?:[:.]\d{2})?', caseSensitive: false), const Color(0xFF2196F3)),
+  ];
+
+  @override
+  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+    final text = this.text;
+    if (text.isEmpty) {
+      return TextSpan(text: text, style: style);
+    }
+
+    // Collect all matches
+    final matches = <_TextMatch>[];
+    for (final pattern in _patterns) {
+      for (final m in pattern.regex.allMatches(text)) {
+        matches.add(_TextMatch(m.start, m.end, pattern.color));
+      }
+    }
+
+    if (matches.isEmpty) {
+      return TextSpan(text: text, style: style);
+    }
+
+    // Sort by position, first match wins for overlaps
+    matches.sort();
+    final filtered = <_TextMatch>[];
+    int lastEnd = 0;
+    for (final m in matches) {
+      if (m.start >= lastEnd) {
+        filtered.add(m);
+        lastEnd = m.end;
+      }
+    }
+
+    // Build spans
+    final spans = <TextSpan>[];
+    int pos = 0;
+    for (final m in filtered) {
+      if (pos < m.start) {
+        spans.add(TextSpan(text: text.substring(pos, m.start)));
+      }
+      spans.add(TextSpan(
+        text: text.substring(m.start, m.end),
+        style: TextStyle(
+          color: m.color,
+          fontWeight: FontWeight.w600,
+          backgroundColor: m.color.withValues(alpha: 0.1),
+        ),
+      ));
+      pos = m.end;
+    }
+    if (pos < text.length) {
+      spans.add(TextSpan(text: text.substring(pos)));
+    }
+
+    return TextSpan(style: style, children: spans);
+  }
+}
+
 class FlashNote {
   final String content;
   final DateTime createdAt;
+  final String? audioPath;
+  final int? audioDurationMs;
 
-  FlashNote({required this.content, DateTime? createdAt})
+  FlashNote({required this.content, DateTime? createdAt, this.audioPath, this.audioDurationMs})
     : createdAt = createdAt ?? DateTime.now();
+
+  bool get isAudioNote => audioPath != null && audioPath!.isNotEmpty;
 
   Map<String, dynamic> toJson() => {
     'content': content,
     'createdAt': createdAt.toIso8601String(),
+    if (audioPath != null) 'audioPath': audioPath,
+    if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
   };
 
   factory FlashNote.fromJson(Map<String, dynamic> json) => FlashNote(
     content: json['content'],
     createdAt: DateTime.parse(json['createdAt']),
+    audioPath: json['audioPath'],
+    audioDurationMs: json['audioDurationMs'],
   );
 }
 
@@ -4572,12 +7902,12 @@ class FlashNotesSettings {
   const FlashNotesSettings({
     this.geminiEnabled = false,
     this.geminiApiKey = '',
-    this.autoSaveMode = 'never',
+    this.autoSaveMode = 'monthly',
     this.customAutoSaveDays = 7,
     this.formattingPreset = 'simple',
     this.customFormatInstructions = '',
     this.aiCorrectionLevel = 0.0,
-    this.groupingMode = 'monthly',
+    this.groupingMode = 'weekly',
   });
 
   FlashNotesSettings copyWith({
@@ -4617,12 +7947,12 @@ class FlashNotesSettings {
       FlashNotesSettings(
         geminiEnabled: json['geminiEnabled'] ?? false,
         geminiApiKey: json['geminiApiKey'] ?? '',
-        autoSaveMode: json['autoSaveMode'] ?? 'never',
+        autoSaveMode: json['autoSaveMode'] ?? 'monthly',
         customAutoSaveDays: json['customAutoSaveDays'] ?? 7,
         formattingPreset: json['formattingPreset'] ?? 'simple',
         customFormatInstructions: json['customFormatInstructions'] ?? '',
         aiCorrectionLevel: (json['aiCorrectionLevel'] ?? 0.0).toDouble(),
-        groupingMode: json['groupingMode'] ?? 'monthly',
+        groupingMode: json['groupingMode'] ?? 'weekly',
       );
 
   static Future<FlashNotesSettings> load() async {
@@ -4690,11 +8020,11 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    const accentColor = Color(0xFFFFA726);
+    const sectionColor = Color(0xFF2196F3);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Impostazioni Flash Notes'),
+        title: Text(tr('flash_notes_settings')),
         elevation: 0,
         scrolledUnderElevation: 2,
         backgroundColor: Colors.transparent,
@@ -4704,7 +8034,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
             child: FilledButton.icon(
               onPressed: _saveAndPop,
               icon: const Icon(Icons.check, size: 18),
-              label: const Text('Salva'),
+              label: Text(tr('save')),
             ),
           ),
         ],
@@ -4713,7 +8043,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
         padding: const EdgeInsets.all(16),
         children: [
           // SEZIONE A: Integrazione Gemini AI
-          _buildSectionHeader('Integrazione Gemini AI', Icons.auto_awesome, accentColor),
+          _buildSectionHeader(tr('gemini_ai'), Icons.auto_awesome, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
@@ -4726,9 +8056,9 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                 children: [
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Abilita Gemini AI',
+                    title: Text(tr('enable_gemini'),
                         style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: const Text('Usa l\'intelligenza artificiale per formattare le note'),
+                    subtitle: Text(tr('gemini_ai')),
                     value: _settings.geminiEnabled,
                     onChanged: (value) {
                       _updateSettings(_settings.copyWith(geminiEnabled: value));
@@ -4739,10 +8069,10 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     TextField(
                       controller: _apiKeyController,
                       obscureText: true,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'API Key Gemini',
-                        hintText: 'Inserisci la tua chiave API...',
-                        prefixIcon: Icon(Icons.key),
+                        hintText: tr('api_key'),
+                        prefixIcon: const Icon(Icons.key),
                       ),
                       onChanged: (value) {
                         _updateSettings(_settings.copyWith(geminiApiKey: value));
@@ -4763,8 +8093,8 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                         const SizedBox(width: 8),
                         Text(
                           _settings.geminiApiKey.isNotEmpty
-                              ? 'Connesso'
-                              : 'Non connesso',
+                              ? tr('connected')
+                              : tr('not_connected'),
                           style: TextStyle(
                             color: _settings.geminiApiKey.isNotEmpty
                                 ? Colors.green
@@ -4776,7 +8106,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'La chiave API viene salvata localmente sul dispositivo',
+                      tr('api_key_privacy'),
                       style: TextStyle(
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
@@ -4792,7 +8122,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
           const SizedBox(height: 24),
 
           // SEZIONE B: Salvataggio Automatico
-          _buildSectionHeader('Salvataggio Automatico in Deep Note', Icons.save_alt, accentColor),
+          _buildSectionHeader(tr('auto_save'), Icons.save_alt, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
@@ -4803,8 +8133,8 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
               child: Column(
                 children: [
                   RadioListTile<String>(
-                    title: const Text('Sempre li'),
-                    subtitle: const Text('Nessun salvataggio automatico'),
+                    title: Text(tr('auto_save_never')),
+                    subtitle: Text(tr('no_auto_save')),
                     value: 'never',
                     groupValue: _settings.autoSaveMode,
                     onChanged: (value) {
@@ -4812,7 +8142,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('Ogni giorno'),
+                    title: Text(tr('daily')),
                     value: 'daily',
                     groupValue: _settings.autoSaveMode,
                     onChanged: (value) {
@@ -4820,7 +8150,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('1 volta a settimana'),
+                    title: Text(tr('weekly')),
                     value: 'weekly',
                     groupValue: _settings.autoSaveMode,
                     onChanged: (value) {
@@ -4828,7 +8158,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('1 volta al mese'),
+                    title: Text(tr('monthly')),
                     value: 'monthly',
                     groupValue: _settings.autoSaveMode,
                     onChanged: (value) {
@@ -4836,7 +8166,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('Personalizzato'),
+                    title: Text(tr('default_alert')),
                     value: 'custom',
                     groupValue: _settings.autoSaveMode,
                     onChanged: (value) {
@@ -4849,10 +8179,10 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                       child: TextField(
                         controller: _customDaysController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Ogni quanti giorni',
-                          suffixText: 'giorni',
-                          prefixIcon: Icon(Icons.schedule),
+                        decoration: InputDecoration(
+                          labelText: tr('n_days').replaceAll('{n}', '?'),
+                          suffixText: tr('n_days').replaceAll('{n}', ''),
+                          prefixIcon: const Icon(Icons.schedule),
                         ),
                         onChanged: (value) {
                           final days = int.tryParse(value);
@@ -4870,7 +8200,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Le flash note verranno salvate nella cartella "Flash Notes" in Deep Note',
+              '${tr('auto_save_weekly_desc')} → Deep Note',
               style: TextStyle(
                 fontSize: 12,
                 fontStyle: FontStyle.italic,
@@ -4882,7 +8212,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
           const SizedBox(height: 24),
 
           // SEZIONE: Raggruppamento per Data
-          _buildSectionHeader('Raggruppamento per Data', Icons.calendar_month, accentColor),
+          _buildSectionHeader(tr('grouping_mode'), Icons.flash_on, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
@@ -4893,8 +8223,8 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
               child: Column(
                 children: [
                   RadioListTile<String>(
-                    title: const Text('Ogni giorno'),
-                    subtitle: const Text('Raggruppa le note per singolo giorno'),
+                    title: Text(tr('daily')),
+                    subtitle: Text(tr('daily')),
                     value: 'daily',
                     groupValue: _settings.groupingMode,
                     onChanged: (value) {
@@ -4902,8 +8232,8 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('Ogni settimana'),
-                    subtitle: const Text('Raggruppa le note per settimana'),
+                    title: Text(tr('weekly')),
+                    subtitle: Text(tr('weekly')),
                     value: 'weekly',
                     groupValue: _settings.groupingMode,
                     onChanged: (value) {
@@ -4911,8 +8241,8 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('Ogni mese'),
-                    subtitle: const Text('Raggruppa le note per mese (predefinito)'),
+                    title: Text(tr('monthly')),
+                    subtitle: Text(tr('monthly')),
                     value: 'monthly',
                     groupValue: _settings.groupingMode,
                     onChanged: (value) {
@@ -4920,8 +8250,8 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('Ogni anno'),
-                    subtitle: const Text('Raggruppa le note per anno'),
+                    title: Text(tr('monthly')),
+                    subtitle: Text(tr('monthly')),
                     value: 'yearly',
                     groupValue: _settings.groupingMode,
                     onChanged: (value) {
@@ -4936,7 +8266,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
           const SizedBox(height: 24),
 
           // SEZIONE C: Formattazione Automatica
-          _buildSectionHeader('Formattazione Automatica', Icons.auto_fix_high, accentColor),
+          _buildSectionHeader(tr('formatting_preset'), Icons.auto_fix_high, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
@@ -4948,8 +8278,8 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   RadioListTile<String>(
-                    title: const Text('Formattazione Semplice'),
-                    subtitle: const Text('Prima riga in grassetto (+2pt), resto testo normale'),
+                    title: Text(tr('simple')),
+                    subtitle: Text(tr('formatting_preset')),
                     value: 'simple',
                     groupValue: _settings.formattingPreset,
                     onChanged: (value) {
@@ -4957,11 +8287,11 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('Formattazione AI'),
+                    title: Text(tr('formatting_preset')),
                     subtitle: Text(
                       _settings.geminiEnabled
-                          ? 'Titolo, paragrafi, elenchi e controllo ortografico automatico'
-                          : 'Richiede Gemini AI attivo',
+                          ? tr('ai_formatting_desc')
+                          : tr('requires_gemini'),
                       style: TextStyle(
                         color: _settings.geminiEnabled
                             ? null
@@ -4977,11 +8307,11 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                         : null,
                   ),
                   RadioListTile<String>(
-                    title: const Text('Formattazione Personalizzata'),
+                    title: Text(tr('formatting_preset')),
                     subtitle: Text(
                       _settings.geminiEnabled
-                          ? 'Dai istruzioni personalizzate all\'AI'
-                          : 'Richiede Gemini AI attivo',
+                          ? tr('custom_ai_instructions')
+                          : tr('requires_gemini'),
                       style: TextStyle(
                         color: _settings.geminiEnabled
                             ? null
@@ -5002,10 +8332,10 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                       child: TextField(
                         controller: _customInstructionsController,
                         maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Istruzioni di formattazione',
-                          hintText: 'Descrivi come vuoi formattare le note...',
-                          prefixIcon: Icon(Icons.edit_note),
+                        decoration: InputDecoration(
+                          labelText: tr('formatting_preset'),
+                          hintText: tr('formatting_preset'),
+                          prefixIcon: const Icon(Icons.edit_note),
                           alignLabelWithHint: true,
                         ),
                         onChanged: (value) {
@@ -5019,7 +8349,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Livello di correzione AI',
+                            tr('ai_correction_level'),
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               color: colorScheme.onSurface,
@@ -5039,11 +8369,11 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Solo ortografia',
+                              Text(tr('simple'),
                                   style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
-                              Text('Riassunto',
+                              Text(tr('summary_label'),
                                   style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
-                              Text('Riscrittura',
+                              Text(tr('rewrite_label'),
                                   style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
                             ],
                           ),
@@ -5056,6 +8386,17 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
             ),
           ),
 
+          const SizedBox(height: 24),
+
+          // Save button
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _saveAndPop,
+              icon: const Icon(Icons.save),
+              label: Text(tr('save')),
+            ),
+          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -5065,14 +8406,14 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
   Widget _buildSectionHeader(String title, IconData icon, Color color) {
     return Row(
       children: [
-        Icon(icon, color: color, size: 22),
+        Icon(icon, color: color, size: 24),
         const SizedBox(width: 8),
         Text(
           title,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
+            color: color,
           ),
         ),
       ],
@@ -5080,11 +8421,11 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
   }
 
   String _getCorrectionLabel(double value) {
-    if (value <= 0.0) return 'Solo ortografia';
-    if (value <= 0.25) return 'Ortografia e punteggiatura';
-    if (value <= 0.5) return 'Riassunto leggero';
-    if (value <= 0.75) return 'Riformulazione';
-    return 'Riscrittura completa';
+    if (value <= 0.0) return tr('spelling_only');
+    if (value <= 0.25) return tr('spelling_punctuation');
+    if (value <= 0.5) return tr('light_summary');
+    if (value <= 0.75) return tr('reformulation');
+    return tr('full_rewrite');
   }
 }
 
@@ -5128,8 +8469,8 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
     _settings.save();
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Impostazioni Deep Note salvate'),
+      SnackBar(
+        content: Text('${tr('deep_note_settings')} - ${tr('save')}'),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -5138,11 +8479,11 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    const accentColor = Color(0xFFE53935);
+    const sectionColor = Color(0xFF2196F3);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Impostazioni Deep Note'),
+        title: Text(tr('deep_note_settings')),
         elevation: 0,
         scrolledUnderElevation: 2,
         backgroundColor: Colors.transparent,
@@ -5152,7 +8493,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
             child: FilledButton.icon(
               onPressed: _saveAndPop,
               icon: const Icon(Icons.check, size: 18),
-              label: const Text('Salva'),
+              label: Text(tr('save')),
             ),
           ),
         ],
@@ -5161,7 +8502,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
         padding: const EdgeInsets.all(16),
         children: [
           // SEZIONE: Sicurezza
-          _buildSectionHeader('Sicurezza', Icons.lock_outline, accentColor),
+          _buildSectionHeader(tr('account_security'), Icons.lock_outline, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
@@ -5174,9 +8515,9 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                 children: [
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Cartella Privata',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: const Text('Mostra la cartella protetta da PIN'),
+                    title: Text(tr('private'),
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(tr('show_private_folder')),
                     value: _settings.showPrivateFolder,
                     onChanged: (value) {
                       _updateSettings(_settings.copyWith(showPrivateFolder: value));
@@ -5189,10 +8530,10 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                       obscureText: true,
                       keyboardType: TextInputType.number,
                       maxLength: 6,
-                      decoration: const InputDecoration(
-                        labelText: 'PIN di sicurezza',
-                        hintText: 'Inserisci un PIN numerico...',
-                        prefixIcon: Icon(Icons.pin),
+                      decoration: InputDecoration(
+                        labelText: tr('security_pin'),
+                        hintText: tr('enter_pin'),
+                        prefixIcon: const Icon(Icons.pin),
                         counterText: '',
                       ),
                       onChanged: (value) {
@@ -5205,7 +8546,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Il PIN protegge l\'accesso alla cartella privata',
+                      tr('pin_security'),
                       style: TextStyle(
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
@@ -5221,7 +8562,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
           const SizedBox(height: 24),
 
           // SEZIONE: Esportazione PDF
-          _buildSectionHeader('Esportazione PDF', Icons.picture_as_pdf, accentColor),
+          _buildSectionHeader(tr('export_pdf'), Icons.picture_as_pdf, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
@@ -5232,8 +8573,8 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
               child: Column(
                 children: [
                   RadioListTile<String>(
-                    title: const Text('Salvataggio Locale'),
-                    subtitle: const Text('Scarica il PDF sul dispositivo'),
+                    title: Text(tr('local')),
+                    subtitle: Text(tr('save_on_device')),
                     value: 'local',
                     groupValue: _settings.pdfSaveMode,
                     onChanged: (value) {
@@ -5241,8 +8582,8 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('Google Drive'),
-                    subtitle: const Text('Salva automaticamente su Google Drive'),
+                    title: const Text('Google Drive') /* brand */,
+                    subtitle: Text(tr('sync_to_cloud')),
                     value: 'google_drive',
                     groupValue: _settings.pdfSaveMode,
                     onChanged: (value) {
@@ -5257,7 +8598,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
           const SizedBox(height: 24),
 
           // SEZIONE: Font scaricati
-          _buildSectionHeader('Font Scaricati', Icons.font_download, accentColor),
+          _buildSectionHeader(tr('downloaded_fonts'), Icons.font_download, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
@@ -5270,7 +8611,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
-                          'Nessun font aggiuntivo scaricato',
+                          tr('no_extra_fonts'),
                           style: TextStyle(
                             color: colorScheme.onSurfaceVariant,
                             fontStyle: FontStyle.italic,
@@ -5301,7 +8642,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
           const SizedBox(height: 24),
 
           // SEZIONE: Template Personalizzati
-          _buildSectionHeader('Template Personalizzati', Icons.description, accentColor),
+          _buildSectionHeader(tr('custom_templates'), Icons.description, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
@@ -5315,7 +8656,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Text(
-                        'Nessun template personalizzato',
+                        tr('no_custom_templates'),
                         style: TextStyle(
                           color: colorScheme.onSurfaceVariant,
                           fontStyle: FontStyle.italic,
@@ -5347,14 +8688,14 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                     child: OutlinedButton.icon(
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Creazione template in arrivo!'),
+                          SnackBar(
+                            content: Text(tr('success')),
                             behavior: SnackBarBehavior.floating,
                           ),
                         );
                       },
                       icon: const Icon(Icons.add),
-                      label: const Text('Aggiungi Template'),
+                      label: Text(tr('add_template')),
                     ),
                   ),
                 ],
@@ -5365,7 +8706,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
           const SizedBox(height: 24),
 
           // SEZIONE: Cestino
-          _buildSectionHeader('Cestino', Icons.delete_outline, accentColor),
+          _buildSectionHeader(tr('trash'), Icons.delete_outline, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
@@ -5378,9 +8719,9 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                 children: [
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Abilita Cestino',
+                    title: Text(tr('enable_trash'),
                         style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: const Text('Le note eliminate verranno spostate nel cestino'),
+                    subtitle: Text(tr('enable_trash')),
                     value: _settings.trashEnabled,
                     onChanged: (value) {
                       _updateSettings(_settings.copyWith(trashEnabled: value));
@@ -5389,7 +8730,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                   if (_settings.trashEnabled) ...[
                     const SizedBox(height: 12),
                     Text(
-                      'Conserva note per',
+                      tr('keep_notes_for'),
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: colorScheme.onSurface,
@@ -5401,7 +8742,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                       children: [7, 14, 30, 60, 90].map((days) {
                         final isSelected = _settings.trashRetentionDays == days;
                         return ChoiceChip(
-                          label: Text('$days giorni'),
+                          label: Text(tr('n_days_label').replaceAll('{n}', '$days')),
                           selected: isSelected,
                           onSelected: (selected) {
                             if (selected) {
@@ -5413,7 +8754,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Le note nel cestino verranno eliminate automaticamente dopo ${_settings.trashRetentionDays} giorni',
+                      tr('trash_auto_delete').replaceAll('{n}', '${_settings.trashRetentionDays}'),
                       style: TextStyle(
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
@@ -5426,6 +8767,17 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
             ),
           ),
 
+          const SizedBox(height: 24),
+
+          // Save button
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _saveAndPop,
+              icon: const Icon(Icons.save),
+              label: Text(tr('save')),
+            ),
+          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -5435,14 +8787,14 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
   Widget _buildSectionHeader(String title, IconData icon, Color color) {
     return Row(
       children: [
-        Icon(icon, color: color, size: 22),
+        Icon(icon, color: color, size: 24),
         const SizedBox(width: 8),
         Text(
           title,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
+            color: color,
           ),
         ),
       ],
@@ -5499,8 +8851,8 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     await TrashedNote.saveAll(_trashedNotes);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nota ripristinata'),
+        SnackBar(
+          content: Text(tr('note_restored')),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -5516,12 +8868,12 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Svuota Cestino'),
-        content: const Text('Eliminare definitivamente tutte le note nel cestino?'),
+        title: Text(tr('empty_trash')),
+        content: Text(tr('empty_trash_confirm')),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Svuota')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('empty_action'))),
         ],
       ),
     );
@@ -5539,7 +8891,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cestino'),
+        title: Text(tr('trash')),
         elevation: 0,
         scrolledUnderElevation: 2,
         backgroundColor: Colors.transparent,
@@ -5550,7 +8902,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
               child: FilledButton.icon(
                 onPressed: _emptyTrash,
                 icon: const Icon(Icons.delete_forever, size: 18),
-                label: const Text('Svuota'),
+                label: Text(tr('empty_action')),
                 style: FilledButton.styleFrom(
                   backgroundColor: colorScheme.error,
                   foregroundColor: colorScheme.onError,
@@ -5587,8 +8939,8 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildTrashList(proNotes, colorScheme, const Color(0xFFE53935)),
-          _buildTrashList(flashNotes, colorScheme, const Color(0xFFFFA726)),
+          _buildTrashList(proNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFF800020) : const Color(0xFFE53935)),
+          _buildTrashList(flashNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726)),
         ],
       ),
     );
@@ -5603,7 +8955,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
             Icon(Icons.delete_outline, size: 64, color: colorScheme.outlineVariant),
             const SizedBox(height: 12),
             Text(
-              'Cestino vuoto',
+              tr('trash_empty'),
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -5623,7 +8975,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
         final globalIndex = _trashedNotes.indexOf(trashed);
         final daysLeft = trashed.daysRemaining(_retentionDays);
         final title = trashed.type == 'pro'
-            ? (trashed.noteJson['title'] ?? 'Senza titolo')
+            ? (trashed.noteJson['title'] ?? tr('untitled'))
             : (trashed.noteJson['content'] ?? '').toString();
         final subtitle = trashed.type == 'pro'
             ? (trashed.noteJson['content'] ?? '').toString()
@@ -5672,8 +9024,8 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
                         const SizedBox(height: 4),
                         Text(
                           daysLeft > 0
-                              ? 'Eliminazione tra $daysLeft giorni'
-                              : 'In scadenza oggi',
+                              ? tr('deletion_in_days').replaceAll('{n}', '$daysLeft')
+                              : tr('expiring_today'),
                           style: TextStyle(
                             fontSize: 11,
                             color: daysLeft <= 3 ? colorScheme.error : colorScheme.onSurfaceVariant,
@@ -5685,13 +9037,13 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
                   IconButton(
                     icon: const Icon(Icons.restore),
                     color: colorScheme.primary,
-                    tooltip: 'Ripristina',
+                    tooltip: tr('restore'),
                     onPressed: () => _restoreNote(globalIndex),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_forever),
                     color: colorScheme.error,
-                    tooltip: 'Elimina definitivamente',
+                    tooltip: tr('delete_permanently'),
                     onPressed: () => _deletePermanently(globalIndex),
                   ),
                 ],
@@ -5704,6 +9056,228 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
   }
 }
 
+class FlashNoteEditorPage extends StatefulWidget {
+  final FlashNote? existingNote;
+  final Function(FlashNote) onSave;
+  final String? heroTag;
+
+  const FlashNoteEditorPage({
+    super.key,
+    this.existingNote,
+    required this.onSave,
+    this.heroTag,
+  });
+
+  @override
+  State<FlashNoteEditorPage> createState() => _FlashNoteEditorPageState();
+}
+
+class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
+  late TextEditingController _titleController;
+  late TextEditingController _bodyController;
+  late FocusNode _bodyFocusNode;
+  bool _hasChanges = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _bodyFocusNode = FocusNode();
+    if (widget.existingNote != null) {
+      final content = widget.existingNote!.content;
+      final newlineIndex = content.indexOf('\n');
+      if (newlineIndex == -1) {
+        // Single-line note: all content goes to body, title empty
+        _titleController = TextEditingController();
+        _bodyController = TextEditingController(text: content);
+      } else {
+        // Multi-line: first line = title, rest = body
+        _titleController = TextEditingController(text: content.substring(0, newlineIndex));
+        _bodyController = TextEditingController(text: content.substring(newlineIndex + 1));
+      }
+    } else {
+      _titleController = TextEditingController();
+      _bodyController = TextEditingController();
+    }
+    _titleController.addListener(_onChanged);
+    _bodyController.addListener(_onChanged);
+  }
+
+  void _onChanged() {
+    if (!_hasChanges) setState(() => _hasChanges = true);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _bodyController.dispose();
+    _bodyFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final title = _titleController.text.trim();
+    final body = _bodyController.text;
+    if (title.isEmpty && body.trim().isEmpty) return;
+    final content = body.trim().isEmpty ? title : '$title\n$body';
+    final note = FlashNote(
+      content: content,
+      createdAt: widget.existingNote?.createdAt ?? DateTime.now(),
+    );
+    widget.onSave(note);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+
+    return PopScope(
+      canPop: !_hasChanges,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _save();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: colorScheme.surface,
+        appBar: AppBar(
+          elevation: 0,
+          scrolledUnderElevation: 2,
+          backgroundColor: Colors.transparent,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
+            onPressed: () {
+              if (_hasChanges) {
+                _save();
+              } else {
+                Navigator.pop(context);
+              }
+            },
+          ),
+          title: Text(
+            widget.existingNote != null ? 'Flash Note' : tr('new_flash_note'),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: colorScheme.onSurface),
+          ),
+          actions: [
+            if (_hasChanges)
+              TextButton.icon(
+                onPressed: _save,
+                icon: Icon(Icons.check, size: 18, color: accentColor),
+                label: Text('Salva', style: TextStyle(color: accentColor)),
+              ),
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: colorScheme.onSurfaceVariant),
+              onSelected: (value) {
+                if (value == 'evolvi') {
+                  // Save first, then open in Deep Note
+                  if (_hasChanges) _save();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'evolvi',
+                  child: Row(
+                    children: [
+                      Icon(Icons.auto_awesome, size: 18, color: colorScheme.primary),
+                      const SizedBox(width: 12),
+                      Text(tr('open_in_deep_note')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        body: GestureDetector(
+          onTap: () => _bodyFocusNode.requestFocus(),
+          behavior: HitTestBehavior.translucent,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title field — large, like Apple Notes
+                TextField(
+                  controller: _titleController,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                    height: 1.2,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: tr('title'),
+                    hintStyle: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  maxLines: null,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) => _bodyFocusNode.requestFocus(),
+                ),
+                const SizedBox(height: 8),
+                // Date display
+                if (widget.existingNote != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      _formatDate(widget.existingNote!.createdAt),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+                // Body field — infinite page
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: MediaQuery.of(context).size.height * 0.6,
+                  ),
+                  child: TextField(
+                    controller: _bodyController,
+                    focusNode: _bodyFocusNode,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: colorScheme.onSurface,
+                      height: 1.6,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: tr('type_message'),
+                      hintStyle: TextStyle(
+                        fontSize: 16,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    maxLines: null,
+                    textCapitalization: TextCapitalization.sentences,
+                    keyboardType: TextInputType.multiline,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    const months = ['', 'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
+      'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day} ${months[dt.month]} ${dt.year}, $hour:$minute';
+  }
+}
+
 class FlashNotesPage extends StatefulWidget {
   const FlashNotesPage({super.key});
 
@@ -5712,13 +9286,17 @@ class FlashNotesPage extends StatefulWidget {
 }
 
 class _FlashNotesPageState extends State<FlashNotesPage> {
-  final TextEditingController _controller = TextEditingController();
+  final _HighlightingTextEditingController _controller = _HighlightingTextEditingController();
   final TextEditingController _searchController = TextEditingController();
   List<FlashNote> _notes = [];
   String _searchQuery = '';
   bool _isGridView = false;
   String _groupingMode = 'monthly';
   String? _selectedGroup; // null = "Tutte"
+  bool _showGroupSidebar = false;
+  // Audio playback
+  ap.AudioPlayer? _audioPlayer;
+  int? _playingNoteIndex;
 
   @override
   void initState() {
@@ -5730,6 +9308,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   @override
   void dispose() {
+    _audioPlayer?.dispose();
     _controller.dispose();
     _searchController.dispose();
     super.dispose();
@@ -5773,7 +9352,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   String _getGroupLabel(String key) {
     switch (_groupingMode) {
       case 'daily':
-        return key; // already "dd/mm/yyyy"
+        // Extract just dd/mm from dd/mm/yyyy
+        final parts = key.split('/');
+        return parts.length >= 2 ? '${parts[0]}/${parts[1]}' : key;
       case 'weekly':
         return 'Sett. $key';
       case 'yearly':
@@ -5785,17 +9366,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   }
 
   IconData _getGroupIcon() {
-    switch (_groupingMode) {
-      case 'daily':
-        return Icons.today;
-      case 'weekly':
-        return Icons.date_range;
-      case 'yearly':
-        return Icons.calendar_today;
-      case 'monthly':
-      default:
-        return Icons.calendar_month;
-    }
+    return Icons.flash_on;
   }
 
   Map<String, List<FlashNote>> _getGroupedNotes(List<FlashNote> notes) {
@@ -5848,19 +9419,19 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         return StatefulBuilder(builder: (ctx, setDialogState) {
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: const Text('Crea Evento'),
+            title: Text(tr('create_event')),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: titleCtrl,
-                    decoration: const InputDecoration(labelText: 'Titolo'),
+                    decoration: InputDecoration(labelText: tr('title')),
                   ),
                   const SizedBox(height: 16),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Data'),
+                    title: Text(tr('start_time')),
                     subtitle: Text('${startDate.day}/${startDate.month}/${startDate.year}'),
                     trailing: const Icon(Icons.calendar_today),
                     onTap: () async {
@@ -5873,6 +9444,27 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       if (picked != null) {
                         setDialogState(() {
                           startDate = DateTime(picked.year, picked.month, picked.day, startDate.hour, startDate.minute);
+                          if (endDate.isBefore(startDate)) {
+                            endDate = DateTime(picked.year, picked.month, picked.day, endDate.hour, endDate.minute);
+                          }
+                        });
+                      }
+                    },
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr('end_time')),
+                    subtitle: Text('${endDate.day}/${endDate.month}/${endDate.year}'),
+                    trailing: const Icon(Icons.calendar_today),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: endDate.isBefore(startDate) ? startDate : endDate,
+                        firstDate: startDate,
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        setDialogState(() {
                           endDate = DateTime(picked.year, picked.month, picked.day, endDate.hour, endDate.minute);
                         });
                       }
@@ -5880,7 +9472,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Tutto il giorno'),
+                    title: Text(tr('today')),
                     value: isAllDay,
                     onChanged: (v) => setDialogState(() {
                       isAllDay = v;
@@ -5893,7 +9485,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   if (!isAllDay) ...[
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Ora inizio'),
+                      title: Text(tr('start_time')),
                       subtitle: Text('${startDate.hour.toString().padLeft(2, '0')}:${startDate.minute.toString().padLeft(2, '0')}'),
                       trailing: const Icon(Icons.access_time),
                       onTap: () async {
@@ -5910,7 +9502,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                     ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Ora fine'),
+                      title: Text(tr('end_time')),
                       subtitle: Text('${endDate.hour.toString().padLeft(2, '0')}:${endDate.minute.toString().padLeft(2, '0')}'),
                       trailing: const Icon(Icons.access_time),
                       onTap: () async {
@@ -5930,8 +9522,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Crea')),
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('create'))),
             ],
           );
         });
@@ -5944,7 +9536,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         title: eventTitle,
         startTime: startDate,
         endTime: endDate,
-        calendar: 'Personale',
+        calendar: tr('personal'),
       );
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -5956,15 +9548,20 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         decoded[key] = existing;
         await prefs.setString('calendar_events_full', json.encode(decoded));
 
+        // Sync to Google Calendar if connected
+        if (GoogleCalendarService.isSignedIn) {
+          GoogleCalendarService.pushEvent(event);
+        }
+
         if (mounted) {
           final dateStr = '${startDate.day}/${startDate.month}/${startDate.year}';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('"$eventTitle" aggiunto il $dateStr'),
+              content: Text('"$eventTitle" ${tr('event_added_on')} $dateStr'),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               action: SnackBarAction(
-                label: 'Vedi',
+                label: tr('view'),
                 onPressed: () {
                   final homeState = context.findAncestorStateOfType<_HomePageState>();
                   if (homeState != null) {
@@ -5982,7 +9579,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Errore nel salvataggio dell\'evento'),
+              content: Text(tr('error')),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -6011,14 +9608,293 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     _saveNotes();
   }
 
+  void _showDeleteConfirmation(int index) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('confirm_delete')),
+        content: Text(tr('delete_flash_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(tr('cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteNote(index);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: Text(tr('delete')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAIOptions(FlashNote note, int index) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final colorScheme = Theme.of(ctx).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(tr('gemini_ai'), style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Icon(Icons.summarize, color: Colors.purple),
+                title: Text(tr('ai_response')),
+                subtitle: Text(tr('ai_response')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _callFlashGeminiAI(note, index, 'riassumi');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.mic, color: Colors.purple),
+                title: Text(tr('ai_response')),
+                subtitle: Text(tr('voice_note')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _callFlashGeminiAI(note, index, 'trascrivi');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.spellcheck, color: Colors.purple),
+                title: Text(tr('formatting_preset')),
+                subtitle: Text(tr('formatting_preset')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _callFlashGeminiAI(note, index, 'correggi');
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _callFlashGeminiAI(FlashNote note, int index, String action) async {
+    final settings = await FlashNotesSettings.load();
+    final apiKey = settings.geminiApiKey;
+    if (apiKey.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('api_key')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 12),
+            Text(tr('loading')),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 10),
+      ),
+    );
+
+    try {
+      final text = note.content;
+      if (text.isEmpty) return;
+
+      final String prompt;
+      final String title;
+      switch (action) {
+        case 'riassumi':
+          prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
+          title = tr('ai_summary');
+          break;
+        case 'trascrivi':
+          prompt = 'Trascrivi e pulisci il seguente testo in italiano, correggendo eventuali errori di trascrizione:\n\n$text';
+          title = tr('ai_transcription');
+          break;
+        case 'correggi':
+          prompt = 'Correggi errori grammaticali e migliora la formattazione del seguente testo in italiano:\n\n$text';
+          title = tr('ai_correction');
+          break;
+        default:
+          return;
+      }
+
+      final model = gemini.GenerativeModel(model: 'gemini-2.0-flash', apiKey: apiKey);
+      final response = await model.generateContent([gemini.Content.text(prompt)]);
+      final result = response.text ?? tr('no_results');
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) {
+          final colorScheme = Theme.of(ctx).colorScheme;
+          return DraggableScrollableSheet(
+            initialChildSize: 0.5,
+            minChildSize: 0.3,
+            maxChildSize: 0.85,
+            expand: false,
+            builder: (_, scrollController) => Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Icon(Icons.psychology, color: Colors.purple),
+                      const SizedBox(width: 8),
+                      Text(title, style: Theme.of(ctx).textTheme.titleLarge),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      child: Card(
+                        elevation: 0,
+                        color: colorScheme.surfaceContainerLowest,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: SelectableText(result, style: const TextStyle(height: 1.6)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _notes[index] = FlashNote(
+                            content: result,
+                            createdAt: note.createdAt,
+                          );
+                        });
+                        _saveNotes();
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(tr('success')),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.check),
+                      label: Text(tr('apply')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
+  void _openFlashNote(FlashNote note, int originalIndex) {
+    final heroTag = 'flash_note_${note.createdAt.millisecondsSinceEpoch}';
+    Navigator.push(
+      context,
+      _buildExpandRoute(
+        FlashNoteEditorPage(
+          existingNote: note,
+          heroTag: heroTag,
+          onSave: (updatedNote) {
+            setState(() {
+              _notes[originalIndex] = updatedNote;
+            });
+            _saveNotes();
+          },
+        ),
+      ),
+    );
+  }
+
+  Route _buildExpandRoute(Widget page) {
+    return PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 400),
+      reverseTransitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(curved),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.92, end: 1.0).animate(curved),
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openInNotePro(FlashNote flashNote) async {
     final prefs = await SharedPreferences.getInstance();
     // Load folders
     Map<String, FolderStyle> folders = {
       'Generale': const FolderStyle(Icons.folder, Colors.blue),
-      'Lavoro': const FolderStyle(Icons.work, Colors.orange),
-      'Personale': const FolderStyle(Icons.person, Colors.green),
+      tr('work'): const FolderStyle(Icons.work, Colors.orange),
+      tr('personal'): const FolderStyle(Icons.person, Colors.green),
       'Flash Notes': const FolderStyle(Icons.flash_on, Color(0xFFFFA726)),
+      tr('private_folder'): const FolderStyle(Icons.lock, Color(0xFF7B1FA2)),
     };
     final foldersJson = prefs.getString('custom_folders');
     if (foldersJson != null) {
@@ -6041,11 +9917,10 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => NoteEditorPage(
+        builder: (context) => NoteReadPage(
+          note: proNote,
           folders: folders,
-          existingNote: proNote,
           onSave: (savedNote) async {
-            // Save to pro notes list
             final prefs = await SharedPreferences.getInstance();
             final notesJson = prefs.getStringList('pro_notes') ?? [];
             notesJson.add(json.encode(savedNote.toJson()));
@@ -6060,17 +9935,17 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inDays == 0)
-      return 'Oggi ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+      return '${tr('today')} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
     if (diff.inDays == 1)
-      return 'Ieri ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
-    if (diff.inDays < 7) return '${diff.inDays} giorni fa';
+      return '${tr('yesterday')} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+    if (diff.inDays < 7) return '${diff.inDays} ${tr('days_ago')}';
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
   @override
   Widget build(BuildContext context) {
     var sortedNotes = List<FlashNote>.from(_notes)
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       sortedNotes = sortedNotes.where((n) => n.content.toLowerCase().contains(q)).toList();
@@ -6080,7 +9955,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       sortedNotes = sortedNotes.where((n) => _getGroupKey(n.createdAt) == _selectedGroup).toList();
     }
     final colorScheme = Theme.of(context).colorScheme;
-    const accentColor = Color(0xFFFFA726);
+    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
 
     // Build group list for sidebar (from all notes, not filtered)
     final allSorted = List<FlashNote>.from(_notes)
@@ -6088,51 +9963,40 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     final groupedNotes = _getGroupedNotes(allSorted);
     final groupKeys = groupedNotes.keys.toList();
 
-    return Row(
+    return Stack(
       children: [
-        // DATE SIDEBAR (LEFT)
-        Container(
-          width: 72,
-          decoration: BoxDecoration(
-            border: Border(right: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 8),
-              _buildDateSidebarItem(null, Icons.apps, accentColor, colorScheme,
-                  count: _notes.length),
-              const Divider(height: 8, indent: 12, endIndent: 12),
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: groupKeys.map((key) {
-                    return _buildDateSidebarItem(
-                      key,
-                      _getGroupIcon(),
-                      accentColor,
-                      colorScheme,
-                      count: groupedNotes[key]!.length,
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // CONTENT
-        Expanded(
-          child: Column(
-            children: [
+        // MAIN CONTENT (full width)
+        Column(
+          children: [
         // SEARCH BAR + VIEW TOGGLE
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Row(
             children: [
+              // Sidebar toggle button
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: _selectedGroup != null ? accentColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _selectedGroup != null ? accentColor.withValues(alpha: 0.4) : colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    _selectedGroup != null ? _getGroupIcon() : Icons.apps,
+                    size: 20,
+                    color: _selectedGroup != null ? accentColor : colorScheme.onSurfaceVariant,
+                  ),
+                  onPressed: () => setState(() => _showGroupSidebar = !_showGroupSidebar),
+                  tooltip: tr('grouping_mode'),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
               Expanded(
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Cerca flash note...',
+                    hintText: tr('search_flash_notes'),
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
@@ -6172,8 +10036,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       const SizedBox(height: 12),
                       Text(
                         _searchQuery.isNotEmpty
-                            ? 'Nessun risultato per "$_searchQuery"'
-                            : 'Nessuna Flash Note',
+                            ? '${tr('no_results_for')} "$_searchQuery"'
+                            : tr('no_flash_notes'),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -6183,7 +10047,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       if (_searchQuery.isEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          'Scrivi la tua prima nota rapida!',
+                          tr('write_first_quick_note'),
                           style: TextStyle(
                             fontSize: 13,
                             color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
@@ -6195,68 +10059,106 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                 )
               : _isGridView
                   ? GridView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 1.2,
+                        crossAxisSpacing: 6,
+                        mainAxisSpacing: 6,
+                        childAspectRatio: 1.0,
                       ),
                       itemCount: sortedNotes.length,
                       itemBuilder: (context, index) {
                         final note = sortedNotes[index];
                         final originalIndex = _notes.indexOf(note);
-                        return Card(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => _openInNotePro(note),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                border: const Border(left: BorderSide(color: accentColor, width: 4)),
+                        return GestureDetector(
+                          onTap: () => _openFlashNote(note, originalIndex),
+                          onLongPress: () => _showDeleteConfirmation(originalIndex),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            margin: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceContainerLowest,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                width: 1,
                               ),
-                              padding: const EdgeInsets.all(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     children: [
-                                      const Icon(Icons.flash_on, color: accentColor, size: 16),
-                                      const SizedBox(width: 6),
+                                      Icon(Icons.flash_on, color: accentColor, size: 14),
+                                      const SizedBox(width: 4),
                                       Expanded(
                                         child: Text(
                                           _formatDateTime(note.createdAt),
-                                          style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 6),
                                   Expanded(
-                                    child: Text(
-                                      note.content,
-                                      maxLines: 4,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
+                                    child: note.isAudioNote
+                                      ? Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            GestureDetector(
+                                              onTap: () => _playAudioNote(originalIndex, note.audioPath!),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                decoration: BoxDecoration(
+                                                  color: accentColor.withValues(alpha: 0.08),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      _playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                                                      color: accentColor, size: 24,
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      _formatAudioDuration((note.audioDurationMs ?? 0) ~/ 1000),
+                                                      style: TextStyle(fontWeight: FontWeight.w600, color: accentColor),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : Text(
+                                          note.content,
+                                          maxLines: 5,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            height: 1.4,
+                                            color: colorScheme.onSurface,
+                                          ),
+                                        ),
                                   ),
+                                  const SizedBox(height: 4),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
-                                      InkWell(
-                                        onTap: () => _openInNotePro(note),
-                                        child: Icon(Icons.edit_note, size: 18, color: colorScheme.primary),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      InkWell(
-                                        onTap: () => _createEventFromFlashNote(note),
-                                        child: Icon(Icons.event, size: 18, color: const Color(0xFF1E88E5)),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      InkWell(
-                                        onTap: () => _deleteNote(originalIndex),
-                                        child: Icon(Icons.delete_outline, size: 18, color: colorScheme.error),
-                                      ),
+                                      if (!note.isAudioNote) ...[
+                                        _buildCellAction(Icons.edit_note, colorScheme.primary, () => _openInNotePro(note)),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      _buildCellAction(Icons.event, _isEthosTheme(context) ? const Color(0xFFA3274F) : const Color(0xFF1E88E5), () => _createEventFromFlashNote(note)),
+                                      const SizedBox(width: 6),
+                                      _buildCellAction(Icons.psychology, Colors.purple, () => _showAIOptions(note, originalIndex)),
                                     ],
                                   ),
                                 ],
@@ -6272,64 +10174,98 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       itemBuilder: (context, index) {
                         final note = sortedNotes[index];
                         final originalIndex = _notes.indexOf(note);
-                        return _SlideInItem(index: index, child: Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            leading: CircleAvatar(
-                              backgroundColor: accentColor.withValues(alpha: 0.12),
-                              child: const Icon(Icons.flash_on, color: accentColor),
-                            ),
-                            title: Text(
-                              note.content,
-                              style: const TextStyle(fontSize: 14),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.access_time,
-                                    size: 14,
-                                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _formatDateTime(note.createdAt),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                        final heroTag = 'flash_to_deep_${note.createdAt.millisecondsSinceEpoch}';
+                        return _SlideInItem(index: index, child: Hero(
+                          tag: heroTag,
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: GestureDetector(
+                              onTap: () => _openFlashNote(note, originalIndex),
+                              onLongPress: () => _showDeleteConfirmation(originalIndex),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerLowest,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: accentColor.withValues(alpha: 0.12),
+                                      child: Icon(note.isAudioNote ? Icons.mic : Icons.flash_on, color: accentColor),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          if (note.isAudioNote)
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  tr('voice_note'),
+                                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  _formatAudioDuration((note.audioDurationMs ?? 0) ~/ 1000),
+                                                  style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                                                ),
+                                              ],
+                                            )
+                                          else
+                                            Text(
+                                              note.content,
+                                              style: const TextStyle(fontSize: 14),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Icon(Icons.access_time, size: 14, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                _formatDateTime(note.createdAt),
+                                                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (note.isAudioNote)
+                                      IconButton(
+                                        icon: Icon(_playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded),
+                                        color: accentColor,
+                                        tooltip: _playingNoteIndex == originalIndex ? tr('stop') : tr('play'),
+                                        onPressed: () => _playAudioNote(originalIndex, note.audioPath!),
+                                      )
+                                    else
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_note),
+                                        color: colorScheme.primary,
+                                        tooltip: tr('open_in_deep_note'),
+                                        onPressed: () => _openInNotePro(note),
+                                      ),
+                                    IconButton(
+                                      icon: const Icon(Icons.event),
+                                      color: _isEthosTheme(context) ? const Color(0xFFA3274F) : const Color(0xFF1E88E5),
+                                      tooltip: tr('create_event'),
+                                      onPressed: () => _createEventFromFlashNote(note),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.psychology),
+                                      color: Colors.purple,
+                                      tooltip: 'AI',
+                                      onPressed: () => _showAIOptions(note, originalIndex),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit_note),
-                                  color: colorScheme.primary,
-                                  tooltip: 'Apri in Deep Note',
-                                  onPressed: () => _openInNotePro(note),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.event),
-                                  color: const Color(0xFF1E88E5),
-                                  tooltip: 'Crea Evento',
-                                  onPressed: () => _createEventFromFlashNote(note),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline),
-                                  color: colorScheme.error,
-                                  onPressed: () => _deleteNote(originalIndex),
-                                ),
-                              ],
                             ),
                           ),
                         ));
@@ -6337,129 +10273,506 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                     ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.flash_on, color: accentColor, size: 24),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Nuova Flash Note',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      hintText: 'Scrivi la tua idea veloce...',
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton.filled(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(tr('insert_image')), duration: const Duration(seconds: 2)),
+                        );
+                      },
+                      icon: const Icon(Icons.camera_alt, size: 22),
+                      style: IconButton.styleFrom(backgroundColor: accentColor.withValues(alpha: 0.12), foregroundColor: accentColor),
                     ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Funzione foto in arrivo!'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.camera_alt, size: 18),
-                        label: const Text('Foto'),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Funzione registrazione vocale in arrivo!'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.mic, size: 18),
-                        label: const Text('Voce'),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _addNote,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Salva'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 4),
+                    Text(tr('photo'), style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton.filled(
+                      onPressed: _showWriteSheet,
+                      icon: const Icon(Icons.flash_on, size: 22),
+                      style: IconButton.styleFrom(backgroundColor: accentColor.withValues(alpha: 0.12), foregroundColor: accentColor),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(tr('write_action'), style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton.filled(
+                      onPressed: _showAudioSheet,
+                      icon: const Icon(Icons.mic, size: 22),
+                      style: IconButton.styleFrom(backgroundColor: accentColor.withValues(alpha: 0.12), foregroundColor: accentColor),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(tr('audio'), style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
       ],
-          ),
         ),
+        // OVERLAY SIDEBAR
+        if (_showGroupSidebar) ...[
+          // Dark barrier
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _showGroupSidebar = false),
+              child: AnimatedOpacity(
+                opacity: _showGroupSidebar ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(color: Colors.black26),
+              ),
+            ),
+          ),
+          // Sidebar panel (slides from left like S-Pen toolbar)
+          Positioned(
+            left: 12, top: 12, bottom: 12,
+            child: AnimatedSlide(
+              offset: _showGroupSidebar ? Offset.zero : const Offset(-1.5, 0),
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              child: AnimatedOpacity(
+                opacity: _showGroupSidebar ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  width: 220,
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(4, 0))],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                        child: Row(
+                          children: [
+                            Icon(_getGroupIcon(), size: 20, color: accentColor),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _groupingMode == 'daily' ? tr('by_day') : _groupingMode == 'weekly' ? tr('by_week') : _groupingMode == 'yearly' ? tr('by_year') : tr('by_month'),
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 20),
+                              onPressed: () => setState(() => _showGroupSidebar = false),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      // "Tutte" item
+                      ListTile(
+                        dense: true,
+                        leading: Icon(Icons.flash_on, size: 20, color: _selectedGroup == null ? accentColor : colorScheme.onSurfaceVariant),
+                        title: Text(tr('all_items'), style: TextStyle(fontWeight: _selectedGroup == null ? FontWeight.w700 : FontWeight.normal, color: _selectedGroup == null ? accentColor : null)),
+                        trailing: Text('${_notes.length}', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                        selected: _selectedGroup == null,
+                        selectedTileColor: accentColor.withValues(alpha: 0.08),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        onTap: () => setState(() { _selectedGroup = null; _showGroupSidebar = false; }),
+                      ),
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                      // Group items
+                      Flexible(
+                        child: ListView(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          children: groupKeys.map((key) {
+                            final isSelected = _selectedGroup == key;
+                            final label = _getGroupLabel(key);
+                            return ListTile(
+                              dense: true,
+                              leading: Icon(_getGroupIcon(), size: 20, color: isSelected ? accentColor : colorScheme.onSurfaceVariant),
+                              title: Text(label, style: TextStyle(fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal, color: isSelected ? accentColor : null)),
+                              trailing: Text('${groupedNotes[key]!.length}', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                              selected: isSelected,
+                              selectedTileColor: accentColor.withValues(alpha: 0.08),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              onTap: () => setState(() { _selectedGroup = key; _showGroupSidebar = false; }),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildDateSidebarItem(String? groupKey, IconData icon, Color accentColor,
-      ColorScheme colorScheme, {required int count}) {
-    final isSelected = _selectedGroup == groupKey;
-    final label = groupKey == null ? 'Tutte' : _getGroupLabel(groupKey);
-    return Tooltip(
-      message: '$label ($count)',
-      child: InkWell(
-        onTap: () => setState(() => _selectedGroup = groupKey),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 72,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected ? accentColor.withValues(alpha: 0.12) : null,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 20,
-                  color: isSelected ? accentColor : colorScheme.onSurfaceVariant),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? accentColor : colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+  void _showWriteSheet() {
+    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20, right: 20, top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              maxLines: 5,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: tr('new_flash_note'),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 8,
-                  color: isSelected ? accentColor : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () {
+                  _addNote();
+                  Navigator.pop(ctx);
+                },
+                icon: const Icon(Icons.check, size: 18),
+                label: Text(tr('save')),
+                style: FilledButton.styleFrom(
+                  backgroundColor: accentColor,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  String _formatAudioDuration(int totalSeconds) {
+    final m = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  Future<void> _playAudioNote(int noteIndex, String audioPath) async {
+    // If same note is playing, stop it
+    if (_playingNoteIndex == noteIndex) {
+      await _audioPlayer?.stop();
+      setState(() => _playingNoteIndex = null);
+      return;
+    }
+    // Stop any current playback
+    await _audioPlayer?.stop();
+    _audioPlayer?.dispose();
+    _audioPlayer = ap.AudioPlayer();
+    _audioPlayer!.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _playingNoteIndex = null);
+    });
+    try {
+      if (kIsWeb) {
+        await _audioPlayer!.play(ap.UrlSource(audioPath));
+      } else {
+        await _audioPlayer!.play(ap.DeviceFileSource(audioPath));
+      }
+      setState(() => _playingNoteIndex = noteIndex);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('error')),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showAudioSheet() async {
+    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    final colorScheme = Theme.of(context).colorScheme;
+    final recorder = AudioRecorder();
+
+    if (!await recorder.hasPermission()) {
+      recorder.dispose();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('error')),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return;
+    }
+
+    bool isRecording = false;
+    String? recordedPath;
+    int elapsedSeconds = 0;
+    Timer? timer;
+    bool isPlayingPreview = false;
+    ap.AudioPlayer? previewPlayer;
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 24, right: 24, top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 20),
+                // Title
+                Text(
+                  recordedPath != null ? tr('preview') : (isRecording ? tr('recording') : tr('voice_note')),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                ),
+                const SizedBox(height: 20),
+                // Timer
+                Text(
+                  _formatAudioDuration(elapsedSeconds),
+                  style: TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.w200,
+                    color: isRecording ? Colors.red : colorScheme.onSurface,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                if (recordedPath == null) ...[
+                  // Record / Stop button
+                  GestureDetector(
+                    onTap: () async {
+                      if (isRecording) {
+                        timer?.cancel();
+                        final path = await recorder.stop();
+                        recordedPath = path;
+                        setSheetState(() => isRecording = false);
+                      } else {
+                        String path = '';
+                        if (!kIsWeb) {
+                          try {
+                            final tempDir = await getTemporaryDirectory();
+                            path = '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                          } catch (_) {
+                            path = 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                          }
+                        }
+                        await recorder.start(const RecordConfig(
+                          encoder: AudioEncoder.aacLc,
+                          bitRate: 128000,
+                          sampleRate: 44100,
+                        ), path: path);
+                        elapsedSeconds = 0;
+                        timer = Timer.periodic(const Duration(seconds: 1), (_) {
+                          elapsedSeconds++;
+                          setSheetState(() {});
+                          if (elapsedSeconds >= 120) {
+                            timer?.cancel();
+                            recorder.stop().then((path) {
+                              recordedPath = path;
+                              setSheetState(() => isRecording = false);
+                            });
+                          }
+                        });
+                        setSheetState(() => isRecording = true);
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      width: isRecording ? 64 : 80,
+                      height: isRecording ? 64 : 80,
+                      decoration: BoxDecoration(
+                        color: isRecording ? Colors.red : accentColor,
+                        shape: isRecording ? BoxShape.rectangle : BoxShape.circle,
+                        borderRadius: isRecording ? BorderRadius.circular(16) : null,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isRecording ? Colors.red : accentColor).withValues(alpha: 0.3),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        isRecording ? Icons.stop_rounded : Icons.mic,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    isRecording ? tr('tap_to_stop') : tr('tap_to_record'),
+                    style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                  ),
+                  if (isRecording)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        tr('max_2_minutes'),
+                        style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                      ),
+                    ),
+                ] else ...[
+                  // Preview controls
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Play/Stop preview
+                      IconButton.filled(
+                        onPressed: () async {
+                          if (isPlayingPreview) {
+                            await previewPlayer?.stop();
+                            setSheetState(() => isPlayingPreview = false);
+                          } else {
+                            previewPlayer ??= ap.AudioPlayer();
+                            previewPlayer!.onPlayerComplete.listen((_) {
+                              setSheetState(() => isPlayingPreview = false);
+                            });
+                            try {
+                              if (kIsWeb) {
+                                await previewPlayer!.play(ap.UrlSource(recordedPath!));
+                              } else {
+                                await previewPlayer!.play(ap.DeviceFileSource(recordedPath!));
+                              }
+                              setSheetState(() => isPlayingPreview = true);
+                            } catch (_) {
+                              setSheetState(() => isPlayingPreview = false);
+                            }
+                          }
+                        },
+                        icon: Icon(isPlayingPreview ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 32),
+                        style: IconButton.styleFrom(
+                          backgroundColor: accentColor,
+                          foregroundColor: Colors.white,
+                          fixedSize: const Size(64, 64),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Re-record
+                      IconButton.filled(
+                        onPressed: () async {
+                          await previewPlayer?.stop();
+                          isPlayingPreview = false;
+                          recordedPath = null;
+                          elapsedSeconds = 0;
+                          setSheetState(() {});
+                        },
+                        icon: const Icon(Icons.refresh_rounded, size: 28),
+                        style: IconButton.styleFrom(
+                          backgroundColor: colorScheme.surfaceContainerHighest,
+                          foregroundColor: colorScheme.onSurface,
+                          fixedSize: const Size(52, 52),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  // Save button
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _notes.add(FlashNote(
+                            content: '🎤 Nota vocale (${_formatAudioDuration(elapsedSeconds)})',
+                            audioPath: recordedPath,
+                            audioDurationMs: elapsedSeconds * 1000,
+                          ));
+                        });
+                        _saveNotes();
+                        Navigator.pop(ctx);
+                      },
+                      icon: const Icon(Icons.check, size: 18),
+                      label: Text(tr('save')),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accentColor,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 12),
+                if (!isRecording)
+                  TextButton(
+                    onPressed: () {
+                      timer?.cancel();
+                      previewPlayer?.stop();
+                      Navigator.pop(ctx);
+                    },
+                    child: Text(recordedPath != null ? tr('cancel') : tr('close')),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    ).then((_) {
+      timer?.cancel();
+      recorder.dispose();
+      previewPlayer?.dispose();
+    });
+  }
+
+  Widget _buildCellAction(IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 15, color: color),
+      ),
+    );
+  }
+
 }
 
 // NOTE PRO
@@ -6688,16 +11001,18 @@ class _NotesProPageState extends State<NotesProPage> {
   List<ProNote> _proNotes = [];
   Map<String, FolderStyle> _folders = {
     'Generale': const FolderStyle(Icons.folder, Colors.blue),
-    'Lavoro': const FolderStyle(Icons.work, Colors.orange),
-    'Personale': const FolderStyle(Icons.person, Colors.green),
+    tr('work'): const FolderStyle(Icons.work, Colors.orange),
+    tr('personal'): const FolderStyle(Icons.person, Colors.green),
     'Flash Notes': const FolderStyle(Icons.flash_on, Color(0xFFFFA726)),
+    tr('private_folder'): const FolderStyle(Icons.lock, Color(0xFF7B1FA2)),
   };
-  String _selectedFolder = 'Tutte';
+  String _selectedFolder = tr('all_items');
   NoteProSettings _settings = const NoteProSettings();
   bool _privateUnlocked = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isGridView = false;
+  bool _showFolderSidebar = false;
 
   static const _availableIcons = [
     Icons.folder, Icons.work, Icons.person, Icons.school,
@@ -6803,9 +11118,9 @@ class _NotesProPageState extends State<NotesProPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => NoteEditorPage(
+        builder: (context) => NoteReadPage(
+          note: note,
           folders: _folders,
-          existingNote: note,
           onSave: (updatedNote) {
             setState(() => _proNotes[index] = updatedNote);
             _saveNotes();
@@ -6834,9 +11149,9 @@ class _NotesProPageState extends State<NotesProPage> {
 
   List<ProNote> get _filteredNotes {
     List<ProNote> notes;
-    if (_selectedFolder == 'Tutte') {
-      notes = _proNotes.where((n) => n.folder != 'Privata').toList();
-    } else if (_selectedFolder == 'Privata' && !_privateUnlocked) {
+    if (_selectedFolder == tr('all_items')) {
+      notes = _proNotes.where((n) => n.folder != tr('private_folder')).toList();
+    } else if (_selectedFolder == tr('private_folder') && !_privateUnlocked) {
       notes = [];
     } else {
       notes = _proNotes.where((note) => note.folder == _selectedFolder).toList();
@@ -6854,25 +11169,25 @@ class _NotesProPageState extends State<NotesProPage> {
   Map<String, FolderStyle> get _visibleFolders {
     final visible = Map<String, FolderStyle>.from(_folders);
     if (!_settings.showPrivateFolder) {
-      visible.remove('Privata');
+      visible.remove(tr('private_folder'));
     }
     return visible;
   }
 
   void _onFolderTap(String folder) {
-    if (folder == 'Privata') {
+    if (folder == tr('private_folder')) {
       if (_settings.securityPin == null) {
         _showCreatePinDialog(onSuccess: () {
           setState(() {
             _privateUnlocked = true;
-            _selectedFolder = 'Privata';
+            _selectedFolder = tr('private_folder');
           });
         });
       } else {
         _showEnterPinDialog(onSuccess: () {
           setState(() {
             _privateUnlocked = true;
-            _selectedFolder = 'Privata';
+            _selectedFolder = tr('private_folder');
           });
         });
       }
@@ -6890,7 +11205,7 @@ class _NotesProPageState extends State<NotesProPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Inserisci PIN'),
+        title: Text(tr('enter_pin')),
         content: TextField(
           controller: controller,
           obscureText: true,
@@ -6900,7 +11215,7 @@ class _NotesProPageState extends State<NotesProPage> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
           FilledButton(
             onPressed: () {
               if (controller.text == _settings.securityPin) {
@@ -6908,11 +11223,11 @@ class _NotesProPageState extends State<NotesProPage> {
                 onSuccess();
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('PIN errato')),
+                  SnackBar(content: Text(tr('wrong_pin'))),
                 );
               }
             },
-            child: const Text('Conferma'),
+            child: Text(tr('confirm')),
           ),
         ],
       ),
@@ -6926,7 +11241,7 @@ class _NotesProPageState extends State<NotesProPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Crea PIN di Sicurezza'),
+        title: Text(tr('set_pin')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -6935,7 +11250,7 @@ class _NotesProPageState extends State<NotesProPage> {
               obscureText: true,
               keyboardType: TextInputType.number,
               maxLength: 6,
-              decoration: const InputDecoration(labelText: 'Nuovo PIN (4-6 cifre)'),
+              decoration: const InputDecoration(labelText: 'PIN'),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -6943,12 +11258,12 @@ class _NotesProPageState extends State<NotesProPage> {
               obscureText: true,
               keyboardType: TextInputType.number,
               maxLength: 6,
-              decoration: const InputDecoration(labelText: 'Conferma PIN'),
+              decoration: InputDecoration(labelText: tr('confirm')),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
           FilledButton(
             onPressed: () {
               if (pinController.text.length >= 4 && pinController.text == confirmController.text) {
@@ -6959,11 +11274,11 @@ class _NotesProPageState extends State<NotesProPage> {
                 onSuccess();
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('I PIN non corrispondono o sono troppo corti')),
+                  SnackBar(content: Text(tr('wrong_pin'))),
                 );
               }
             },
-            child: const Text('Crea'),
+            child: Text(tr('create')),
           ),
         ],
       ),
@@ -6981,14 +11296,14 @@ class _NotesProPageState extends State<NotesProPage> {
           headerText: note.headerText,
           footerText: note.footerText,
           templatePreset: note.templatePreset,
-          folder: 'Privata',
+          folder: tr('private_folder'),
           linkedDate: note.linkedDate,
           createdAt: note.createdAt,
         );
       });
       _saveNotes();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nota spostata in Privata')),
+        SnackBar(content: Text(tr('note_moved_to_trash'))),
       );
     }
 
@@ -6999,20 +11314,26 @@ class _NotesProPageState extends State<NotesProPage> {
     }
   }
 
-  void _showCreateFolderDialog() {
+  void _showCreateFolderDialog() async {
     final nameController = TextEditingController();
     IconData selectedIcon = Icons.folder;
     Color selectedColor = Colors.blue;
     bool isShared = false;
     final emailController = TextEditingController();
     List<String> sharedEmails = [];
+    final prefs = await SharedPreferences.getInstance();
+    final profileJson = prefs.getString('user_profile');
+    final friends = profileJson != null
+        ? (UserProfile.fromJson(json.decode(profileJson))).friends
+        : <String>[];
+    List<String> selectedFriends = [];
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Text('Nuova Cartella'),
+          title: Text(tr('new_folder')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -7020,13 +11341,13 @@ class _NotesProPageState extends State<NotesProPage> {
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nome cartella',
-                    hintText: 'Es: Progetti, Ricette...',
+                  decoration: InputDecoration(
+                    labelText: tr('folder_name'),
+                    hintText: tr('folder_name'),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('Icona', style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(tr('image'), style: const TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -7052,39 +11373,76 @@ class _NotesProPageState extends State<NotesProPage> {
                   }).toList(),
                 ),
                 const SizedBox(height: 16),
-                const Text('Colore', style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(tr('color'), style: const TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _availableColors.map((color) {
-                    final isSelected = selectedColor == color;
-                    return GestureDetector(
-                      onTap: () => setDialogState(() => selectedColor = color),
+                  children: [
+                    ..._availableColors.map((color) {
+                      final isSelected = selectedColor == color;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => selectedColor = color),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? Colors.white : Colors.transparent,
+                              width: 3,
+                            ),
+                            boxShadow: isSelected
+                                ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 8)]
+                                : null,
+                          ),
+                          child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
+                        ),
+                      );
+                    }),
+                    // Custom color picker
+                    GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: ctx,
+                          builder: (_) => _ColorPickerDialog(
+                            isBackground: false,
+                            quickColors: const [],
+                            colorScheme: Theme.of(ctx).colorScheme,
+                            onColorSelected: (color) {
+                              setDialogState(() => selectedColor = color);
+                              Navigator.pop(ctx);
+                            },
+                            onReset: () => Navigator.pop(ctx),
+                          ),
+                        );
+                      },
                       child: Container(
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: color,
                           shape: BoxShape.circle,
+                          gradient: const SweepGradient(
+                            colors: [Colors.red, Colors.yellow, Colors.green, Colors.cyan, Colors.blue, Colors.purple, Colors.red],
+                          ),
                           border: Border.all(
-                            color: isSelected ? Colors.white : Colors.transparent,
+                            color: !_availableColors.contains(selectedColor) ? Colors.white : Colors.transparent,
                             width: 3,
                           ),
-                          boxShadow: isSelected
-                              ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 8)]
-                              : null,
                         ),
-                        child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
+                        child: !_availableColors.contains(selectedColor)
+                            ? const Icon(Icons.check, color: Colors.white, size: 18)
+                            : const Icon(Icons.colorize, color: Colors.white, size: 16),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Cartella condivisa'),
-                  subtitle: const Text('Aggiungi persone che possono vedere e modificare'),
+                  title: Text(tr('share_with')),
+                  subtitle: Text(tr('add_person')),
                   value: isShared,
                   onChanged: (v) => setDialogState(() => isShared = v),
                 ),
@@ -7094,9 +11452,9 @@ class _NotesProPageState extends State<NotesProPage> {
                       Expanded(
                         child: TextField(
                           controller: emailController,
-                          decoration: const InputDecoration(
-                            hintText: 'Email collaboratore',
-                            prefixIcon: Icon(Icons.email, size: 20),
+                          decoration: InputDecoration(
+                            hintText: tr('email'),
+                            prefixIcon: const Icon(Icons.email, size: 20),
                           ),
                           keyboardType: TextInputType.emailAddress,
                         ),
@@ -7126,30 +11484,53 @@ class _NotesProPageState extends State<NotesProPage> {
                       )).toList(),
                     ),
                   ],
+                  if (friends.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(tr('friends'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    const SizedBox(height: 4),
+                    ...friends.map((friend) => CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: selectedFriends.contains(friend),
+                      onChanged: (v) {
+                        setDialogState(() {
+                          if (v == true) {
+                            selectedFriends.add(friend);
+                          } else {
+                            selectedFriends.remove(friend);
+                          }
+                        });
+                      },
+                      title: Text(friend, style: const TextStyle(fontSize: 13)),
+                      secondary: const Icon(Icons.person_outline, size: 20),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    )),
+                  ],
                 ],
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
             FilledButton(
               onPressed: () {
                 final name = nameController.text.trim();
                 if (name.isNotEmpty && !_folders.containsKey(name)) {
+                  final allShared = [...sharedEmails, ...selectedFriends];
                   setState(() {
                     _folders[name] = FolderStyle(
                       selectedIcon,
                       selectedColor,
                       isCustom: true,
                       isShared: isShared,
-                      sharedEmails: sharedEmails,
+                      sharedEmails: allShared,
                     );
                   });
                   _saveCustomFolders();
                   Navigator.pop(ctx);
                 }
               },
-              child: const Text('Crea'),
+              child: Text(tr('create')),
             ),
           ],
         ),
@@ -7160,26 +11541,45 @@ class _NotesProPageState extends State<NotesProPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    const accentColor = Color(0xFFE53935);
     final visibleFolders = _visibleFolders;
 
+    final accentColor = _isEthosTheme(context) ? const Color(0xFF800020) : const Color(0xFFE53935);
+
     return Scaffold(
-      body: Row(
+      body: Stack(
         children: [
-          // NOTE LIST
-          Expanded(
-            child: Column(
-              children: [
+          // MAIN CONTENT (full width)
+          Column(
+            children: [
                 // SEARCH BAR + VIEW TOGGLE
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
                   child: Row(
                     children: [
+                      // Folder sidebar toggle
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: _selectedFolder != tr('all_items') ? accentColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _selectedFolder != tr('all_items') ? accentColor.withValues(alpha: 0.4) : colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            _selectedFolder != tr('all_items') ? (_folders[_selectedFolder]?.icon ?? Icons.folder) : Icons.folder_outlined,
+                            size: 20,
+                            color: _selectedFolder != tr('all_items') ? accentColor : colorScheme.onSurfaceVariant,
+                          ),
+                          onPressed: () => setState(() => _showFolderSidebar = !_showFolderSidebar),
+                          tooltip: tr('folders'),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
                       Expanded(
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'Cerca note...',
+                            hintText: tr('search_notes'),
                             prefixIcon: const Icon(Icons.search, size: 20),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
@@ -7216,10 +11616,10 @@ class _NotesProPageState extends State<NotesProPage> {
                               const SizedBox(height: 12),
                               Text(
                                 _searchQuery.isNotEmpty
-                                    ? 'Nessun risultato per "$_searchQuery"'
-                                    : _selectedFolder == 'Tutte'
-                                        ? 'Nessuna Deep Note'
-                                        : 'Nessuna nota in "$_selectedFolder"',
+                                    ? '${tr('no_results_for')} "$_searchQuery"'
+                                    : _selectedFolder == tr('all_items')
+                                        ? tr('no_deep_notes')
+                                        : '${tr('no_notes')} - $_selectedFolder',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -7229,14 +11629,14 @@ class _NotesProPageState extends State<NotesProPage> {
                               if (_searchQuery.isEmpty) ...[
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Crea la tua prima nota!',
+                                  tr('create_first_note'),
                                   style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
                                 ),
                                 const SizedBox(height: 16),
                                 FilledButton.icon(
                                   onPressed: _createNewNote,
                                   icon: const Icon(Icons.add, size: 18),
-                                  label: const Text('Nuova Nota'),
+                                  label: Text(tr('new_note')),
                                 ),
                               ],
                             ],
@@ -7244,12 +11644,12 @@ class _NotesProPageState extends State<NotesProPage> {
                         )
                       : _isGridView
                           ? GridView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
+                              padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
                               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 2,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                                childAspectRatio: 1.1,
+                                crossAxisSpacing: 6,
+                                mainAxisSpacing: 6,
+                                childAspectRatio: 1.0,
                               ),
                               itemCount: _filteredNotes.length,
                               itemBuilder: (context, index) {
@@ -7257,61 +11657,81 @@ class _NotesProPageState extends State<NotesProPage> {
                                 final folderColor = _folders[note.folder]?.color ?? Colors.grey;
                                 final noteIndex = _proNotes.indexOf(note);
                                 return GestureDetector(
-                                  onLongPress: note.folder != 'Privata'
+                                  onTap: () => _editNote(noteIndex),
+                                  onLongPress: note.folder != tr('private_folder')
                                       ? () => _showLongPressMenu(noteIndex)
                                       : null,
-                                  child: Card(
-                                    child: InkWell(
-                                      onTap: () => _editNote(noteIndex),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    margin: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surfaceContainerLowest,
                                       borderRadius: BorderRadius.circular(16),
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(16),
-                                          border: Border(left: BorderSide(color: folderColor, width: 4)),
-                                        ),
-                                        padding: const EdgeInsets.all(12),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Icon(_folders[note.folder]?.icon, color: folderColor, size: 18),
-                                                const SizedBox(width: 6),
-                                                Expanded(
-                                                  child: Text(note.title,
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                                      border: Border.all(
+                                        color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(10),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(_folders[note.folder]?.icon, color: folderColor, size: 15),
+                                              const SizedBox(width: 5),
+                                              Expanded(
+                                                child: Text(note.title,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 13,
+                                                      fontFamily: _isEthosTheme(context) ? 'Georgia' : null,
+                                                      color: _isEthosTheme(context) ? const Color(0xFF800020).withValues(alpha: 0.85) : colorScheme.onSurface,
+                                                    )),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Expanded(
+                                            child: Text(note.content,
+                                                maxLines: 5,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: colorScheme.onSurfaceVariant,
+                                                  fontSize: 11,
+                                                  height: 1.4,
+                                                )),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: folderColor.withValues(alpha: 0.08),
+                                                  borderRadius: BorderRadius.circular(8),
                                                 ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Expanded(
-                                              child: Text(note.content,
-                                                  maxLines: 4,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
-                                            ),
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                child: Text(note.folder,
+                                                    style: TextStyle(fontSize: 9, color: folderColor, fontWeight: FontWeight.w600)),
+                                              ),
+                                              GestureDetector(
+                                                onTap: () => _deleteNote(noteIndex),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(4),
                                                   decoration: BoxDecoration(
-                                                    color: folderColor.withValues(alpha: 0.1),
+                                                    color: colorScheme.error.withValues(alpha: 0.08),
                                                     borderRadius: BorderRadius.circular(8),
                                                   ),
-                                                  child: Text(note.folder,
-                                                      style: TextStyle(fontSize: 10, color: folderColor, fontWeight: FontWeight.w600)),
+                                                  child: Icon(Icons.delete_outline, size: 15, color: colorScheme.error),
                                                 ),
-                                                InkWell(
-                                                  onTap: () => _deleteNote(noteIndex),
-                                                  child: Icon(Icons.delete_outline, size: 18, color: colorScheme.error),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -7328,89 +11748,86 @@ class _NotesProPageState extends State<NotesProPage> {
                                 return _SlideInItem(
                                   index: index,
                                   child: GestureDetector(
-                                    onLongPress: note.folder != 'Privata'
+                                    onLongPress: note.folder != tr('private_folder')
                                         ? () => _showLongPressMenu(noteIndex)
                                         : null,
-                                    child: Card(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      child: InkWell(
-                                        onTap: () => _editNote(noteIndex),
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(16),
-                                            border: Border(left: BorderSide(color: folderColor, width: 4)),
-                                          ),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(16),
-                                            child: Row(
-                                              children: [
-                                                CircleAvatar(
-                                                  radius: 22,
-                                                  backgroundColor: folderColor.withValues(alpha: 0.12),
-                                                  child: Icon(_folders[note.folder]?.icon, color: folderColor, size: 22),
-                                                ),
-                                                const SizedBox(width: 16),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    child: GestureDetector(
+                                      onTap: () => _editNote(noteIndex),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.surfaceContainerLowest,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 22,
+                                              backgroundColor: folderColor.withValues(alpha: 0.12),
+                                              child: Icon(_folders[note.folder]?.icon, color: folderColor, size: 22),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
                                                     children: [
-                                                      Row(
-                                                        children: [
-                                                          Expanded(
-                                                            child: Text(note.title,
-                                                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                                                          ),
-                                                          if (note.linkedDate != null)
-                                                            Padding(
-                                                              padding: const EdgeInsets.only(left: 8),
-                                                              child: Icon(Icons.calendar_today, size: 14, color: colorScheme.primary),
-                                                            ),
-                                                        ],
+                                                      Expanded(
+                                                        child: Text(note.title,
+                                                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? const Color(0xFF800020).withValues(alpha: 0.85) : null)),
                                                       ),
-                                                      const SizedBox(height: 4),
-                                                      Text(note.content, maxLines: 2, overflow: TextOverflow.ellipsis,
-                                                          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
-                                                      const SizedBox(height: 8),
-                                                      Row(
-                                                        children: [
-                                                          Container(
-                                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                                            decoration: BoxDecoration(
-                                                              color: folderColor.withValues(alpha: 0.1),
-                                                              borderRadius: BorderRadius.circular(12),
-                                                            ),
-                                                            child: Row(
-                                                              mainAxisSize: MainAxisSize.min,
-                                                              children: [
-                                                                Icon(_folders[note.folder]?.icon, size: 12, color: folderColor),
-                                                                const SizedBox(width: 4),
-                                                                Text(note.folder,
-                                                                    style: TextStyle(fontSize: 11, color: folderColor, fontWeight: FontWeight.w600)),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                          if (note.linkedDate != null) ...[
-                                                            const SizedBox(width: 8),
-                                                            Text(
-                                                              '${note.linkedDate!.day}/${note.linkedDate!.month}/${note.linkedDate!.year}',
-                                                              style: TextStyle(fontSize: 11, color: colorScheme.primary),
-                                                            ),
-                                                          ],
-                                                        ],
-                                                      ),
+                                                      if (note.linkedDate != null)
+                                                        Padding(
+                                                          padding: const EdgeInsets.only(left: 8),
+                                                          child: Icon(Icons.calendar_today, size: 14, color: colorScheme.primary),
+                                                        ),
                                                     ],
                                                   ),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.delete_outline),
-                                                  color: colorScheme.error,
-                                                  iconSize: 22,
-                                                  onPressed: () => _deleteNote(noteIndex),
-                                                ),
-                                              ],
+                                                  const SizedBox(height: 4),
+                                                  Text(note.content, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
+                                                  const SizedBox(height: 8),
+                                                  Row(
+                                                    children: [
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                                        decoration: BoxDecoration(
+                                                          color: folderColor.withValues(alpha: 0.1),
+                                                          borderRadius: BorderRadius.circular(12),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Icon(_folders[note.folder]?.icon, size: 12, color: folderColor),
+                                                            const SizedBox(width: 4),
+                                                            Text(note.folder,
+                                                                style: TextStyle(fontSize: 11, color: folderColor, fontWeight: FontWeight.w600)),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      if (note.linkedDate != null) ...[
+                                                        const SizedBox(width: 8),
+                                                        Text(
+                                                          '${note.linkedDate!.day}/${note.linkedDate!.month}/${note.linkedDate!.year}',
+                                                          style: TextStyle(fontSize: 11, color: colorScheme.primary),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                          ),
+                                            IconButton(
+                                              icon: const Icon(Icons.delete_outline),
+                                              color: colorScheme.error,
+                                              iconSize: 22,
+                                              onPressed: () => _deleteNote(noteIndex),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -7420,45 +11837,110 @@ class _NotesProPageState extends State<NotesProPage> {
                             ),
                 ),
               ],
-            ),
           ),
-          // FOLDER SIDEBAR (RIGHT)
-          Container(
-            width: 72,
-            decoration: BoxDecoration(
-              border: Border(left: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+          // OVERLAY FOLDER SIDEBAR
+          if (_showFolderSidebar) ...[
+            // Dark barrier
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => setState(() => _showFolderSidebar = false),
+                child: Container(color: Colors.black26),
+              ),
             ),
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                _buildSidebarItem('Tutte', Icons.apps, colorScheme.primary),
-                const Divider(height: 8, indent: 12, endIndent: 12),
-                Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    children: visibleFolders.entries.map((entry) {
-                      return _buildSidebarItem(entry.key, entry.value.icon, entry.value.color);
-                    }).toList(),
+            // Sidebar panel (slides from left like S-Pen toolbar)
+            Positioned(
+              left: 12, top: 12, bottom: 12,
+              child: AnimatedSlide(
+                offset: _showFolderSidebar ? Offset.zero : const Offset(-1.5, 0),
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: _showFolderSidebar ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    width: 220,
+                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(4, 0))],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                          child: Row(
+                            children: [
+                              Icon(Icons.folder_outlined, size: 20, color: accentColor),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(tr('folders'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 20),
+                                onPressed: () => setState(() => _showFolderSidebar = false),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        // "Tutte" item
+                        ListTile(
+                          dense: true,
+                          leading: Icon(Icons.apps, size: 20, color: _selectedFolder == tr('all_items') ? accentColor : colorScheme.onSurfaceVariant),
+                          title: Text(tr('all_items'), style: TextStyle(fontWeight: _selectedFolder == tr('all_items') ? FontWeight.w700 : FontWeight.normal, color: _selectedFolder == tr('all_items') ? accentColor : null)),
+                          trailing: Text('${_proNotes.length}', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                          selected: _selectedFolder == tr('all_items'),
+                          selectedTileColor: accentColor.withValues(alpha: 0.08),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          onTap: () => setState(() { _selectedFolder = tr('all_items'); _showFolderSidebar = false; }),
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        // Folder items
+                        Flexible(
+                          child: ListView(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            children: visibleFolders.entries.map((entry) {
+                              final isSelected = _selectedFolder == entry.key;
+                              final count = _proNotes.where((n) => n.folder == entry.key).length;
+                              return ListTile(
+                                dense: true,
+                                leading: Icon(entry.value.icon, size: 20, color: isSelected ? entry.value.color : colorScheme.onSurfaceVariant),
+                                title: Text(entry.key, style: TextStyle(fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal, color: isSelected ? entry.value.color : null)),
+                                trailing: Text('$count', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                                selected: isSelected,
+                                selectedTileColor: entry.value.color.withValues(alpha: 0.08),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                onTap: () {
+                                  _onFolderTap(entry.key);
+                                  setState(() => _showFolderSidebar = false);
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        ListTile(
+                          dense: true,
+                          leading: Icon(Icons.add_circle_outline, size: 20, color: colorScheme.primary),
+                          title: Text(tr('new_folder'), style: TextStyle(color: colorScheme.primary)),
+                          onTap: () { setState(() => _showFolderSidebar = false); _showCreateFolderDialog(); },
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
                   ),
                 ),
-                const Divider(height: 1, indent: 12, endIndent: 12),
-                IconButton(
-                  icon: Icon(Icons.add_circle_outline, color: colorScheme.primary),
-                  tooltip: 'Nuova cartella',
-                  onPressed: _showCreateFolderDialog,
-                ),
-                const SizedBox(height: 8),
-              ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: _createNewNote,
-        icon: const Icon(Icons.add),
-        label: const Text('Nuova Nota'),
-        backgroundColor: accentColor,
-        foregroundColor: Colors.white,
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -7478,8 +11960,8 @@ class _NotesProPageState extends State<NotesProPage> {
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.lock_outline),
-              title: const Text('Sposta in Privata'),
-              subtitle: const Text('Proteggi questa nota con PIN'),
+              title: Text('${tr('move')} → ${tr('private')}'),
+              subtitle: Text(tr('pin_security')),
               onTap: () {
                 Navigator.pop(ctx);
                 _moveToPrivate(noteIndex);
@@ -7491,43 +11973,215 @@ class _NotesProPageState extends State<NotesProPage> {
     );
   }
 
-  Widget _buildSidebarItem(String folder, IconData icon, Color color) {
-    final isSelected = _selectedFolder == folder;
+}
+
+// ── Note Read Page (Reading View) ──
+
+class NoteReadPage extends StatefulWidget {
+  final ProNote note;
+  final Map<String, FolderStyle> folders;
+  final Function(ProNote) onSave;
+
+  const NoteReadPage({
+    super.key,
+    required this.note,
+    required this.folders,
+    required this.onSave,
+  });
+
+  @override
+  State<NoteReadPage> createState() => _NoteReadPageState();
+}
+
+class _NoteReadPageState extends State<NoteReadPage> {
+  late ProNote _currentNote;
+
+  static final _googleFontBuilders = <String, TextStyle Function()>{
+    'Roboto': () => GoogleFonts.roboto(),
+    'Open Sans': () => GoogleFonts.openSans(),
+    'Lato': () => GoogleFonts.lato(),
+    'Poppins': () => GoogleFonts.poppins(),
+    'Nunito': () => GoogleFonts.nunito(),
+    'Raleway': () => GoogleFonts.raleway(),
+    'Playfair Display': () => GoogleFonts.playfairDisplay(),
+    'Merriweather': () => GoogleFonts.merriweather(),
+    'EB Garamond': () => GoogleFonts.ebGaramond(),
+    'Courier Prime': () => GoogleFonts.courierPrime(),
+  };
+
+  TextStyle _customStyleBuilder(quill.Attribute attribute) {
+    if (attribute.key == 'font' && attribute.value != null) {
+      final fontValue = attribute.value as String;
+      final builder = _googleFontBuilders[fontValue];
+      if (builder != null) {
+        return builder();
+      }
+    }
+    return const TextStyle();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _currentNote = widget.note;
+  }
+
+  void _openEditor() async {
+    final result = await Navigator.push<ProNote>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NoteEditorPage(
+          folders: widget.folders,
+          existingNote: _currentNote,
+          onSave: (updatedNote) {
+            widget.onSave(updatedNote);
+            setState(() => _currentNote = updatedNote);
+          },
+        ),
+      ),
+    );
+    if (result != null) {
+      setState(() => _currentNote = result);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: folder,
-      child: InkWell(
-        onTap: () => _onFolderTap(folder),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 72,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: isSelected ? color.withValues(alpha: 0.15) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: isSelected ? color : colorScheme.onSurfaceVariant, size: 22),
+    final folderStyle = widget.folders[_currentNote.folder];
+
+    quill.QuillController? quillController;
+    if (_currentNote.contentDelta != null) {
+      try {
+        final deltaJson = jsonDecode(_currentNote.contentDelta!) as List;
+        final doc = quill.Document.fromJson(deltaJson);
+        quillController = quill.QuillController(
+          document: doc,
+          selection: const TextSelection.collapsed(offset: 0),
+          readOnly: true,
+        );
+      } catch (_) {}
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_currentNote.title.isEmpty ? tr('note_label') : _currentNote.title),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
+        actions: [
+          FilledButton.icon(
+            onPressed: _openEditor,
+            icon: const Icon(Icons.edit, size: 18),
+            label: Text(tr('edit')),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Folder chip + date chip
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (folderStyle != null)
+                  Chip(
+                    avatar: Icon(folderStyle.icon, size: 16, color: folderStyle.color),
+                    label: Text(_currentNote.folder),
+                    backgroundColor: folderStyle.color.withValues(alpha: 0.1),
+                    side: BorderSide.none,
+                  ),
+                if (_currentNote.linkedDate != null)
+                  Chip(
+                    avatar: Icon(Icons.calendar_today, size: 16, color: colorScheme.primary),
+                    label: Text('${_currentNote.linkedDate!.day}/${_currentNote.linkedDate!.month}/${_currentNote.linkedDate!.year}'),
+                    side: BorderSide.none,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Title
+            Text(
+              _currentNote.title,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                fontFamily: _isEthosTheme(context) ? 'Georgia' : null,
+                color: _isEthosTheme(context) ? colorScheme.primary : null,
               ),
-              const SizedBox(height: 2),
-              Text(
-                folder.length > 8 ? '${folder.substring(0, 7)}…' : folder,
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
-                  color: isSelected ? color : colorScheme.onSurfaceVariant,
+            ),
+            Divider(height: 32, color: colorScheme.outlineVariant),
+            // Header
+            if (_currentNote.headerText != null && _currentNote.headerText!.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                child: Text(
+                  _currentNote.headerText!,
+                  style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            // Content (Quill read-only)
+            if (quillController != null)
+              quill.QuillEditor(
+                controller: quillController,
+                focusNode: FocusNode(canRequestFocus: false),
+                scrollController: ScrollController(),
+                config: quill.QuillEditorConfig(
+                  showCursor: false,
+                  autoFocus: false,
+                  padding: EdgeInsets.zero,
+                  customStyleBuilder: _customStyleBuilder,
+                  embedBuilders: [_DividerEmbedBuilder()],
+                  onLaunchUrl: (url) async {
+                    final uri = Uri.parse(url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                ),
+              )
+            else if (_currentNote.content.isNotEmpty)
+              Text(
+                _currentNote.content,
+                style: TextStyle(fontSize: 16, height: 1.6, color: colorScheme.onSurface),
+              ),
+            // Footer
+            if (_currentNote.footerText != null && _currentNote.footerText!.isNotEmpty) ...[
+              Divider(height: 32, color: colorScheme.outlineVariant),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _currentNote.footerText!,
+                  style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                ),
               ),
             ],
-          ),
+            const SizedBox(height: 16),
+            // Created date
+            Text(
+              '${tr('created_on')} ${_currentNote.createdAt.day}/${_currentNote.createdAt.month}/${_currentNote.createdAt.year} ${tr('at_time')} ${_currentNote.createdAt.hour.toString().padLeft(2, '0')}:${_currentNote.createdAt.minute.toString().padLeft(2, '0')}',
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+            ),
+          ],
         ),
       ),
     );
@@ -7538,12 +12192,14 @@ class NoteEditorPage extends StatefulWidget {
   final Function(ProNote) onSave;
   final Map<String, FolderStyle> folders;
   final ProNote? existingNote;
+  final String? heroTag;
 
   const NoteEditorPage({
     super.key,
     required this.onSave,
     required this.folders,
     this.existingNote,
+    this.heroTag,
   });
 
   @override
@@ -7564,7 +12220,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   DateTime? _linkedDate;
 
   String _selectedFontFamily = 'Sans Serif';
-  String _selectedFontSize = '16';
+  bool _showLinkGallery = true;
+  List<String> _documentLinks = [];
+  bool _isAiLoading = false;
+  bool _showToolPanel = false;
 
   static const _fontFamilies = {
     'Sans Serif': 'sans-serif',
@@ -7609,7 +12268,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     return const TextStyle();
   }
 
-  static const _fontSizes = ['10', '12', '14', '16', '18', '20', '24', '28', '32'];
 
   static final _businessTemplates = {
     'Lettera Formale': BusinessTemplate(
@@ -7711,6 +12369,152 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     } else {
       _quillController = quill.QuillController.basic();
     }
+    _quillController.addListener(_updateDocumentLinks);
+    _updateDocumentLinks();
+
+  }
+
+  void _updateDocumentLinks() {
+    final links = _extractLinksFromDocument();
+    if (links.length != _documentLinks.length || links.join() != _documentLinks.join()) {
+      setState(() => _documentLinks = links);
+    }
+  }
+
+  List<String> _extractLinksFromDocument() {
+    final delta = _quillController.document.toDelta();
+    final links = <String>[];
+    for (final op in delta.toList()) {
+      if (op.attributes != null && op.attributes!.containsKey('link')) {
+        final url = op.attributes!['link'] as String;
+        if (url.isNotEmpty && !links.contains(url)) {
+          links.add(url);
+        }
+      }
+    }
+    return links;
+  }
+
+  Future<void> _callGeminiAI(String action) async {
+    final settings = await FlashNotesSettings.load();
+    final apiKey = settings.geminiApiKey;
+    if (apiKey.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('api_key')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isAiLoading = true);
+
+    try {
+      final text = _quillController.document.toPlainText().trim();
+      if (text.isEmpty) {
+        setState(() => _isAiLoading = false);
+        return;
+      }
+
+      final String prompt;
+      final String title;
+      if (action == 'riassumi') {
+        prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
+        title = tr('ai_summary');
+      } else {
+        prompt = 'Estrai i punti chiave più importanti dal seguente testo in italiano, come lista puntata:\n\n$text';
+        title = tr('ai_key_points');
+      }
+
+      final model = gemini.GenerativeModel(model: 'gemini-2.0-flash', apiKey: apiKey);
+      final response = await model.generateContent([gemini.Content.text(prompt)]);
+      final result = response.text ?? tr('no_results');
+
+      setState(() => _isAiLoading = false);
+      if (!mounted) return;
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) {
+          final colorScheme = Theme.of(ctx).colorScheme;
+          return DraggableScrollableSheet(
+            initialChildSize: 0.5,
+            minChildSize: 0.3,
+            maxChildSize: 0.85,
+            expand: false,
+            builder: (_, scrollController) => Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(title, style: Theme.of(ctx).textTheme.titleLarge),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      child: Card(
+                        elevation: 0,
+                        color: colorScheme.surfaceContainerLowest,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: SelectableText(result, style: const TextStyle(fontSize: 14, height: 1.5)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        final doc = _quillController.document;
+                        final length = doc.length;
+                        doc.insert(length - 1, '\n\n--- $title ---\n$result\n');
+                      },
+                      icon: const Icon(Icons.add, size: 18),
+                      label: Text(tr('insert')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      setState(() => _isAiLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _saveNote() {
@@ -7759,6 +12563,46 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     });
   }
 
+  Widget _buildLinkGallery() {
+    if (!_showLinkGallery || _documentLinks.isEmpty) return const SizedBox.shrink();
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(Icons.link, size: 16, color: colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              'Link (${_documentLinks.length})',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.close, size: 16),
+              onPressed: () => setState(() => _showLinkGallery = false),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 150),
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: _documentLinks.length,
+            itemBuilder: (context, index) {
+              final url = _documentLinks[index];
+              return _LinkPreviewCard(url: url);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   void _insertLink() {
     final urlController = TextEditingController();
     final textController = TextEditingController();
@@ -7775,16 +12619,16 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Inserisci Link'),
+        title: Text(tr('add_link')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (!hasSelection)
               TextField(
                 controller: textController,
-                decoration: const InputDecoration(
-                  labelText: 'Testo del link',
-                  hintText: 'Es: Clicca qui',
+                decoration: InputDecoration(
+                  labelText: tr('text'),
+                  hintText: tr('text'),
                 ),
               ),
             if (!hasSelection) const SizedBox(height: 12),
@@ -7801,7 +12645,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annulla'),
+            child: Text(tr('cancel')),
           ),
           ElevatedButton(
             onPressed: () {
@@ -7830,9 +12674,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   quill.ChangeSource.local,
                 );
               }
+              setState(() => _showLinkGallery = true);
               Navigator.pop(ctx);
             },
-            child: const Text('Inserisci'),
+            child: Text(tr('insert')),
           ),
         ],
       ),
@@ -8009,235 +12854,15 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     return widgets;
   }
 
-  Widget _buildQuillToolbar() {
-    final colorScheme = Theme.of(context).colorScheme;
-    Widget divider() => Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Container(width: 1, height: 22, color: colorScheme.outlineVariant),
-    );
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Row 1: B I U | Font Size | H1 H2 H3
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                quill.QuillToolbarToggleStyleButton(
-                  controller: _quillController,
-                  attribute: quill.Attribute.bold,
-                  options: const quill.QuillToolbarToggleStyleButtonOptions(iconSize: 18),
-                ),
-                quill.QuillToolbarToggleStyleButton(
-                  controller: _quillController,
-                  attribute: quill.Attribute.italic,
-                  options: const quill.QuillToolbarToggleStyleButtonOptions(iconSize: 18),
-                ),
-                quill.QuillToolbarToggleStyleButton(
-                  controller: _quillController,
-                  attribute: quill.Attribute.underline,
-                  options: const quill.QuillToolbarToggleStyleButtonOptions(iconSize: 18),
-                ),
-                divider(),
-                _buildFontFamilyDropdown(),
-                const SizedBox(width: 4),
-                _buildFontSizeDropdown(),
-                divider(),
-                quill.QuillToolbarSelectHeaderStyleButtons(
-                  controller: _quillController,
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          // Row 2: UL OL | Color BgColor | Align | Link Header/Footer Templates
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                quill.QuillToolbarToggleStyleButton(
-                  controller: _quillController,
-                  attribute: quill.Attribute.ul,
-                  options: const quill.QuillToolbarToggleStyleButtonOptions(iconSize: 18),
-                ),
-                quill.QuillToolbarToggleStyleButton(
-                  controller: _quillController,
-                  attribute: quill.Attribute.ol,
-                  options: const quill.QuillToolbarToggleStyleButtonOptions(iconSize: 18),
-                ),
-                divider(),
-                _buildColorPickerButton(isBackground: false),
-                _buildColorPickerButton(isBackground: true),
-                divider(),
-                quill.QuillToolbarSelectAlignmentButton(
-                  controller: _quillController,
-                ),
-                divider(),
-                IconButton(
-                  icon: const Icon(Icons.link, size: 18),
-                  tooltip: 'Inserisci link',
-                  onPressed: _insertLink,
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
-                IconButton(
-                  icon: Icon(
-                    _showHeader || _showFooter
-                        ? Icons.article
-                        : Icons.article_outlined,
-                    size: 18,
-                  ),
-                  tooltip: 'Intestazione/Piè di pagina',
-                  onPressed: () {
-                    setState(() {
-                      if (_showHeader || _showFooter) {
-                        _showHeader = false;
-                        _showFooter = false;
-                      } else {
-                        _showHeader = true;
-                        _showFooter = true;
-                      }
-                    });
-                  },
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
-                _buildTemplateMenu(),
-              ],
-            ),
-          ),
-        ],
-      ),
+  void _insertHorizontalRule() {
+    final index = _quillController.selection.baseOffset;
+    _quillController.document.insert(index, quill.BlockEmbed('divider', 'hr'));
+    _quillController.updateSelection(
+      TextSelection.collapsed(offset: index + 1),
+      quill.ChangeSource.local,
     );
   }
 
-  Widget _buildFontFamilyDropdown() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButton<String>(
-        value: _selectedFontFamily,
-        underline: const SizedBox(),
-        isDense: true,
-        style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
-        items: _fontFamilies.entries.map((entry) {
-          return DropdownMenuItem(
-            value: entry.key,
-            child: Text(entry.key, style: TextStyle(fontFamily: entry.value)),
-          );
-        }).toList(),
-        onChanged: (value) {
-          if (value == null) return;
-          setState(() => _selectedFontFamily = value);
-          _quillController.formatSelection(
-            quill.Attribute.fromKeyValue('font', _fontFamilies[value]),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildFontSizeDropdown() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButton<String>(
-        value: _selectedFontSize,
-        underline: const SizedBox(),
-        isDense: true,
-        style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
-        items: _fontSizes.map((size) {
-          return DropdownMenuItem(value: size, child: Text('${size}pt'));
-        }).toList(),
-        onChanged: (value) {
-          if (value == null) return;
-          setState(() => _selectedFontSize = value);
-          _quillController.formatSelection(
-            quill.Attribute.fromKeyValue('size', value),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildTemplateMenu() {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.description_outlined, size: 20),
-      tooltip: 'Template Commerciali',
-      itemBuilder: (context) => _businessTemplates.keys.map((name) {
-        return PopupMenuItem(
-          value: name,
-          child: Row(
-            children: [
-              Icon(
-                name == _selectedTemplate ? Icons.check : Icons.description,
-                size: 18,
-                color: name == _selectedTemplate ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 8),
-              Text(name),
-            ],
-          ),
-        );
-      }).toList(),
-      onSelected: (name) {
-        final template = _businessTemplates[name]!;
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text('Applicare "$name"?'),
-            content: const Text(
-              'Il contenuto attuale verrà sostituito con il template selezionato.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Annulla'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _applyTemplate(name, template);
-                },
-                child: const Text('Applica'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildColorPickerButton({required bool isBackground}) {
-    return IconButton(
-      icon: Icon(
-        isBackground ? Icons.format_color_fill : Icons.format_color_text,
-        size: 18,
-      ),
-      tooltip: isBackground ? 'Colore sfondo' : 'Colore testo',
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.all(4),
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-      onPressed: () => _showColorPickerPopup(isBackground: isBackground),
-    );
-  }
 
   void _applyColor(Color color, {required bool isBackground}) {
     final hex = '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
@@ -8288,10 +12913,289 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
   }
 
+  Widget _buildSPenToolbar() {
+    final colorScheme = Theme.of(context).colorScheme;
+    const btnSize = 36.0;
+    Widget toolBtn({required Widget icon, required String tooltip, required VoidCallback onPressed}) {
+      return SizedBox(
+        width: btnSize,
+        height: btnSize,
+        child: IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: btnSize, minHeight: btnSize),
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: icon,
+          iconSize: 18,
+        ),
+      );
+    }
+    Widget hDivider() => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Container(width: 24, height: 1, color: colorScheme.outlineVariant),
+    );
+
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(16),
+      color: colorScheme.surfaceContainerLowest,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // H1, H2
+              toolBtn(
+                icon: Text('H1', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                tooltip: tr('title'),
+                onPressed: () => _quillController.formatSelection(quill.Attribute.h1),
+              ),
+              toolBtn(
+                icon: Text('H2', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                tooltip: tr('title'),
+                onPressed: () => _quillController.formatSelection(quill.Attribute.h2),
+              ),
+              hDivider(),
+              // Bold
+              toolBtn(
+                icon: Icon(Icons.format_bold, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('bold'),
+                onPressed: () => _quillController.formatSelection(quill.Attribute.bold),
+              ),
+              // Highlight
+              toolBtn(
+                icon: Icon(Icons.highlight, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('background_color'),
+                onPressed: () {
+                  _quillController.formatSelection(
+                    quill.Attribute.fromKeyValue('background', _isEthosTheme(context) ? '#F2D5DC' : '#FFF9C4'),
+                  );
+                },
+              ),
+              // Checkbox
+              toolBtn(
+                icon: Icon(Icons.check_box_outlined, size: 18, color: colorScheme.onSurface),
+                tooltip: 'Checkbox',
+                onPressed: () => _quillController.formatSelection(quill.Attribute.unchecked),
+              ),
+              hDivider(),
+              // Link
+              toolBtn(
+                icon: Icon(Icons.link, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('add_link'),
+                onPressed: _insertLink,
+              ),
+              // HR
+              toolBtn(
+                icon: Icon(Icons.horizontal_rule, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('indent'),
+                onPressed: _insertHorizontalRule,
+              ),
+              hDivider(),
+              // UL
+              toolBtn(
+                icon: Icon(Icons.format_list_bulleted, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('bullet_list'),
+                onPressed: () => _quillController.formatSelection(quill.Attribute.ul),
+              ),
+              // OL
+              toolBtn(
+                icon: Icon(Icons.format_list_numbered, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('numbered_list'),
+                onPressed: () => _quillController.formatSelection(quill.Attribute.ol),
+              ),
+              hDivider(),
+              // Font
+              toolBtn(
+                icon: Icon(Icons.font_download, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('font'),
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    builder: (_) => _buildFontFamilySheet(),
+                  );
+                },
+              ),
+              // Color text
+              toolBtn(
+                icon: Icon(Icons.format_color_text, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('text_color'),
+                onPressed: () => _showColorPickerPopup(isBackground: false),
+              ),
+              // Color bg
+              toolBtn(
+                icon: Icon(Icons.format_color_fill, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('background_color'),
+                onPressed: () => _showColorPickerPopup(isBackground: true),
+              ),
+              hDivider(),
+              // AI
+              _isAiLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                    )
+                  : PopupMenuButton<String>(
+                      icon: Icon(Icons.auto_awesome, size: 18, color: colorScheme.primary),
+                      tooltip: 'AI',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: btnSize, minHeight: btnSize),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(value: 'riassumi', child: Text(tr('summarize'))),
+                        PopupMenuItem(value: 'punti_chiave', child: Text(tr('content'))),
+                      ],
+                      onSelected: _callGeminiAI,
+                    ),
+              // Header/Footer
+              toolBtn(
+                icon: Icon(
+                  _showHeader || _showFooter ? Icons.article : Icons.article_outlined,
+                  size: 18,
+                  color: colorScheme.onSurface,
+                ),
+                tooltip: '${tr('header')}/${tr('footer')}',
+                onPressed: () {
+                  setState(() {
+                    if (_showHeader || _showFooter) {
+                      _showHeader = false;
+                      _showFooter = false;
+                    } else {
+                      _showHeader = true;
+                      _showFooter = true;
+                    }
+                  });
+                },
+              ),
+              // Template
+              PopupMenuButton<String>(
+                icon: Icon(Icons.description_outlined, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('template'),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: btnSize, minHeight: btnSize),
+                itemBuilder: (_) => _businessTemplates.keys.map((name) {
+                  return PopupMenuItem(
+                    value: name,
+                    child: Row(
+                      children: [
+                        Icon(
+                          name == _selectedTemplate ? Icons.check : Icons.description,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(name),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onSelected: _onTemplateSelected,
+              ),
+              // Folder
+              toolBtn(
+                icon: Icon(Icons.folder_outlined, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('folder'),
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    builder: (_) => _buildFolderSheet(),
+                  );
+                },
+              ),
+              // Calendar link
+              toolBtn(
+                icon: Icon(
+                  _linkedDate != null ? Icons.calendar_today : Icons.calendar_today_outlined,
+                  size: 18,
+                  color: _linkedDate != null ? colorScheme.primary : colorScheme.onSurface,
+                ),
+                tooltip: tr('select_date'),
+                onPressed: _pickLinkedDate,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFontFamilySheet() {
+    return SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        children: _fontFamilies.entries.map((entry) {
+          return ListTile(
+            title: Text(entry.key, style: TextStyle(fontFamily: entry.value)),
+            selected: _selectedFontFamily == entry.key,
+            onTap: () {
+              setState(() => _selectedFontFamily = entry.key);
+              _quillController.formatSelection(
+                quill.Attribute.fromKeyValue('font', _fontFamilies[entry.key]),
+              );
+              Navigator.pop(context);
+            },
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildFolderSheet() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        children: widget.folders.entries.map((entry) {
+          final isSelected = _selectedFolder == entry.key;
+          return ListTile(
+            leading: Icon(entry.value.icon, color: entry.value.color),
+            title: Text(entry.key),
+            selected: isSelected,
+            selectedColor: entry.value.color,
+            trailing: isSelected ? Icon(Icons.check, color: colorScheme.primary) : null,
+            onTap: () {
+              setState(() => _selectedFolder = entry.key);
+              Navigator.pop(context);
+            },
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  void _onTemplateSelected(String name) {
+    final template = _businessTemplates[name]!;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${tr('apply')} "$name"?'),
+        content: const Text(
+          'Il contenuto attuale verrà sostituito con il template selezionato.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(tr('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _applyTemplate(name, template);
+            },
+            child: Text(tr('apply')),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Scaffold(
+    Widget scaffold = Scaffold(
       appBar: AppBar(
         title: Text(widget.existingNote != null ? 'Modifica Nota' : 'Nuova Deep Note'),
         elevation: 0,
@@ -8299,173 +13203,172 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         backgroundColor: Colors.transparent,
         actions: [
           IconButton(
-            onPressed: _pickLinkedDate,
-            icon: Icon(
-              _linkedDate != null ? Icons.calendar_today : Icons.calendar_today_outlined,
-              size: 22,
-              color: _linkedDate != null ? colorScheme.primary : null,
-            ),
-            tooltip: 'Collega a data calendario',
+            onPressed: _exportPdf,
+            icon: const Icon(Icons.picture_as_pdf, size: 22),
+            tooltip: tr('export_pdf'),
           ),
-          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: _saveNote,
+            icon: const Icon(Icons.save, size: 18),
+            label: Text(tr('save')),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+          ),
+          const SizedBox(width: 12),
         ],
       ),
-      body: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // FOLDER SELECTOR
-              SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: widget.folders.entries.map((entry) {
-                    final isSelected = _selectedFolder == entry.key;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        avatar: Icon(entry.value.icon, size: 16,
-                            color: isSelected ? colorScheme.onPrimary : entry.value.color),
-                        label: Text(entry.key,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                              color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
-                            )),
-                        selected: isSelected,
-                        selectedColor: entry.value.color,
-                        backgroundColor: colorScheme.surfaceContainerHighest,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        onSelected: (_) => setState(() => _selectedFolder = entry.key),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              // LINKED DATE CHIP
-              if (_linkedDate != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Chip(
-                      avatar: Icon(Icons.calendar_today, size: 16, color: colorScheme.primary),
-                      label: Text('${_linkedDate!.day}/${_linkedDate!.month}/${_linkedDate!.year}'),
-                      deleteIcon: const Icon(Icons.close, size: 16),
-                      onDeleted: () => setState(() => _linkedDate = null),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 8),
-              // TITLE
-              TextField(
-                controller: _titleController,
-                decoration: InputDecoration(
-                  labelText: 'Titolo nota',
-                  hintText: 'Inserisci il titolo...',
-                  prefixIcon: Icon(Icons.title, color: colorScheme.primary),
-                ),
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              // HEADER (collapsible)
-              if (_showHeader) ...[
+      body: Stack(
+        children: [
+          // Main editor column
+          Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 8),
+            child: Column(
+              children: [
+                // TITLE
                 TextField(
-                  controller: _headerController,
-                  maxLines: 3,
+                  controller: _titleController,
                   decoration: InputDecoration(
-                    labelText: 'Intestazione (Header)',
-                    hintText: 'Nome, indirizzo, contatti...',
-                    prefixIcon: Icon(Icons.vertical_align_top, color: colorScheme.tertiary),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () => setState(() => _showHeader = false),
-                    ),
+                    labelText: tr('title'),
+                    hintText: tr('title'),
+                    prefixIcon: Icon(Icons.title, color: colorScheme.primary),
                   ),
-                  style: const TextStyle(fontSize: 13),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? colorScheme.primary : null),
                 ),
                 const SizedBox(height: 8),
-              ],
-              // QUILL EDITOR (Expanded)
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.outlineVariant),
+                // HEADER (collapsible)
+                if (_showHeader) ...[
+                  TextField(
+                    controller: _headerController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: tr('header'),
+                      hintText: tr('content'),
+                      prefixIcon: Icon(Icons.vertical_align_top, color: colorScheme.tertiary),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => setState(() => _showHeader = false),
+                      ),
+                    ),
+                    style: const TextStyle(fontSize: 13),
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: quill.QuillEditor(
-                      controller: _quillController,
-                      focusNode: _editorFocusNode,
-                      scrollController: _editorScrollController,
-                      config: quill.QuillEditorConfig(
-                        placeholder: 'Scrivi qui la tua nota...',
-                        padding: const EdgeInsets.all(16),
-                        customStyleBuilder: _customStyleBuilder,
-                        onLaunchUrl: (url) async {
-                          final uri = Uri.parse(url);
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                          }
-                        },
+                  const SizedBox(height: 8),
+                ],
+                // QUILL EDITOR (Expanded)
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: colorScheme.outlineVariant),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: quill.QuillEditor(
+                        controller: _quillController,
+                        focusNode: _editorFocusNode,
+                        scrollController: _editorScrollController,
+                        config: quill.QuillEditorConfig(
+                          placeholder: 'Scrivi qui la tua nota...',
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                          customStyleBuilder: _customStyleBuilder,
+                          embedBuilders: [_DividerEmbedBuilder()],
+                          characterShortcutEvents: quill.standardCharactersShortcutEvents,
+                          spaceShortcutEvents: [
+                            ...quill.standardSpaceShorcutEvents,
+                            quill.SpaceShortcutEvent(
+                              character: '[]',
+                              handler: (node, controller) {
+                                final sel = controller.selection;
+                                controller.replaceText(sel.baseOffset - 2, 2, '\n', null);
+                                controller.updateSelection(
+                                  TextSelection.collapsed(offset: sel.baseOffset - 2),
+                                  quill.ChangeSource.local,
+                                );
+                                controller.formatSelection(quill.Attribute.unchecked);
+                                controller.replaceText(controller.selection.baseOffset + 1, 1, '', null);
+                                return true;
+                              },
+                            ),
+                          ],
+                          onLaunchUrl: (url) async {
+                            final uri = Uri.parse(url);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            }
+                          },
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              // FOOTER (collapsible)
-              if (_showFooter) ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _footerController,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: 'Piè di pagina (Footer)',
-                    hintText: 'P.IVA, CF, PEC...',
-                    prefixIcon: Icon(Icons.vertical_align_bottom, color: colorScheme.tertiary),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () => setState(() => _showFooter = false),
+                // LINK GALLERY
+                _buildLinkGallery(),
+                // FOOTER (collapsible)
+                if (_showFooter) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _footerController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: tr('footer'),
+                      hintText: 'P.IVA, CF, PEC...',
+                      prefixIcon: Icon(Icons.vertical_align_bottom, color: colorScheme.tertiary),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => setState(() => _showFooter = false),
+                      ),
                     ),
-                  ),
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ],
-              const SizedBox(height: 8),
-              // TOOLBAR (2 rows)
-              _buildQuillToolbar(),
-              const SizedBox(height: 8),
-              // SAVE BUTTONS ROW
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _exportPdf,
-                      icon: const Icon(Icons.picture_as_pdf, size: 18),
-                      label: const Text('Salva PDF'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _saveNote,
-                      icon: const Icon(Icons.save, size: 18),
-                      label: const Text('Salva Nota'),
-                    ),
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ],
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          // S-Pen toolbar panel (animated)
+          Positioned(
+            left: 12,
+            bottom: 80,
+            child: AnimatedSlide(
+              offset: _showToolPanel ? Offset.zero : const Offset(-1.5, 0),
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              child: AnimatedOpacity(
+                opacity: _showToolPanel ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.6,
+                  ),
+                  child: _buildSPenToolbar(),
+                ),
+              ),
+            ),
+          ),
+          // FAB toggle
+          Positioned(
+            left: 12,
+            bottom: 24,
+            child: FloatingActionButton.small(
+              heroTag: 'spen_toolbar_fab',
+              onPressed: () => setState(() => _showToolPanel = !_showToolPanel),
+              backgroundColor: _showToolPanel ? colorScheme.primaryContainer : colorScheme.primary,
+              foregroundColor: _showToolPanel ? colorScheme.onPrimaryContainer : colorScheme.onPrimary,
+              child: Icon(_showToolPanel ? Icons.close : Icons.brush),
+            ),
+          ),
+        ],
+      ),
     );
+    if (widget.heroTag != null) {
+      scaffold = Hero(tag: widget.heroTag!, child: Material(type: MaterialType.transparency, child: scaffold));
+    }
+    return scaffold;
   }
 
   @override
   void dispose() {
+    _quillController.removeListener(_updateDocumentLinks);
     _titleController.dispose();
     _headerController.dispose();
     _footerController.dispose();
@@ -8473,6 +13376,112 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     _editorFocusNode.dispose();
     _editorScrollController.dispose();
     super.dispose();
+  }
+}
+
+// ── Divider Embed Builder ──
+
+class _DividerEmbedBuilder extends quill.EmbedBuilder {
+  @override
+  String get key => 'divider';
+
+  @override
+  Widget build(BuildContext context, quill.EmbedContext embedContext) {
+    return Divider(
+      color: Theme.of(context).colorScheme.outlineVariant,
+      height: 24,
+      thickness: 1,
+    );
+  }
+}
+
+// ── Link Preview Card ──
+
+class _LinkPreviewCard extends StatelessWidget {
+  final String url;
+  const _LinkPreviewCard({required this.url});
+
+  IconData _getIcon() {
+    final lower = url.toLowerCase();
+    if (lower.contains('youtube.com') || lower.contains('youtu.be')) return Icons.play_circle_fill;
+    if (lower.contains('github.com')) return Icons.code;
+    if (lower.endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (lower.contains('drive.google')) return Icons.cloud;
+    return Icons.link;
+  }
+
+  Color _getIconColor() {
+    final lower = url.toLowerCase();
+    if (lower.contains('youtube.com') || lower.contains('youtu.be')) return const Color(0xFFFF0000);
+    if (lower.contains('github.com')) return const Color(0xFF333333);
+    if (lower.endsWith('.pdf')) return const Color(0xFFE53935);
+    if (lower.contains('drive.google')) return const Color(0xFF4285F4);
+    return const Color(0xFF2196F3);
+  }
+
+  String _getLabel() {
+    final lower = url.toLowerCase();
+    if (lower.contains('drive.google')) return 'Google Drive';
+    if (lower.contains('youtube.com') || lower.contains('youtu.be')) return 'YouTube';
+    if (lower.contains('github.com')) return 'GitHub';
+    if (lower.endsWith('.pdf')) return 'PDF';
+    try {
+      return Uri.parse(url).host;
+    } catch (_) {
+      return url;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final iconColor = _getIconColor();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 4),
+      elevation: 0,
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () async {
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: iconColor, width: 3)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              Icon(_getIcon(), color: iconColor, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      url,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: colorScheme.primary),
+                    ),
+                    Text(
+                      _getLabel(),
+                      style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.open_in_new, size: 16, color: colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -8536,7 +13545,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
           ),
           const SizedBox(width: 8),
           Text(
-            widget.isBackground ? 'Colore Sfondo' : 'Colore Testo',
+            widget.isBackground ? tr('background_color') : tr('text_color'),
             style: const TextStyle(fontSize: 18),
           ),
         ],
@@ -8548,7 +13557,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Quick colors
-            Text('Rapidi', style: TextStyle(
+            Text(tr('quick_colors'), style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.w600,
               color: cs.onSurfaceVariant,
             )),
@@ -8603,7 +13612,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             const SizedBox(height: 16),
 
             // Hue wheel + SatBright square
-            Text('Spettro colori', style: TextStyle(
+            Text(tr('pick_color'), style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.w600,
               color: cs.onSurfaceVariant,
             )),
@@ -8655,7 +13664,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             const SizedBox(height: 16),
 
             // Preview + hex input
-            Text('Codice colore', style: TextStyle(
+            Text(tr('hex_color'), style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.w600,
               color: cs.onSurfaceVariant,
             )),
@@ -8676,7 +13685,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                   child: TextField(
                     controller: _hexController,
                     decoration: InputDecoration(
-                      hintText: 'es. FF5722',
+                      hintText: tr('color_hex_hint'),
                       prefixText: '#',
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(
@@ -8717,7 +13726,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     minimumSize: Size.zero,
                   ),
-                  child: const Text('Applica'),
+                  child: Text(tr('apply')),
                 ),
               ],
             ),

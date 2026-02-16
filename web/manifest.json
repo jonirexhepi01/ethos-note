@@ -1,11 +1,11 @@
 {
-    "name": "ethos_note",
-    "short_name": "ethos_note",
+    "name": "Ethos Note",
+    "short_name": "Ethos Note",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1A1A1A",
+    "theme_color": "#800020",
+    "description": "Note, Calendario, Flash Notes",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

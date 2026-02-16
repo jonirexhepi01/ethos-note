@@ -18,26 +18,61 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Ethos Note - Note, Calendario, Flash Notes">
+  <meta name="theme-color" content="#800020">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="ethos_note">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Ethos Note">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>ethos_note</title>
+  <title>Ethos Note</title>
   <link rel="manifest" href="manifest.json">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto&family=Open+Sans&family=Lato&family=Playfair+Display&family=Merriweather&family=EB+Garamond&family=Courier+Prime&family=Nunito&family=Poppins&family=Raleway&display=swap" rel="stylesheet">
+
+  <style>
+    body { margin: 0; background-color: #1A1A1A; }
+    .splash {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background-color: #1A1A1A;
+    }
+    .splash img {
+      width: 120px;
+      height: 120px;
+      border-radius: 24px;
+      animation: fadeIn 0.6s ease-out;
+    }
+    .splash p {
+      margin-top: 20px;
+      font-family: Georgia, serif;
+      font-size: 22px;
+      color: #B8566B;
+      letter-spacing: 1px;
+      animation: fadeIn 0.8s ease-out 0.3s both;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
 </head>
 <body>
+  <div class="splash" id="splash">
+    <img src="icons/Icon-512.png" alt="Ethos Note">
+    <p>Ethos Note</p>
+  </div>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
