@@ -18,12 +18,18 @@ import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sig
 import 'package:googleapis/calendar/v3.dart' as gcal;
 import 'package:health/health.dart';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb, TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:path_provider/path_provider.dart';
 import 'dart:async';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as p;
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 /// Returns true when the Ethos (Bordeaux) theme is active.
 bool _isEthosTheme(BuildContext context) {
@@ -652,12 +658,565 @@ const _translations = <String, Map<String, String>>{
   'photo_profile': {'it': 'Foto Profilo', 'en': 'Profile Photo', 'fr': 'Photo de profil', 'es': 'Foto de perfil'},
   'secondary_accounts': {'it': 'Account secondari', 'en': 'Secondary accounts', 'fr': 'Comptes secondaires', 'es': 'Cuentas secundarias'},
   'phone_label': {'it': 'Telefono', 'en': 'Phone', 'fr': 'Téléphone', 'es': 'Teléfono'},
+  // Task 2: folder/group deletion
+  'delete_folder_confirm': {'it': 'Eliminare la cartella', 'en': 'Delete folder', 'fr': 'Supprimer le dossier', 'es': 'Eliminar carpeta'},
+  'notes_moved_to_general': {'it': '{n} note verranno spostate in "Generale"', 'en': '{n} notes will be moved to "Generale"', 'fr': '{n} notes seront déplacées dans "Generale"', 'es': '{n} notas se moverán a "Generale"'},
+  'delete_group_confirm': {'it': 'Eliminare tutte le note del gruppo', 'en': 'Delete all notes in group', 'fr': 'Supprimer toutes les notes du groupe', 'es': 'Eliminar todas las notas del grupo'},
+  // Task 3: multi-select
+  'selected': {'it': 'selezionate', 'en': 'selected', 'fr': 'sélectionnées', 'es': 'seleccionadas'},
+  'select_all': {'it': 'Seleziona tutto', 'en': 'Select all', 'fr': 'Tout sélectionner', 'es': 'Seleccionar todo'},
+  'deselect_all': {'it': 'Deseleziona tutto', 'en': 'Deselect all', 'fr': 'Tout désélectionner', 'es': 'Deseleccionar todo'},
+  'delete_selected_confirm': {'it': 'Eliminare le note selezionate', 'en': 'Delete selected notes', 'fr': 'Supprimer les notes sélectionnées', 'es': 'Eliminar notas seleccionadas'},
+  // Task 4: notifications
+  'event_in': {'it': 'Evento tra', 'en': 'Event in', 'fr': 'Événement dans', 'es': 'Evento en'},
+  'minutes': {'it': 'minuti', 'en': 'minutes', 'fr': 'minutes', 'es': 'minutos'},
+  // Task 7: audio note viewer
+  'transcription': {'it': 'Trascrizione', 'en': 'Transcription', 'fr': 'Transcription', 'es': 'Transcripción'},
+  'transcribe': {'it': 'Trascrivi', 'en': 'Transcribe', 'fr': 'Transcrire', 'es': 'Transcribir'},
+  'configure_gemini_first': {'it': 'Configura prima l\'API Gemini nelle impostazioni', 'en': 'Configure Gemini API in settings first', 'fr': 'Configurez d\'abord l\'API Gemini dans les paramètres', 'es': 'Configura primero la API de Gemini en los ajustes'},
+  // Task 10: event preview
+  'complete': {'it': 'Completa', 'en': 'Complete', 'fr': 'Terminer', 'es': 'Completar'},
+  'shared': {'it': 'condiviso', 'en': 'shared', 'fr': 'partagé', 'es': 'compartido'},
+  // Round 2 translations
+  'chinese': {'it': 'Cinese', 'en': 'Chinese', 'fr': 'Chinoise', 'es': 'China'},
+  'chinese_zodiac': {'it': 'Zodiaco Cinese', 'en': 'Chinese Zodiac', 'fr': 'Zodiaque Chinois', 'es': 'Zodíaco Chino'},
+  'show_chinese_zodiac': {'it': 'Mostra zodiaco cinese', 'en': 'Show Chinese zodiac', 'fr': 'Afficher le zodiaque chinois', 'es': 'Mostrar zodíaco chino'},
+  'ethos_aura': {'it': 'Ethos Aura', 'en': 'Ethos Aura', 'fr': 'Ethos Aura', 'es': 'Ethos Aura'},
+  'ethos_aura_desc': {'it': 'Funzionalità premium per la tua esperienza', 'en': 'Premium features for your experience', 'fr': 'Fonctionnalités premium pour votre expérience', 'es': 'Funciones premium para tu experiencia'},
+  'unlock': {'it': 'Sblocca', 'en': 'Unlock', 'fr': 'Débloquer', 'es': 'Desbloquear'},
+  'purchased': {'it': 'Acquistato', 'en': 'Purchased', 'fr': 'Acheté', 'es': 'Comprado'},
+  'unlock_horoscope': {'it': 'Sblocca Oroscopo', 'en': 'Unlock Horoscope', 'fr': 'Débloquer Horoscope', 'es': 'Desbloquear Horóscopo'},
+  'unlock_unlimited_voice': {'it': 'Sblocca note vocali illimitate', 'en': 'Unlock unlimited voice notes', 'fr': 'Débloquer notes vocales illimitées', 'es': 'Desbloquear notas de voz ilimitadas'},
+  'unlock_unlimited_profiles': {'it': 'Sblocca profili illimitati', 'en': 'Unlock unlimited profiles', 'fr': 'Débloquer profils illimités', 'es': 'Desbloquear perfiles ilimitados'},
+  'max_duration': {'it': 'Durata massima', 'en': 'Max duration', 'fr': 'Durée maximale', 'es': 'Duración máxima'},
+  'unlimited': {'it': 'Illimitata', 'en': 'Unlimited', 'fr': 'Illimitée', 'es': 'Ilimitada'},
+  'compact_calendar': {'it': 'Calendario compatto', 'en': 'Compact calendar', 'fr': 'Calendrier compact', 'es': 'Calendario compacto'},
+  'confirm_purchase': {'it': 'Conferma acquisto', 'en': 'Confirm purchase', 'fr': 'Confirmer l\'achat', 'es': 'Confirmar compra'},
+  'purchase_confirm_msg': {'it': 'Vuoi acquistare questa funzionalità?', 'en': 'Do you want to purchase this feature?', 'fr': 'Voulez-vous acheter cette fonctionnalité?', 'es': '¿Deseas comprar esta función?'},
+  'purchase_success': {'it': 'Acquisto completato!', 'en': 'Purchase completed!', 'fr': 'Achat terminé!', 'es': '¡Compra completada!'},
+  'voice_duration': {'it': 'Durata nota vocale', 'en': 'Voice note duration', 'fr': 'Durée note vocale', 'es': 'Duración nota de voz'},
+  'horoscope_locked': {'it': 'Oroscopo bloccato', 'en': 'Horoscope locked', 'fr': 'Horoscope verrouillé', 'es': 'Horóscopo bloqueado'},
+  'unlock_to_read': {'it': 'Sblocca per leggere l\'oroscopo completo', 'en': 'Unlock to read the full horoscope', 'fr': 'Débloquez pour lire l\'horoscope complet', 'es': 'Desbloquea para leer el horóscopo completo'},
 };
+
+// ─── SQLite Database Helper ──────────────────────────────────────────────────
+
+class DatabaseHelper {
+  static final DatabaseHelper _instance = DatabaseHelper._internal();
+  factory DatabaseHelper() => _instance;
+  DatabaseHelper._internal();
+
+  static Database? _database;
+  static bool _webMode = false;
+  static void enableWebMode() => _webMode = true;
+  bool get isWebMode => _webMode;
+
+  // ── Web-mode in-memory storage ──
+  static final List<ProNote> _wProNotes = [];
+  static final List<FlashNote> _wFlashNotes = [];
+  static final Map<String, List<CalendarEventFull>> _wEvents = {};
+  static UserProfile? _wProfile;
+  static final List<TrashedNote> _wTrashed = [];
+  static final Map<String, FolderStyle> _wFolders = {};
+  static final Map<String, String> _wSettings = {};
+  static final Map<String, String> _wCache = {};
+  static final Set<String> _wCycleDays = {};
+  static int _wAutoId = 1;
+  static int _nextId() => _wAutoId++;
+
+  Future<Database> get database async {
+    if (_webMode) throw StateError('Web mode — use CRUD methods directly');
+    if (_database != null) return _database!;
+    _database = await _initDatabase();
+    return _database!;
+  }
+
+  Future<Database> _initDatabase() async {
+    final dbPath = await getDatabasesPath();
+    final path = p.join(dbPath, 'ethos_note.db');
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Future schema migrations go here:
+    // if (oldVersion < 2) { await db.execute('ALTER TABLE ...'); }
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE pro_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL, content TEXT NOT NULL, content_delta TEXT,
+        header_text TEXT, footer_text TEXT, template_preset TEXT,
+        folder TEXT NOT NULL DEFAULT 'Generale',
+        linked_date INTEGER, created_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX idx_pro_notes_folder ON pro_notes(folder)');
+    await db.execute('CREATE INDEX idx_pro_notes_created_at ON pro_notes(created_at)');
+
+    await db.execute('''
+      CREATE TABLE flash_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content TEXT NOT NULL, audio_path TEXT, audio_duration_ms INTEGER,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX idx_flash_notes_created_at ON flash_notes(created_at)');
+
+    await db.execute('''
+      CREATE TABLE calendar_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL, start_time INTEGER NOT NULL, end_time INTEGER NOT NULL,
+        date_key TEXT NOT NULL, calendar TEXT NOT NULL DEFAULT 'Personale',
+        reminder TEXT, preset TEXT, attachment_path TEXT, attachment_base64 TEXT,
+        notes TEXT, is_completed INTEGER NOT NULL DEFAULT 0,
+        google_event_id TEXT, shared_with TEXT
+      )
+    ''');
+    await db.execute('CREATE INDEX idx_calendar_events_date_key ON calendar_events(date_key)');
+
+    await db.execute('''
+      CREATE TABLE user_profile (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        nome TEXT, cognome TEXT, email TEXT, data_nascita INTEGER,
+        is_pro INTEGER DEFAULT 0, photo_path TEXT, photo_base64 TEXT,
+        google_calendar_connected INTEGER DEFAULT 0, google_drive_connected INTEGER DEFAULT 0,
+        gemini_connected INTEGER DEFAULT 0, backup_mode TEXT DEFAULT 'local',
+        religione TEXT DEFAULT 'Cattolica', telefono TEXT, password TEXT,
+        social_links TEXT, friends TEXT, old_photos TEXT, accounts TEXT,
+        active_account_index INTEGER DEFAULT 0, nickname TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE trashed_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL, note_json TEXT NOT NULL, deleted_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX idx_trashed_notes_deleted_at ON trashed_notes(deleted_at)');
+
+    await db.execute('''
+      CREATE TABLE custom_folders (
+        name TEXT PRIMARY KEY,
+        icon_code INTEGER NOT NULL, color_value INTEGER NOT NULL,
+        is_custom INTEGER DEFAULT 1, is_shared INTEGER DEFAULT 0, shared_emails TEXT
+      )
+    ''');
+
+    await db.execute('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+    await db.execute('CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)');
+    await db.execute('CREATE TABLE cycle_days (day_key TEXT PRIMARY KEY)');
+  }
+
+  // ── Pro Notes CRUD ──
+
+  Future<int> insertProNote(ProNote note) async {
+    if (_webMode) { final id = _nextId(); _wProNotes.insert(0, ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, createdAt: note.createdAt)); return id; }
+    final db = await database;
+    return await db.insert('pro_notes', note.toDbMap());
+  }
+
+  Future<List<ProNote>> getAllProNotes() async {
+    if (_webMode) return List.of(_wProNotes);
+    final db = await database;
+    final maps = await db.query('pro_notes', orderBy: 'created_at DESC');
+    return maps.map((m) => ProNote.fromDbMap(m)).toList();
+  }
+
+  Future<int> updateProNote(int id, ProNote note) async {
+    if (_webMode) { final i = _wProNotes.indexWhere((n) => n.id == id); if (i >= 0) _wProNotes[i] = ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, createdAt: note.createdAt); return 1; }
+    final db = await database;
+    return await db.update('pro_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteProNote(int id) async {
+    if (_webMode) { _wProNotes.removeWhere((n) => n.id == id); return 1; }
+    final db = await database;
+    return await db.delete('pro_notes', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Flash Notes CRUD ──
+
+  Future<int> insertFlashNote(FlashNote note) async {
+    if (_webMode) { final id = _nextId(); _wFlashNotes.insert(0, FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, createdAt: note.createdAt)); return id; }
+    final db = await database;
+    return await db.insert('flash_notes', note.toDbMap());
+  }
+
+  Future<List<FlashNote>> getAllFlashNotes() async {
+    if (_webMode) return List.of(_wFlashNotes);
+    final db = await database;
+    final maps = await db.query('flash_notes', orderBy: 'created_at DESC');
+    return maps.map((m) => FlashNote.fromDbMap(m)).toList();
+  }
+
+  Future<int> updateFlashNote(int id, FlashNote note) async {
+    if (_webMode) { final i = _wFlashNotes.indexWhere((n) => n.id == id); if (i >= 0) _wFlashNotes[i] = FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, createdAt: note.createdAt); return 1; }
+    final db = await database;
+    return await db.update('flash_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteFlashNote(int id) async {
+    if (_webMode) { _wFlashNotes.removeWhere((n) => n.id == id); return 1; }
+    final db = await database;
+    return await db.delete('flash_notes', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Calendar Events CRUD ──
+
+  Future<int> insertEvent(CalendarEventFull event) async {
+    if (_webMode) { final id = _nextId(); final e = CalendarEventFull(id: id, title: event.title, startTime: event.startTime, endTime: event.endTime, calendar: event.calendar, reminder: event.reminder, preset: event.preset, attachmentPath: event.attachmentPath, attachmentBase64: event.attachmentBase64, notes: event.notes, isCompleted: event.isCompleted, googleEventId: event.googleEventId, sharedWith: event.sharedWith); final key = '${event.startTime.year}-${event.startTime.month.toString().padLeft(2,'0')}-${event.startTime.day.toString().padLeft(2,'0')}'; _wEvents.putIfAbsent(key, () => []).add(e); return id; }
+    final db = await database;
+    return await db.insert('calendar_events', event.toDbMap());
+  }
+
+  Future<Map<String, List<CalendarEventFull>>> getAllEvents() async {
+    if (_webMode) return Map.of(_wEvents);
+    final db = await database;
+    final maps = await db.query('calendar_events', orderBy: 'start_time ASC');
+    final result = <String, List<CalendarEventFull>>{};
+    for (final m in maps) {
+      final event = CalendarEventFull.fromDbMap(m);
+      final key = m['date_key'] as String;
+      result.putIfAbsent(key, () => []).add(event);
+    }
+    return result;
+  }
+
+  Future<int> updateEvent(int id, CalendarEventFull event) async {
+    if (_webMode) { for (final list in _wEvents.values) { final i = list.indexWhere((e) => e.id == id); if (i >= 0) { list[i] = CalendarEventFull(id: id, title: event.title, startTime: event.startTime, endTime: event.endTime, calendar: event.calendar, reminder: event.reminder, preset: event.preset, attachmentPath: event.attachmentPath, attachmentBase64: event.attachmentBase64, notes: event.notes, isCompleted: event.isCompleted, googleEventId: event.googleEventId, sharedWith: event.sharedWith); return 1; } } return 0; }
+    final db = await database;
+    return await db.update('calendar_events', event.toDbMap(), where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteEvent(int id) async {
+    if (_webMode) { for (final list in _wEvents.values) { list.removeWhere((e) => e.id == id); } _wEvents.removeWhere((k, v) => v.isEmpty); return 1; }
+    final db = await database;
+    return await db.delete('calendar_events', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> saveAllEvents(Map<String, List<CalendarEventFull>> events) async {
+    if (_webMode) { _wEvents.clear(); _wEvents.addAll(events); return; }
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('calendar_events');
+      final batch = txn.batch();
+      for (final entry in events.entries) {
+        for (final event in entry.value) {
+          batch.insert('calendar_events', event.toDbMap());
+        }
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  // ── User Profile ──
+
+  Future<UserProfile?> getProfile() async {
+    if (_webMode) return _wProfile;
+    final db = await database;
+    final maps = await db.query('user_profile', where: 'id = 1');
+    if (maps.isEmpty) return null;
+    return UserProfile.fromDbMap(maps.first);
+  }
+
+  Future<void> saveProfile(UserProfile profile) async {
+    if (_webMode) { _wProfile = profile; return; }
+    final db = await database;
+    final map = profile.toDbMap();
+    map['id'] = 1;
+    await db.insert('user_profile', map, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  // ── Trashed Notes ──
+
+  Future<int> insertTrashedNote(TrashedNote note) async {
+    if (_webMode) { final id = _nextId(); _wTrashed.insert(0, TrashedNote(id: id, type: note.type, noteJson: note.noteJson, deletedAt: note.deletedAt)); return id; }
+    final db = await database;
+    return await db.insert('trashed_notes', note.toDbMap());
+  }
+
+  Future<List<TrashedNote>> getAllTrashedNotes() async {
+    if (_webMode) return List.of(_wTrashed);
+    final db = await database;
+    final maps = await db.query('trashed_notes', orderBy: 'deleted_at DESC');
+    return maps.map((m) => TrashedNote.fromDbMap(m)).toList();
+  }
+
+  Future<int> deleteTrashedNote(int id) async {
+    if (_webMode) { _wTrashed.removeWhere((n) => n.id == id); return 1; }
+    final db = await database;
+    return await db.delete('trashed_notes', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> cleanExpiredTrash(int retentionDays) async {
+    if (_webMode) { final cutoff = DateTime.now().subtract(Duration(days: retentionDays)); _wTrashed.removeWhere((n) => n.deletedAt.isBefore(cutoff)); return; }
+    final db = await database;
+    final cutoff = DateTime.now().subtract(Duration(days: retentionDays)).millisecondsSinceEpoch;
+    await db.delete('trashed_notes', where: 'deleted_at < ?', whereArgs: [cutoff]);
+  }
+
+  Future<void> saveAllTrashedNotes(List<TrashedNote> notes) async {
+    if (_webMode) { _wTrashed.clear(); _wTrashed.addAll(notes); return; }
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('trashed_notes');
+      final batch = txn.batch();
+      for (final note in notes) {
+        batch.insert('trashed_notes', note.toDbMap());
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  // ── Custom Folders ──
+
+  Future<void> saveFolder(String name, FolderStyle style) async {
+    if (_webMode) { _wFolders[name] = style; return; }
+    final db = await database;
+    final map = style.toDbMap(name);
+    await db.insert('custom_folders', map, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<Map<String, FolderStyle>> getAllFolders() async {
+    if (_webMode) return Map.of(_wFolders);
+    final db = await database;
+    final maps = await db.query('custom_folders');
+    final result = <String, FolderStyle>{};
+    for (final m in maps) {
+      result[m['name'] as String] = FolderStyle.fromDbMap(m);
+    }
+    return result;
+  }
+
+  Future<void> deleteFolder(String name) async {
+    if (_webMode) { _wFolders.remove(name); return; }
+    final db = await database;
+    await db.delete('custom_folders', where: 'name = ?', whereArgs: [name]);
+  }
+
+  Future<void> saveAllFolders(Map<String, FolderStyle> folders) async {
+    if (_webMode) { _wFolders.clear(); _wFolders.addAll(folders); return; }
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('custom_folders');
+      final batch = txn.batch();
+      for (final entry in folders.entries) {
+        batch.insert('custom_folders', entry.value.toDbMap(entry.key));
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  // ── Settings (key-value) ──
+
+  Future<void> saveSetting(String key, String value) async {
+    if (_webMode) { _wSettings[key] = value; return; }
+    final db = await database;
+    await db.insert('settings', {'key': key, 'value': value}, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<String?> getSetting(String key) async {
+    if (_webMode) return _wSettings[key];
+    final db = await database;
+    final maps = await db.query('settings', where: 'key = ?', whereArgs: [key]);
+    if (maps.isEmpty) return null;
+    return maps.first['value'] as String;
+  }
+
+  // ── Cache (key-value with timestamp) ──
+
+  Future<void> saveCache(String key, String value) async {
+    if (_webMode) { _wCache[key] = value; return; }
+    final db = await database;
+    await db.insert('cache', {
+      'key': key, 'value': value, 'updated_at': DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<String?> getCache(String key) async {
+    if (_webMode) return _wCache[key];
+    final db = await database;
+    final maps = await db.query('cache', where: 'key = ?', whereArgs: [key]);
+    if (maps.isEmpty) return null;
+    return maps.first['value'] as String;
+  }
+
+  // ── Cycle Days ──
+
+  Future<Set<String>> getCycleDays() async {
+    if (_webMode) return Set.of(_wCycleDays);
+    final db = await database;
+    final maps = await db.query('cycle_days');
+    return maps.map((m) => m['day_key'] as String).toSet();
+  }
+
+  Future<void> addCycleDay(String dayKey) async {
+    if (_webMode) { _wCycleDays.add(dayKey); return; }
+    final db = await database;
+    await db.insert('cycle_days', {'day_key': dayKey}, conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  Future<void> removeCycleDay(String dayKey) async {
+    if (_webMode) { _wCycleDays.remove(dayKey); return; }
+    final db = await database;
+    await db.delete('cycle_days', where: 'day_key = ?', whereArgs: [dayKey]);
+  }
+
+  Future<void> replaceAllCycleDays(List<String> days) async {
+    if (_webMode) { _wCycleDays.clear(); _wCycleDays.addAll(days); return; }
+    final db = await database;
+    await db.delete('cycle_days');
+    final batch = db.batch();
+    for (final d in days) {
+      batch.insert('cycle_days', {'day_key': d});
+    }
+    await batch.commit(noResult: true);
+  }
+
+  // ── Utility ──
+
+  Future<void> replaceAllFlashNotes(List<FlashNote> notes) async {
+    if (_webMode) { _wFlashNotes.clear(); _wFlashNotes.addAll(notes); return; }
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('flash_notes');
+      final batch = txn.batch();
+      for (final note in notes) {
+        batch.insert('flash_notes', note.toDbMap());
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  Future<void> replaceAllProNotes(List<ProNote> notes) async {
+    if (_webMode) { _wProNotes.clear(); _wProNotes.addAll(notes); return; }
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('pro_notes');
+      final batch = txn.batch();
+      for (final note in notes) {
+        batch.insert('pro_notes', note.toDbMap());
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  Future<void> deleteAllData() async {
+    if (_webMode) { _wProNotes.clear(); _wFlashNotes.clear(); _wEvents.clear(); _wProfile = null; _wTrashed.clear(); _wFolders.clear(); _wSettings.clear(); _wCache.clear(); _wCycleDays.clear(); return; }
+    final db = await database;
+    await db.delete('pro_notes');
+    await db.delete('flash_notes');
+    await db.delete('calendar_events');
+    await db.delete('user_profile');
+    await db.delete('trashed_notes');
+    await db.delete('custom_folders');
+    await db.delete('settings');
+    await db.delete('cache');
+    await db.delete('cycle_days');
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    // Web: use in-memory storage, re-create demo data each session
+    DatabaseHelper.enableWebMode();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('demo_data_loaded', false);
+  } else {
+    // Mobile/Desktop: use SQLite
+    await DatabaseHelper().database;
+    await _migrateSharedPrefsToSqlite();
+  }
   await _initDemoDataIfNeeded();
+  await NotificationService.init();
   runApp(const EthosNoteApp());
+}
+
+Future<void> _migrateSharedPrefsToSqlite() async {
+  final prefs = await SharedPreferences.getInstance();
+  if (prefs.getBool('db_migration_complete') == true) return;
+  if (prefs.getBool('demo_data_loaded') != true) {
+    // No data to migrate — fresh install will use DB directly
+    await prefs.setBool('db_migration_complete', true);
+    return;
+  }
+
+  final db = DatabaseHelper();
+
+  try {
+    // ── Profile ──
+    final profileJson = prefs.getString('user_profile');
+    if (profileJson != null) {
+      await db.saveProfile(UserProfile.fromJson(json.decode(profileJson)));
+    }
+
+    // ── Pro Notes ──
+    final proNotesJson = prefs.getStringList('pro_notes') ?? [];
+    for (final s in proNotesJson) {
+      try { await db.insertProNote(ProNote.fromJson(json.decode(s))); } catch (_) {}
+    }
+
+    // ── Flash Notes ──
+    final flashNotesJson = prefs.getStringList('flash_notes_v2') ?? [];
+    for (final s in flashNotesJson) {
+      try { await db.insertFlashNote(FlashNote.fromJson(json.decode(s))); } catch (_) {}
+    }
+
+    // ── Calendar Events ──
+    final eventsJsonStr = prefs.getString('calendar_events_full');
+    if (eventsJsonStr != null) {
+      final Map<String, dynamic> decoded = json.decode(eventsJsonStr);
+      for (final entry in decoded.entries) {
+        for (final e in (entry.value as List)) {
+          try { await db.insertEvent(CalendarEventFull.fromJson(e)); } catch (_) {}
+        }
+      }
+    }
+
+    // ── Trashed Notes ──
+    final trashedJson = prefs.getStringList('trashed_notes') ?? [];
+    for (final s in trashedJson) {
+      try { await db.insertTrashedNote(TrashedNote.fromJson(json.decode(s))); } catch (_) {}
+    }
+
+    // ── Custom Folders ──
+    final foldersJsonStr = prefs.getString('custom_folders');
+    if (foldersJsonStr != null) {
+      final Map<String, dynamic> decoded = json.decode(foldersJsonStr);
+      for (final entry in decoded.entries) {
+        try { await db.saveFolder(entry.key, FolderStyle.fromJson(entry.value)); } catch (_) {}
+      }
+    }
+
+    // ── Settings ──
+    for (final key in ['calendar_settings', 'note_pro_settings', 'flash_notes_settings']) {
+      final val = prefs.getString(key);
+      if (val != null) await db.saveSetting(key, val);
+    }
+
+    // ── Cache ──
+    for (final key in ['horoscope_cache', 'weather_cache', 'health_snapshot']) {
+      final val = prefs.getString(key);
+      if (val != null) await db.saveCache(key, val);
+    }
+
+    // ── Cycle Days ──
+    final cycleDays = prefs.getStringList('cycle_tracking_private') ?? [];
+    if (cycleDays.isNotEmpty) {
+      await db.replaceAllCycleDays(cycleDays);
+    }
+  } finally {
+    await prefs.setBool('db_migration_complete', true);
+  }
 }
 
 Future<void> _initDemoDataIfNeeded() async {
@@ -669,31 +1228,32 @@ Future<void> _initDemoDataIfNeeded() async {
   final profile = UserProfile(
     nome: 'Marco',
     cognome: 'Rossi',
-    email: 'marco.rossi@email.it',
+    email: 'utente@esempio.it',
     dataNascita: DateTime(1992, 7, 15),
     isPro: true,
     photoBase64: avatarBase64,
     religione: 'Cattolica',
-    telefono: '+39 333 1234567',
-    password: 'demo1234',
+    telefono: '+39 000 0000000',
+    password: '',
     googleCalendarConnected: true,
     googleDriveConnected: true,
     geminiConnected: true,
     backupMode: 'drive',
     socialLinks: [
-      'https://linkedin.com/in/marco-rossi',
-      'https://github.com/marcorossi92',
-      'https://instagram.com/marco.rossi',
+      'https://linkedin.com/in/demo',
+      'https://github.com/utente_demo',
+      'https://instagram.com/demo',
     ],
     friends: ['Giulia Bianchi', 'Luca Verdi', 'Anna Ferretti', 'Alessandro Conti', 'Sara Moretti'],
     nickname: 'marco_r',
     accounts: [
-      {'nome': 'Lavoro', 'email': 'marco@azienda.it'},
-      {'nome': 'Studio', 'email': 'marco.rossi@univ.it'},
+      {'nome': 'Lavoro', 'email': 'utente@azienda.it'},
+      {'nome': 'Studio', 'email': 'utente@universita.it'},
     ],
     activeAccountIndex: 0,
   );
-  await prefs.setString('user_profile', json.encode(profile.toJson()));
+  final db = DatabaseHelper();
+  await db.saveProfile(profile);
   await prefs.setBool('health_authorized', true);
 
   // ── Demo Calendar Events (3+ months) ──
@@ -845,7 +1405,12 @@ Future<void> _initDemoDataIfNeeded() async {
   addEvent(d90, 'Review semestrale', 10, 0, 12, 0, calendar: 'Lavoro');
   addEvent(d90, 'Festa fine progetto', 19, 0, 23, 0, calendar: 'Lavoro');
 
-  await prefs.setString('calendar_events_full', json.encode(events));
+  // Save events to SQLite
+  for (final entry in events.entries) {
+    for (final e in entry.value) {
+      await db.insertEvent(CalendarEventFull.fromJson(e));
+    }
+  }
 
   // ── Demo Pro Notes (12 notes across all folders) ──
   final proNotes = <ProNote>[
@@ -922,19 +1487,18 @@ Future<void> _initDemoDataIfNeeded() async {
       createdAt: now.subtract(const Duration(days: 45)),
     ),
   ];
-  await prefs.setStringList(
-    'pro_notes',
-    proNotes.map((n) => json.encode(n.toJson())).toList(),
-  );
+  for (final n in proNotes) {
+    await db.insertProNote(n);
+  }
 
   // ── Demo Flash Notes (20+ notes spread across months) ──
   final flashNotes = <FlashNote>[
     FlashNote(content: 'Comprare regalo compleanno Laura - 20 febbraio', createdAt: now.subtract(const Duration(hours: 2))),
     FlashNote(content: 'Chiamare idraulico per rubinetto cucina', createdAt: now.subtract(const Duration(hours: 5))),
-    FlashNote(content: 'Password WiFi ufficio: EthosNet2026!', createdAt: now.subtract(const Duration(days: 1))),
+    FlashNote(content: 'Password WiFi ufficio: WiFiPassword123', createdAt: now.subtract(const Duration(days: 1))),
     FlashNote(content: 'Palestra domani ore 18:30 - non dimenticare asciugamano', createdAt: now.subtract(const Duration(days: 1))),
     FlashNote(content: 'Prenotare ristorante sabato sera per 6 persone', createdAt: now.subtract(const Duration(days: 2))),
-    FlashNote(content: 'IBAN Giulia: IT60X054281101000000123456', createdAt: now.subtract(const Duration(days: 3))),
+    FlashNote(content: 'IBAN Giulia: IT00X0000000000000000000', createdAt: now.subtract(const Duration(days: 3))),
     FlashNote(content: 'Volo Roma-Milano 14 marzo - Alitalia AZ1020 ore 7:45', createdAt: now.subtract(const Duration(days: 3))),
     FlashNote(content: 'Idea: app per tracciare consumi energia in casa', createdAt: now.subtract(const Duration(days: 4))),
     FlashNote(content: 'Controllare scadenza assicurazione auto - fine marzo', createdAt: now.subtract(const Duration(days: 5))),
@@ -947,16 +1511,15 @@ Future<void> _initDemoDataIfNeeded() async {
     FlashNote(content: 'Compleanno Alessandro 15 aprile - organizzare festa a sorpresa', createdAt: now.subtract(const Duration(days: 25))),
     FlashNote(content: 'Comprare biglietti concerto Vasco Rossi - prevendita 1 marzo', createdAt: now.subtract(const Duration(days: 30))),
     FlashNote(content: 'Tesi di Giulia: rileggere capitolo 3 entro lunedì', createdAt: now.subtract(const Duration(days: 35))),
-    FlashNote(content: 'Password Netflix nuova: Str0ngP4ss!2026', createdAt: now.subtract(const Duration(days: 40))),
+    FlashNote(content: 'Password Netflix nuova: Password123', createdAt: now.subtract(const Duration(days: 40))),
     FlashNote(content: 'Ricetta tiramisù della nonna: mascarpone 500g, 6 uova, savoiardi 300g, caffè, cacao', createdAt: now.subtract(const Duration(days: 42))),
     FlashNote(content: 'Podcast interessante: "Indagini" di Stefano Ferrario - episodio su cold cases', createdAt: now.subtract(const Duration(days: 50))),
     FlashNote(content: 'Portare giacca in tintoria - macchia vino rosso', createdAt: now.subtract(const Duration(days: 55))),
     FlashNote(content: 'Regalare i vecchi libri universitari a Chiara', createdAt: now.subtract(const Duration(days: 60))),
   ];
-  await prefs.setStringList(
-    'flash_notes_v2',
-    flashNotes.map((n) => json.encode(n.toJson())).toList(),
-  );
+  for (final n in flashNotes) {
+    await db.insertFlashNote(n);
+  }
 
   // ── Calendar Settings: full features enabled ──
   final calSettings = const CalendarSettings(
@@ -976,7 +1539,7 @@ Future<void> _initDemoDataIfNeeded() async {
   // ── Deep Note Settings: full features ──
   final noteSettings = const NoteProSettings(
     showPrivateFolder: true,
-    securityPin: '1234',
+    securityPin: '',
     pdfSaveMode: 'google_drive',
     trashEnabled: true,
     trashRetentionDays: 30,
@@ -1059,13 +1622,15 @@ Future<void> _initDemoDataIfNeeded() async {
       cycleDays.add('${day.year}-${day.month}-${day.day}');
     }
   }
-  await prefs.setStringList('cycle_tracking_private', cycleDays);
+  await db.replaceAllCycleDays(cycleDays);
 
   // ── Demo Old Photos (photo history) ──
   // Reuse avatar with slight variation for history
-  final profile2 = UserProfile.fromJson(json.decode(prefs.getString('user_profile')!));
-  profile2.oldPhotos = [avatarBase64, avatarBase64, avatarBase64];
-  await prefs.setString('user_profile', json.encode(profile2.toJson()));
+  final profile2 = await db.getProfile();
+  if (profile2 != null) {
+    profile2.oldPhotos = [avatarBase64, avatarBase64, avatarBase64];
+    await db.saveProfile(profile2);
+  }
 
   await prefs.setBool('demo_data_loaded', true);
 }
@@ -1464,6 +2029,15 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
       title: 'Ethos Note',
       localizationsDelegates: const [
         quill.FlutterQuillLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('it'),
+        Locale('en'),
+        Locale('fr'),
+        Locale('es'),
       ],
       theme: theme,
       home: _SplashGate(
@@ -1700,9 +2274,56 @@ class UserProfile {
     }
     return null;
   }
+
+  Map<String, dynamic> toDbMap() => {
+    'nome': nome,
+    'cognome': cognome,
+    'email': email,
+    'data_nascita': dataNascita?.millisecondsSinceEpoch,
+    'is_pro': isPro ? 1 : 0,
+    'photo_path': photoPath,
+    'photo_base64': photoBase64,
+    'google_calendar_connected': googleCalendarConnected ? 1 : 0,
+    'google_drive_connected': googleDriveConnected ? 1 : 0,
+    'gemini_connected': geminiConnected ? 1 : 0,
+    'backup_mode': backupMode,
+    'religione': religione,
+    'telefono': telefono,
+    'password': password,
+    'social_links': json.encode(socialLinks),
+    'friends': json.encode(friends),
+    'old_photos': json.encode(oldPhotos),
+    'accounts': json.encode(accounts),
+    'active_account_index': activeAccountIndex,
+    'nickname': nickname,
+  };
+
+  factory UserProfile.fromDbMap(Map<String, dynamic> m) => UserProfile(
+    nome: m['nome'] as String?,
+    cognome: m['cognome'] as String?,
+    email: m['email'] as String?,
+    dataNascita: m['data_nascita'] != null ? DateTime.fromMillisecondsSinceEpoch(m['data_nascita'] as int) : null,
+    isPro: (m['is_pro'] as int?) == 1,
+    photoPath: m['photo_path'] as String?,
+    photoBase64: m['photo_base64'] as String?,
+    googleCalendarConnected: (m['google_calendar_connected'] as int?) == 1,
+    googleDriveConnected: (m['google_drive_connected'] as int?) == 1,
+    geminiConnected: (m['gemini_connected'] as int?) == 1,
+    backupMode: (m['backup_mode'] as String?) ?? 'local',
+    religione: (m['religione'] as String?) ?? 'Cattolica',
+    telefono: m['telefono'] as String?,
+    password: m['password'] as String?,
+    socialLinks: m['social_links'] != null ? (json.decode(m['social_links'] as String) as List).cast<String>() : [],
+    friends: m['friends'] != null ? (json.decode(m['friends'] as String) as List).cast<String>() : [],
+    oldPhotos: m['old_photos'] != null ? (json.decode(m['old_photos'] as String) as List).cast<String>() : [],
+    accounts: m['accounts'] != null ? (json.decode(m['accounts'] as String) as List).map((e) => Map<String, String>.from(e as Map)).toList() : [],
+    activeAccountIndex: (m['active_account_index'] as int?) ?? 0,
+    nickname: m['nickname'] as String?,
+  );
 }
 
 class CalendarEventFull {
+  final int? id;
   final String title;
   final DateTime startTime;
   final DateTime endTime;
@@ -1717,6 +2338,7 @@ class CalendarEventFull {
   final String? attachmentBase64;
 
   CalendarEventFull({
+    this.id,
     required this.title,
     required this.startTime,
     required this.endTime,
@@ -1731,12 +2353,15 @@ class CalendarEventFull {
     this.attachmentBase64,
   }) : sharedWith = sharedWith ?? [];
 
+  String get dateKey => '${startTime.year}-${startTime.month}-${startTime.day}';
+
   CalendarEventFull copyWith({
     bool? isCompleted,
     List<String>? sharedWith,
     String? attachmentBase64,
   }) {
     return CalendarEventFull(
+      id: id,
       title: title,
       startTime: startTime,
       endTime: endTime,
@@ -1785,6 +2410,38 @@ class CalendarEventFull {
       attachmentBase64: json['attachmentBase64'],
     );
   }
+
+  Map<String, dynamic> toDbMap() => {
+    'title': title,
+    'start_time': startTime.millisecondsSinceEpoch,
+    'end_time': endTime.millisecondsSinceEpoch,
+    'date_key': dateKey,
+    'calendar': calendar,
+    'reminder': reminder,
+    'preset': preset,
+    'attachment_path': attachmentPath,
+    'attachment_base64': attachmentBase64,
+    'notes': notes,
+    'is_completed': isCompleted ? 1 : 0,
+    'google_event_id': googleEventId,
+    'shared_with': sharedWith.isNotEmpty ? json.encode(sharedWith) : null,
+  };
+
+  factory CalendarEventFull.fromDbMap(Map<String, dynamic> m) => CalendarEventFull(
+    id: m['id'] as int?,
+    title: m['title'] as String,
+    startTime: DateTime.fromMillisecondsSinceEpoch(m['start_time'] as int),
+    endTime: DateTime.fromMillisecondsSinceEpoch(m['end_time'] as int),
+    calendar: (m['calendar'] as String?) ?? 'Personale',
+    reminder: m['reminder'] as String?,
+    preset: m['preset'] as String?,
+    attachmentPath: m['attachment_path'] as String?,
+    attachmentBase64: m['attachment_base64'] as String?,
+    notes: m['notes'] as String?,
+    isCompleted: (m['is_completed'] as int?) == 1,
+    googleEventId: m['google_event_id'] as String?,
+    sharedWith: m['shared_with'] != null ? (json.decode(m['shared_with'] as String) as List).cast<String>() : [],
+  );
 }
 
 class Holidays {
@@ -1811,6 +2468,15 @@ class Holidays {
     } else if (religione == tr('islamic')) {
       base.add(Holiday(4, 10, '🌙', 'Eid al-Fitr'));
       base.add(Holiday(6, 16, '🌙', 'Eid al-Adha'));
+    } else if (religione == tr('chinese')) {
+      base.add(Holiday(1, 29, '🧧', 'Capodanno Cinese'));
+      base.add(Holiday(2, 15, '🏮', 'Festa delle Lanterne'));
+      base.add(Holiday(4, 5, '🪦', 'Qingming'));
+      base.add(Holiday(5, 31, '🐉', 'Duanwu'));
+      base.add(Holiday(8, 29, '🌙', 'Qixi'));
+      base.add(Holiday(10, 1, '🇨🇳', 'Festa Nazionale Cinese'));
+      base.add(Holiday(10, 6, '🥮', 'Zhongqiu'));
+      base.add(Holiday(12, 29, '🎊', 'Laba'));
     }
 
     Map<String, List<Holiday>> result = {};
@@ -1857,6 +2523,11 @@ String getZodiacSignFromDate(int month, int day, {String mode = 'icon_and_text'}
   }
 }
 
+String getChineseZodiac(int year) {
+  const animals = ['🐒', '🐓', '🐕', '🐖', '🐀', '🐂', '🐅', '🐇', '🐉', '🐍', '🐴', '🐐'];
+  return animals[year % 12];
+}
+
 // ─── Horoscope Data ─────────────────────────────────────────────────────────
 
 class HoroscopeData {
@@ -1881,8 +2552,7 @@ class HoroscopeData {
   );
 
   static Future<HoroscopeData?> loadCached() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonStr = prefs.getString('horoscope_cache');
+    final jsonStr = await DatabaseHelper().getCache('horoscope_cache');
     if (jsonStr != null) {
       final data = HoroscopeData.fromJson(json.decode(jsonStr));
       if (!data.isStale) return data;
@@ -1891,8 +2561,7 @@ class HoroscopeData {
   }
 
   Future<void> saveCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('horoscope_cache', json.encode(toJson()));
+    await DatabaseHelper().saveCache('horoscope_cache', json.encode(toJson()));
   }
 }
 
@@ -2046,8 +2715,7 @@ class WeatherData {
   );
 
   static Future<WeatherData?> loadCached() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonStr = prefs.getString('weather_cache');
+    final jsonStr = await DatabaseHelper().getCache('weather_cache');
     if (jsonStr != null) {
       final data = WeatherData.fromJson(json.decode(jsonStr));
       if (!data.isStale) return data;
@@ -2056,8 +2724,7 @@ class WeatherData {
   }
 
   Future<void> saveCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('weather_cache', json.encode(toJson()));
+    await DatabaseHelper().saveCache('weather_cache', json.encode(toJson()));
   }
 }
 
@@ -2234,18 +2901,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadUserProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    final profileJson = prefs.getString('user_profile');
-    if (profileJson != null) {
+    final profile = await DatabaseHelper().getProfile();
+    if (profile != null) {
       setState(() {
-        _userProfile = UserProfile.fromJson(json.decode(profileJson));
+        _userProfile = profile;
       });
     }
   }
 
   Future<void> _saveUserProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_profile', json.encode(_userProfile.toJson()));
+    await DatabaseHelper().saveProfile(_userProfile);
   }
 
   void _openSettings() {
@@ -2387,6 +3052,9 @@ class _CalendarPageState extends State<CalendarPage> {
   // Cycle tracking (private)
   Set<String> _cycleDays = {};
 
+  // Ethos Aura (premium)
+  EthosAuraSettings _auraSettings = const EthosAuraSettings();
+
   // Split layout: calendar compression on scroll
   bool _isCalendarCompact = false;
   final ScrollController _eventsScrollController = ScrollController();
@@ -2408,26 +3076,38 @@ class _CalendarPageState extends State<CalendarPage> {
     _loadCycleDays();
     _initGoogleCalendar();
     _initHealth();
+    _loadAuraSettings();
+    _eventsScrollController.addListener(_onEventsScroll);
+  }
+
+  void _onEventsScroll() {
+    if (!_eventsScrollController.hasClients) return;
+    final offset = _eventsScrollController.offset;
+    if (offset > 30 && !_isCalendarCompact) {
+      setState(() => _isCalendarCompact = true);
+    } else if (offset <= 0 && _isCalendarCompact) {
+      setState(() => _isCalendarCompact = false);
+    }
   }
 
   @override
   void dispose() {
+    _eventsScrollController.removeListener(_onEventsScroll);
     _eventsScrollController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadAuraSettings() async {
+    final s = await EthosAuraSettings.load();
+    if (mounted) setState(() => _auraSettings = s);
+  }
+
   Future<void> _loadCycleDays() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('cycle_tracking_private') ?? [];
-    setState(() => _cycleDays = list.toSet());
+    final days = await DatabaseHelper().getCycleDays();
+    setState(() => _cycleDays = days);
   }
 
-  Future<void> _saveCycleDays() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('cycle_tracking_private', _cycleDays.toList());
-  }
-
-  void _toggleCycleDay(DateTime day) {
+  Future<void> _toggleCycleDay(DateTime day) async {
     final key = '${day.year}-${day.month}-${day.day}';
     final adding = !_cycleDays.contains(key);
     setState(() {
@@ -2437,7 +3117,11 @@ class _CalendarPageState extends State<CalendarPage> {
         _cycleDays.remove(key);
       }
     });
-    _saveCycleDays();
+    if (adding) {
+      await DatabaseHelper().addCycleDay(key);
+    } else {
+      await DatabaseHelper().removeCycleDay(key);
+    }
     // Sync to Apple Health / Health Connect
     if (adding && HealthService.isAuthorized) {
       HealthService.writeMenstruationFlow(day);
@@ -2521,7 +3205,6 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildHealthProgressBar() {
-    final colorScheme = Theme.of(context).colorScheme;
     final isEthos = _isEthosTheme(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -2541,9 +3224,6 @@ class _CalendarPageState extends State<CalendarPage> {
         : isDark ? const Color(0xFF81C784) : const Color(0xFF43A047);
 
     final bgAlpha = isDark || isEthos ? 0.15 : 0.10;
-
-    // Total of 3 equal sections
-    const sectionWeight = 1.0 / 3.0;
 
     Widget buildSection(double value, Color color, String label, IconData icon) {
       return Expanded(
@@ -2589,146 +3269,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildHealthCard() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isEthos = _isEthosTheme(context);
-    final accentColor = isEthos ? const Color(0xFFB8566B) : const Color(0xFF1E88E5);
-
-    if (!HealthService.isSupported) {
-      return Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: colorScheme.surfaceContainerLowest,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(Icons.monitor_heart, color: accentColor, size: 24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(tr('health'), style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
-                    const SizedBox(height: 2),
-                    Text(
-                      tr('health_ios_android'),
-                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (!HealthService.isAuthorized) {
-      return Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: colorScheme.surfaceContainerLowest,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () async {
-            final ok = await HealthService.requestAuthorization();
-            if (ok) _refreshHealth();
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(Icons.monitor_heart_outlined, color: accentColor, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${tr('connect')} ${tr('health')}', style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
-                      const SizedBox(height: 2),
-                      Text(
-                        defaultTargetPlatform == TargetPlatform.iOS
-                            ? tr('tap_connect_apple')
-                            : tr('tap_connect_health'),
-                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.arrow_forward_ios, size: 16, color: colorScheme.onSurfaceVariant),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    final s = _healthSnapshot;
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: colorScheme.surfaceContainerLowest,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.monitor_heart, color: accentColor, size: 20),
-                const SizedBox(width: 8),
-                Text(tr('health'), style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: colorScheme.onSurface)),
-                const Spacer(),
-                GestureDetector(
-                  onTap: _refreshHealth,
-                  child: Icon(Icons.refresh, size: 18, color: colorScheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                _buildHealthStat(tr('steps'), s?.steps != null ? '${s!.steps}' : '--', Icons.directions_walk, accentColor),
-                _buildHealthStat('BPM', s?.heartRate != null ? '${s!.heartRate!.round()}' : '--', Icons.favorite, Colors.red),
-                _buildHealthStat(tr('sleep'), s?.sleepHours != null ? '${s!.sleepHours!.toStringAsFixed(1)}h' : '--', Icons.bedtime, Colors.indigo),
-                _buildHealthStat('SpO2', s?.bloodOxygen != null ? '${s!.bloodOxygen!.round()}%' : '--', Icons.air, Colors.teal),
-              ],
-            ),
-            if (s?.weight != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                '${tr('weight')}: ${s!.weight!.toStringAsFixed(1)} kg',
-                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHealthStat(String label, String value, IconData icon, Color color) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 18, color: color),
-          ),
-          const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: colorScheme.onSurface)),
-          Text(label, style: TextStyle(fontSize: 9, color: colorScheme.onSurfaceVariant)),
-        ],
-      ),
-    );
-  }
-
   Future<void> _loadCalendarSettings() async {
     final settings = await CalendarSettings.load();
     setState(() {
@@ -2745,17 +3285,13 @@ class _CalendarPageState extends State<CalendarPage> {
     if (_isLoadingHoroscope) return;
     setState(() => _isLoadingHoroscope = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final profileJson = prefs.getString('user_profile');
-      if (profileJson != null) {
-        final profile = UserProfile.fromJson(json.decode(profileJson));
-        if (profile.dataNascita != null) {
-          final segno = getZodiacSignFromDate(
-            profile.dataNascita!.month, profile.dataNascita!.day, mode: 'text_only',
-          );
-          final data = await fetchOroscopo(segno);
-          if (mounted) setState(() => _horoscopeData = data);
-        }
+      final profile = await DatabaseHelper().getProfile();
+      if (profile != null && profile.dataNascita != null) {
+        final segno = getZodiacSignFromDate(
+          profile.dataNascita!.month, profile.dataNascita!.day, mode: 'text_only',
+        );
+        final data = await fetchOroscopo(segno);
+        if (mounted) setState(() => _horoscopeData = data);
       }
     } catch (_) {}
     if (mounted) setState(() => _isLoadingHoroscope = false);
@@ -2784,25 +3320,33 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _loadEvents() async {
-    final prefs = await SharedPreferences.getInstance();
-    final eventsJson = prefs.getString('calendar_events_full') ?? '{}';
-    final Map<String, dynamic> decoded = json.decode(eventsJson);
+    final events = await DatabaseHelper().getAllEvents();
     setState(() {
-      _events = decoded.map(
-        (key, value) => MapEntry(
-          key,
-          (value as List).map((e) => CalendarEventFull.fromJson(e)).toList(),
-        ),
-      );
+      _events = events;
     });
   }
 
   Future<void> _saveEvents() async {
-    final prefs = await SharedPreferences.getInstance();
-    final eventsJson = _events.map(
-      (key, value) => MapEntry(key, value.map((e) => e.toJson()).toList()),
+    await DatabaseHelper().saveAllEvents(_events);
+  }
+
+  void _scheduleNotification(CalendarEventFull event) {
+    if (event.reminder == null || event.reminder!.isEmpty) return;
+    // Parse reminder string to get minutes before
+    int minutesBefore = 10;
+    if (event.reminder!.contains('5')) minutesBefore = 5;
+    if (event.reminder!.contains('10')) minutesBefore = 10;
+    if (event.reminder!.contains('15')) minutesBefore = 15;
+    if (event.reminder!.contains('30')) minutesBefore = 30;
+    if (event.reminder!.contains('1 ora') || event.reminder!.contains('1 hour')) minutesBefore = 60;
+    if (event.reminder!.contains('2 or') || event.reminder!.contains('2 hour')) minutesBefore = 120;
+    final id = event.startTime.millisecondsSinceEpoch ~/ 1000;
+    NotificationService.scheduleEventReminder(
+      id: id,
+      title: event.title,
+      eventTime: event.startTime,
+      minutesBefore: minutesBefore,
     );
-    await prefs.setString('calendar_events_full', json.encode(eventsJson));
   }
 
   String _dateKey(DateTime date) => '${date.year}-${date.month}-${date.day}';
@@ -2826,6 +3370,7 @@ class _CalendarPageState extends State<CalendarPage> {
               _events.putIfAbsent(key, () => []).add(event);
             });
             _saveEvents();
+            _scheduleNotification(event);
             // Push to Google Calendar if connected
             if (GoogleCalendarService.isSignedIn) {
               _pushEventToGoogle(event);
@@ -2865,13 +3410,14 @@ class _CalendarPageState extends State<CalendarPage> {
               _events[key]?[index] = updatedEvent;
             });
             _saveEvents();
+            _scheduleNotification(updatedEvent);
           },
         ),
       ),
     );
   }
 
-  void _deleteEvent(int index) {
+  Future<void> _deleteEvent(int index) async {
     if (_selectedDay == null) return;
     final key = _dateKey(_selectedDay!);
     final localEvents = _events[key] ?? [];
@@ -2880,7 +3426,7 @@ class _CalendarPageState extends State<CalendarPage> {
       _events[key]?.removeAt(index);
       if (_events[key]?.isEmpty ?? false) _events.remove(key);
     });
-    _saveEvents();
+    await _saveEvents();
   }
 
   void _toggleEventCompletion(DateTime day, int index) {
@@ -3100,8 +3646,8 @@ class _CalendarPageState extends State<CalendarPage> {
         titleTextFormatter: (date, locale) {
           final months = localizedMonths();
           final zodiacSuffix = _calSettings.showZodiac
-              ? ' (${getZodiacSign(date.month, mode: _calSettings.zodiacDisplayMode)})'
-              : '';
+              ? ' (${getZodiacSign(date.month, mode: _calSettings.zodiacDisplayMode)}${_calSettings.showChineseZodiac ? ' ${getChineseZodiac(date.year)}' : ''})'
+              : _calSettings.showChineseZodiac ? ' ${getChineseZodiac(date.year)}' : '';
           final todayWeather = (_calSettings.showWeather && _weatherData != null)
               ? _weatherData!.forDay(DateTime.now())
               : null;
@@ -3322,46 +3868,79 @@ class _CalendarPageState extends State<CalendarPage> {
                             itemCount: currentEvents.length,
                             itemBuilder: (ctx, index) {
                               final event = currentEvents[index];
-                              return ListTile(
-                                leading: Checkbox(
-                                  value: event.isCompleted,
-                                  activeColor: _calSettings.calendarColor,
-                                  onChanged: (_) {
-                                    _toggleEventCompletion(day, index);
-                                    setSheetState(() {});
-                                  },
-                                ),
-                                title: Text(
-                                  event.title,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    decoration: event.isCompleted ? TextDecoration.lineThrough : null,
-                                    color: event.isCompleted ? colorScheme.onSurfaceVariant : null,
+                              return GestureDetector(
+                                onTap: () => _showEventPreview(ctx, event, day, index, setSheetState),
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.surfaceContainerLowest,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
                                   ),
-                                ),
-                                subtitle: Text(
-                                  '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}',
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined),
-                                      color: _calSettings.calendarColor,
-                                      onPressed: () {
-                                        Navigator.pop(ctx);
-                                        _editEvent(day, index);
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline),
-                                      color: colorScheme.error,
-                                      onPressed: () {
-                                        _deleteEvent(index);
-                                        setSheetState(() {});
-                                      },
-                                    ),
-                                  ],
+                                  child: Row(
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () {
+                                          _toggleEventCompletion(day, index);
+                                          setSheetState(() {});
+                                        },
+                                        child: Container(
+                                          width: 28, height: 28,
+                                          decoration: BoxDecoration(
+                                            color: event.isCompleted ? _calSettings.calendarColor : Colors.transparent,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: event.isCompleted ? _calSettings.calendarColor : colorScheme.outlineVariant,
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: event.isCompleted
+                                              ? const Icon(Icons.check, size: 16, color: Colors.white)
+                                              : null,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              event.title,
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                                decoration: event.isCompleted ? TextDecoration.lineThrough : null,
+                                                color: event.isCompleted ? colorScheme.onSurfaceVariant : colorScheme.onSurface,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}  •  ${event.calendar}',
+                                              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                                            ),
+                                            if (event.reminder != null)
+                                              Padding(
+                                                padding: const EdgeInsets.only(top: 2),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.notifications_outlined, size: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                                                    const SizedBox(width: 4),
+                                                    Text(event.reminder!, style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
+                                                  ],
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (event.attachmentBase64 != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(right: 8),
+                                          child: Icon(Icons.image_outlined, size: 18, color: colorScheme.onSurfaceVariant),
+                                        ),
+                                      Icon(Icons.chevron_right, size: 20, color: colorScheme.onSurfaceVariant),
+                                    ],
+                                  ),
                                 ),
                               );
                             },
@@ -3376,9 +3955,179 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  void _showEventPreview(BuildContext parentCtx, CalendarEventFull event, DateTime day, int index, StateSetter setSheetState) {
+    final colorScheme = Theme.of(context).colorScheme;
+    showModalBottomSheet(
+      context: parentCtx,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(left: 24, right: 24, top: 16, bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 20),
+            // Date & time
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: (_calSettings.calendarColor).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Text('${event.startTime.day}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _calSettings.calendarColor)),
+                      Text(['', 'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'][event.startTime.month], style: TextStyle(fontSize: 12, color: _calSettings.calendarColor)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(event.title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}',
+                        style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Info chips
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _eventInfoChip(Icons.calendar_today, event.calendar, colorScheme),
+                if (event.reminder != null)
+                  _eventInfoChip(Icons.notifications_outlined, event.reminder!, colorScheme),
+                if (event.sharedWith.isNotEmpty)
+                  _eventInfoChip(Icons.people_outline, '${event.sharedWith.length} ${tr('shared')}', colorScheme),
+              ],
+            ),
+            // Notes
+            if (event.notes != null && event.notes!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(event.notes!, style: TextStyle(fontSize: 14, color: colorScheme.onSurface, height: 1.5)),
+            ],
+            // Attachment image
+            if (event.attachmentBase64 != null) ...[
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  base64Decode(event.attachmentBase64!),
+                  width: double.infinity,
+                  height: 180,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 100,
+                    decoration: BoxDecoration(color: colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
+                    child: Center(child: Icon(Icons.broken_image, color: colorScheme.onSurfaceVariant)),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _toggleEventCompletion(day, index);
+                      setSheetState(() {});
+                    },
+                    icon: Icon(event.isCompleted ? Icons.undo : Icons.check, size: 18),
+                    label: Text(event.isCompleted ? tr('undo') : tr('complete')),
+                    style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      Navigator.pop(parentCtx);
+                      _editEvent(day, index);
+                    },
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: Text(tr('edit')),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _calSettings.calendarColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _deleteEvent(index);
+                    setSheetState(() {});
+                  },
+                  icon: Icon(Icons.delete_outline, color: colorScheme.error),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _eventInfoChip(IconData icon, String label, ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: colorScheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHoroscopeCard() {
     if (!_calSettings.showHoroscope) return const SizedBox.shrink();
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Paywall: if not purchased, show locked card
+    if (!_auraSettings.oroscopoPurchased) {
+      return Card(
+        margin: const EdgeInsets.only(top: 12),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: const Text('🔒', style: TextStyle(fontSize: 22)),
+          title: Text(tr('horoscope_locked'), style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(tr('unlock_to_read'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+          trailing: FilledButton(
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const EthosAuraPage()))
+                  .then((_) => _loadAuraSettings());
+            },
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFAB47BC)),
+            child: const Text('€0,50'),
+          ),
+        ),
+      );
+    }
 
     return Card(
       margin: const EdgeInsets.only(top: 12),
@@ -3410,72 +4159,6 @@ class _CalendarPageState extends State<CalendarPage> {
                   title: Text(tr('horoscope_not_available')),
                   subtitle: Text(tr('birth_date')),
                 ),
-    );
-  }
-
-  Widget _buildWeatherCard() {
-    if (!_calSettings.showWeather || _weatherData == null) return const SizedBox.shrink();
-
-    return Card(
-      margin: const EdgeInsets.only(top: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.cloud, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Meteo ${_weatherData!.city}',
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 80,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _weatherData!.forecast.length,
-                itemBuilder: (context, index) {
-                  final day = _weatherData!.forecast[index];
-                  final weekDays = ['', ...localizedWeekdaysShort()];
-                  final isToday = isSameDay(day.date, DateTime.now());
-                  return Container(
-                    width: 64,
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: isToday
-                          ? _calSettings.calendarColor.withValues(alpha: 0.1)
-                          : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                      border: isToday ? Border.all(color: _calSettings.calendarColor, width: 1.5) : null,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          weekDays[day.date.weekday],
-                          style: TextStyle(fontSize: 11, fontWeight: isToday ? FontWeight.bold : FontWeight.normal),
-                        ),
-                        Text(day.icon, style: const TextStyle(fontSize: 18)),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${day.tempMax.round()}° / ${day.tempMin.round()}°',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -3564,7 +4247,49 @@ class _CalendarPageState extends State<CalendarPage> {
           curve: Curves.easeInOut,
           alignment: Alignment.topCenter,
           child: _isCalendarCompact
-              ? const SizedBox.shrink()
+              ? Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.chevron_left, color: _calSettings.calendarColor),
+                          onPressed: () {
+                            setState(() {
+                              _focusedDay = DateTime(_focusedDay.year, _focusedDay.month - 1);
+                              _selectedDay = _focusedDay;
+                              _isCalendarCompact = false;
+                            });
+                            _loadEvents();
+                          },
+                        ),
+                        GestureDetector(
+                          onTap: () => setState(() => _isCalendarCompact = false),
+                          child: Text(
+                            '${localizedMonths()[_focusedDay.month]} ${_focusedDay.year}',
+                            style: TextStyle(
+                              fontSize: _calSettings.headerFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: _calSettings.headerColor,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.chevron_right, color: _calSettings.calendarColor),
+                          onPressed: () {
+                            setState(() {
+                              _focusedDay = DateTime(_focusedDay.year, _focusedDay.month + 1);
+                              _selectedDay = _focusedDay;
+                              _isCalendarCompact = false;
+                            });
+                            _loadEvents();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                )
               : Card(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -4098,7 +4823,7 @@ class GoogleCalendarService {
       await prefs.setBool('google_calendar_connected', true);
       return true;
     } catch (e) {
-      debugPrint('Google Sign-In error: $e');
+      if (kDebugMode) debugPrint('Google Sign-In error: $e');
       return false;
     }
   }
@@ -4123,7 +4848,7 @@ class GoogleCalendarService {
       _calendarApi = gcal.CalendarApi(httpClient);
       return true;
     } catch (e) {
-      debugPrint('Silent sign-in error: $e');
+      if (kDebugMode) debugPrint('Silent sign-in error: $e');
       return false;
     }
   }
@@ -4142,7 +4867,7 @@ class GoogleCalendarService {
       );
       return (events.items ?? []).map((e) => _googleEventToLocal(e)).toList();
     } catch (e) {
-      debugPrint('Fetch Google events error: $e');
+      if (kDebugMode) debugPrint('Fetch Google events error: $e');
       return [];
     }
   }
@@ -4166,7 +4891,7 @@ class GoogleCalendarService {
       await _calendarApi!.events.insert(gEvent, 'primary');
       return true;
     } catch (e) {
-      debugPrint('Push event error: $e');
+      if (kDebugMode) debugPrint('Push event error: $e');
       return false;
     }
   }
@@ -4282,7 +5007,7 @@ class HealthService {
       }
       return _authorized;
     } catch (e) {
-      debugPrint('Health auth error: $e');
+      if (kDebugMode) debugPrint('Health auth error: $e');
       return false;
     }
   }
@@ -4305,8 +5030,7 @@ class HealthService {
     }
 
     // Check cache (30 min)
-    final prefs = await SharedPreferences.getInstance();
-    final cached = prefs.getString('health_snapshot');
+    final cached = await DatabaseHelper().getCache('health_snapshot');
     if (cached != null) {
       final snapshot = HealthSnapshot.fromJson(json.decode(cached));
       if (DateTime.now().difference(snapshot.fetchedAt).inMinutes < 30) {
@@ -4409,10 +5133,10 @@ class HealthService {
       );
 
       // Cache
-      await prefs.setString('health_snapshot', json.encode(snapshot.toJson()));
+      await DatabaseHelper().saveCache('health_snapshot', json.encode(snapshot.toJson()));
       return snapshot;
     } catch (e) {
-      debugPrint('Health fetch error: $e');
+      if (kDebugMode) debugPrint('Health fetch error: $e');
       return HealthSnapshot(fetchedAt: DateTime.now());
     }
   }
@@ -4432,9 +5156,73 @@ class HealthService {
         endTime: end,
       );
     } catch (e) {
-      debugPrint('Health write error: $e');
+      if (kDebugMode) debugPrint('Health write error: $e');
       return false;
     }
+  }
+}
+
+// ── Notification Service ──
+
+class NotificationService {
+  static final _plugin = FlutterLocalNotificationsPlugin();
+  static bool _initialized = false;
+
+  static Future<void> init() async {
+    if (_initialized || kIsWeb) return;
+    tz.initializeTimeZones();
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+    const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
+    await _plugin.initialize(settings);
+    _initialized = true;
+  }
+
+  static Future<void> scheduleEventReminder({
+    required int id,
+    required String title,
+    required DateTime eventTime,
+    required int minutesBefore,
+  }) async {
+    if (kIsWeb || !_initialized) return;
+    final scheduledTime = eventTime.subtract(Duration(minutes: minutesBefore));
+    if (scheduledTime.isBefore(DateTime.now())) return;
+
+    final tzScheduled = tz.TZDateTime.from(scheduledTime, tz.local);
+    const androidDetails = AndroidNotificationDetails(
+      'event_reminders',
+      'Promemoria eventi',
+      channelDescription: 'Notifiche promemoria per gli eventi del calendario',
+      importance: Importance.high,
+      priority: Priority.high,
+      playSound: true,
+    );
+    const iosDetails = DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true);
+    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      '${tr('event_in')} $minutesBefore ${tr('minutes')}',
+      tzScheduled,
+      details,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  static Future<void> cancelReminder(int id) async {
+    if (kIsWeb || !_initialized) return;
+    await _plugin.cancel(id);
+  }
+
+  static Future<void> cancelAll() async {
+    if (kIsWeb || !_initialized) return;
+    await _plugin.cancelAll();
   }
 }
 
@@ -4455,6 +5243,7 @@ class CalendarSettings {
   // Zodiac
   final bool showZodiac;
   final String zodiacDisplayMode; // 'icon_only', 'icon_and_text', 'text_only'
+  final bool showChineseZodiac;
 
   // Next month preview
   final bool showNextMonthPreview;
@@ -4488,6 +5277,7 @@ class CalendarSettings {
     this.headerFontSize = 18.0,
     this.showZodiac = true,
     this.zodiacDisplayMode = 'icon_only',
+    this.showChineseZodiac = false,
     this.showNextMonthPreview = true,
     this.showHoroscope = false,
     this.showWeather = false,
@@ -4515,6 +5305,7 @@ class CalendarSettings {
     double? headerFontSize,
     bool? showZodiac,
     String? zodiacDisplayMode,
+    bool? showChineseZodiac,
     bool? showNextMonthPreview,
     bool? showHoroscope,
     bool? showWeather,
@@ -4536,6 +5327,7 @@ class CalendarSettings {
       headerFontSize: headerFontSize ?? this.headerFontSize,
       showZodiac: showZodiac ?? this.showZodiac,
       zodiacDisplayMode: zodiacDisplayMode ?? this.zodiacDisplayMode,
+      showChineseZodiac: showChineseZodiac ?? this.showChineseZodiac,
       showNextMonthPreview: showNextMonthPreview ?? this.showNextMonthPreview,
       showHoroscope: showHoroscope ?? this.showHoroscope,
       showWeather: showWeather ?? this.showWeather,
@@ -4559,6 +5351,7 @@ class CalendarSettings {
     'headerFontSize': headerFontSize,
     'showZodiac': showZodiac,
     'zodiacDisplayMode': zodiacDisplayMode,
+    'showChineseZodiac': showChineseZodiac,
     'showNextMonthPreview': showNextMonthPreview,
     'showHoroscope': showHoroscope,
     'showWeather': showWeather,
@@ -4587,6 +5380,7 @@ class CalendarSettings {
         headerFontSize: (json['headerFontSize'] ?? 18.0).toDouble(),
         showZodiac: json['showZodiac'] ?? true,
         zodiacDisplayMode: json['zodiacDisplayMode'] ?? 'icon_only',
+        showChineseZodiac: json['showChineseZodiac'] ?? false,
         showNextMonthPreview: json['showNextMonthPreview'] ?? true,
         showHoroscope: json['showHoroscope'] ?? false,
         showWeather: json['showWeather'] ?? false,
@@ -4598,8 +5392,7 @@ class CalendarSettings {
       );
 
   static Future<CalendarSettings> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonStr = prefs.getString('calendar_settings');
+    final jsonStr = await DatabaseHelper().getSetting('calendar_settings');
     if (jsonStr != null) {
       return CalendarSettings.fromJson(json.decode(jsonStr));
     }
@@ -4607,8 +5400,7 @@ class CalendarSettings {
   }
 
   Future<void> save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('calendar_settings', json.encode(toJson()));
+    await DatabaseHelper().saveSetting('calendar_settings', json.encode(toJson()));
   }
 }
 
@@ -4902,8 +5694,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     final colorScheme = Theme.of(context).colorScheme;
     final isConnected = GoogleCalendarService.isSignedIn;
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -4995,8 +5787,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 
   Widget _buildFontCard() {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -5055,8 +5847,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 
   Widget _buildFontSizeCard() {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -5111,8 +5903,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 
   Widget _buildNextMonthPreviewCard() {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -5164,8 +5956,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 
   Widget _buildZodiacAndHoroscopeCard() {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -5212,6 +6004,17 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
               ),
+              const Divider(),
+              SwitchListTile(
+                title: Text(tr('show_chinese_zodiac'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(tr('chinese_zodiac')),
+                value: _settings.showChineseZodiac,
+                activeColor: Color(_settings.calendarColorValue),
+                contentPadding: EdgeInsets.zero,
+                onChanged: (v) {
+                  _updateSettings(_settings.copyWith(showChineseZodiac: v));
+                },
+              ),
             ],
             const Divider(),
             SwitchListTile(
@@ -5233,8 +6036,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   Widget _buildUnifiedAlertCard() {
     final showSound = _settings.alertConfig.alertType != 'vibration';
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -5381,8 +6184,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 
   Widget _buildWeatherSettingsCard() {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -5426,11 +6229,12 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       tr('catholic'): Icons.church,
       tr('jewish'): Icons.synagogue,
       tr('islamic'): Icons.mosque,
+      tr('chinese'): Icons.temple_buddhist,
       tr('none_religion'): Icons.public,
     };
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -5458,8 +6262,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 
   Widget _buildCycleTrackingSettingsCard() {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -5505,8 +6309,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             : 'Health Connect';
 
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -5690,10 +6494,8 @@ class _EventEditorPageState extends State<EventEditorPage> {
   }
 
   Future<void> _loadFriends() async {
-    final prefs = await SharedPreferences.getInstance();
-    final profileJson = prefs.getString('user_profile');
-    if (profileJson != null) {
-      final profile = UserProfile.fromJson(json.decode(profileJson));
+    final profile = await DatabaseHelper().getProfile();
+    if (profile != null) {
       setState(() {
         _availableFriends = profile.friends;
       });
@@ -5701,10 +6503,13 @@ class _EventEditorPageState extends State<EventEditorPage> {
   }
 
   void _saveEvent() {
-    if (_titleController.text.isNotEmpty) {
+    final title = _titleController.text.isNotEmpty
+        ? _titleController.text
+        : (_attachmentBase64 != null ? tr('event') : null);
+    if (title != null) {
       widget.onSave(
         CalendarEventFull(
-          title: _titleController.text,
+          title: title,
           startTime: _startTime,
           endTime: _endTime,
           calendar: _selectedCalendar,
@@ -6056,10 +6861,12 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late UserProfile _profile;
+  EthosAuraSettings _auraSettings = const EthosAuraSettings();
 
   @override
   void initState() {
     super.initState();
+    _loadAuraSettings();
     _profile = UserProfile(
       nome: widget.userProfile.nome,
       cognome: widget.userProfile.cognome,
@@ -6082,6 +6889,11 @@ class _SettingsPageState extends State<SettingsPage> {
       activeAccountIndex: widget.userProfile.activeAccountIndex,
       nickname: widget.userProfile.nickname,
     );
+  }
+
+  Future<void> _loadAuraSettings() async {
+    final s = await EthosAuraSettings.load();
+    if (mounted) setState(() => _auraSettings = s);
   }
 
   void _saveProfile() {
@@ -6251,7 +7063,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           builder: (context) {
                             final emailController = TextEditingController();
                             return AlertDialog(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                               title: Text(tr('email')),
                               content: TextField(
                                 controller: emailController,
@@ -6432,7 +7244,7 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
           ),
           title: Text(tr('edit_profile')),
           content: SingleChildScrollView(
@@ -6523,146 +7335,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showUpgradeToPro() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Colors.amber, Colors.orange],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.workspace_premium,
-                color: Colors.white,
-                size: 32,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text('PRO'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.amber.shade100, Colors.orange.shade50],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      '0,99€',
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    Text(
-                      tr('per_month'),
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                tr('pro_benefits'),
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              _buildProFeature(Icons.business, tr('business_profile')),
-              _buildProFeature(
-                Icons.group,
-                tr('group_sharing'),
-              ),
-              _buildProFeature(Icons.people, tr('calendar_notes_sharing')),
-              _buildProFeature(Icons.edit_note, tr('advanced_editor')),
-              _buildProFeature(
-                Icons.format_bold,
-                tr('full_text_formatting'),
-              ),
-              _buildProFeature(
-                Icons.table_chart,
-                tr('tables_media'),
-              ),
-              _buildProFeature(Icons.cloud_upload, tr('unlimited_backup')),
-              _buildProFeature(
-                Icons.sync,
-                tr('multi_device_sync'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(tr('cancel')),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              setState(() {
-                _profile.isPro = true;
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('🎉 Benvenuto in Ethos Note PRO!'),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 3),
-                ),
-              );
-            },
-            icon: const Icon(Icons.workspace_premium),
-            label: const Text('PRO'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProFeature(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.green.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.check, color: Colors.green.shade700, size: 16),
-          ),
-          const SizedBox(width: 12),
-          Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
-        ],
       ),
     );
   }
@@ -6792,7 +7464,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                    child: Text((acc['nome'] ?? '?')[0].toUpperCase()),
+                    child: Text(((acc['nome'] ?? '?').isEmpty ? '?' : acc['nome']!)[0].toUpperCase()),
                   ),
                   title: Text(acc['nome'] ?? ''),
                   subtitle: Text(acc['email'] ?? ''),
@@ -6805,7 +7477,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         onPressed: () {
                           setState(() {
                             _profile.accounts.removeAt(i);
-                            if (_profile.activeAccountIndex > _profile.accounts.length) {
+                            if (_profile.activeAccountIndex >= _profile.accounts.length) {
                               _profile.activeAccountIndex = 0;
                             }
                           });
@@ -6988,7 +7660,7 @@ class _SettingsPageState extends State<SettingsPage> {
           Card(
             elevation: 0,
             color: colorScheme.surfaceContainerLowest,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -7165,6 +7837,23 @@ class _SettingsPageState extends State<SettingsPage> {
                   leading: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
+                      color: const Color(0xFFAB47BC).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.auto_awesome, color: Color(0xFFAB47BC), size: 22),
+                  ),
+                  title: Text(tr('ethos_aura'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(tr('ethos_aura_desc'), style: const TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const EthosAuraPage()));
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
                       color: colorScheme.error.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -7254,20 +7943,46 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 24),
 
           // --- Aggiungi Account ---
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _profile.accounts.length >= 3
-                  ? null
-                  : _showAddAccountDialog,
-              icon: const Icon(Icons.person_add, size: 18),
-              label: Text(_profile.accounts.length >= 3 ? tr('max_profiles') : tr('add_account')),
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ),
+          Builder(builder: (context) {
+            final maxAccounts = _auraSettings.unlimitedProfilesPurchased ? 10 : 2;
+            final atLimit = _profile.accounts.length >= maxAccounts;
+            return Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: atLimit ? null : _showAddAccountDialog,
+                    icon: const Icon(Icons.person_add, size: 18),
+                    label: Text(atLimit ? tr('max_profiles') : tr('add_account')),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+                if (atLimit && !_auraSettings.unlimitedProfilesPurchased)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => const EthosAuraPage()))
+                              .then((_) => _loadAuraSettings());
+                        },
+                        icon: const Icon(Icons.auto_awesome, size: 18, color: Color(0xFFAB47BC)),
+                        label: Text('${tr('unlock_unlimited_profiles')} - €2,50', style: const TextStyle(color: Color(0xFFAB47BC))),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: const BorderSide(color: Color(0xFFAB47BC)),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          }),
           const SizedBox(height: 12),
 
           // --- Disconnetti ---
@@ -7403,6 +8118,7 @@ class _SettingsPageState extends State<SettingsPage> {
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
               onPressed: selectedReason == null ? null : () async {
+                await DatabaseHelper().deleteAllData();
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.clear();
                 if (!context.mounted) return;
@@ -7758,7 +8474,7 @@ ParsedEvent parseFlashNote(String text) {
     startDate = DateTime(date.year, date.month, date.day, 0, 0);
     endDate = DateTime(date.year, date.month, date.day, 23, 59);
   } else {
-    startDate = DateTime(date.year, date.month, date.day, startHour!, startMinute ?? 0);
+    startDate = DateTime(date.year, date.month, date.day, startHour, startMinute ?? 0);
     if (endHour != null) {
       endDate = DateTime(date.year, date.month, date.day, endHour, endMinute ?? 0);
     } else {
@@ -7864,12 +8580,13 @@ class _HighlightingTextEditingController extends TextEditingController {
 }
 
 class FlashNote {
+  final int? id;
   final String content;
   final DateTime createdAt;
   final String? audioPath;
   final int? audioDurationMs;
 
-  FlashNote({required this.content, DateTime? createdAt, this.audioPath, this.audioDurationMs})
+  FlashNote({this.id, required this.content, DateTime? createdAt, this.audioPath, this.audioDurationMs})
     : createdAt = createdAt ?? DateTime.now();
 
   bool get isAudioNote => audioPath != null && audioPath!.isNotEmpty;
@@ -7887,6 +8604,21 @@ class FlashNote {
     audioPath: json['audioPath'],
     audioDurationMs: json['audioDurationMs'],
   );
+
+  Map<String, dynamic> toDbMap() => {
+    'content': content,
+    'created_at': createdAt.millisecondsSinceEpoch,
+    'audio_path': audioPath,
+    'audio_duration_ms': audioDurationMs,
+  };
+
+  factory FlashNote.fromDbMap(Map<String, dynamic> m) => FlashNote(
+    id: m['id'] as int?,
+    content: m['content'] as String,
+    createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
+    audioPath: m['audio_path'] as String?,
+    audioDurationMs: m['audio_duration_ms'] as int?,
+  );
 }
 
 class FlashNotesSettings {
@@ -7898,6 +8630,7 @@ class FlashNotesSettings {
   final String customFormatInstructions;
   final double aiCorrectionLevel; // 0.0 (solo ortografia) - 1.0 (riscrittura completa)
   final String groupingMode; // 'daily', 'weekly', 'monthly', 'yearly'
+  final int maxAudioDurationSeconds;
 
   const FlashNotesSettings({
     this.geminiEnabled = false,
@@ -7908,6 +8641,7 @@ class FlashNotesSettings {
     this.customFormatInstructions = '',
     this.aiCorrectionLevel = 0.0,
     this.groupingMode = 'weekly',
+    this.maxAudioDurationSeconds = 120,
   });
 
   FlashNotesSettings copyWith({
@@ -7919,6 +8653,7 @@ class FlashNotesSettings {
     String? customFormatInstructions,
     double? aiCorrectionLevel,
     String? groupingMode,
+    int? maxAudioDurationSeconds,
   }) {
     return FlashNotesSettings(
       geminiEnabled: geminiEnabled ?? this.geminiEnabled,
@@ -7929,6 +8664,7 @@ class FlashNotesSettings {
       customFormatInstructions: customFormatInstructions ?? this.customFormatInstructions,
       aiCorrectionLevel: aiCorrectionLevel ?? this.aiCorrectionLevel,
       groupingMode: groupingMode ?? this.groupingMode,
+      maxAudioDurationSeconds: maxAudioDurationSeconds ?? this.maxAudioDurationSeconds,
     );
   }
 
@@ -7941,6 +8677,7 @@ class FlashNotesSettings {
     'customFormatInstructions': customFormatInstructions,
     'aiCorrectionLevel': aiCorrectionLevel,
     'groupingMode': groupingMode,
+    'maxAudioDurationSeconds': maxAudioDurationSeconds,
   };
 
   factory FlashNotesSettings.fromJson(Map<String, dynamic> json) =>
@@ -7953,11 +8690,11 @@ class FlashNotesSettings {
         customFormatInstructions: json['customFormatInstructions'] ?? '',
         aiCorrectionLevel: (json['aiCorrectionLevel'] ?? 0.0).toDouble(),
         groupingMode: json['groupingMode'] ?? 'weekly',
+        maxAudioDurationSeconds: json['maxAudioDurationSeconds'] ?? 120,
       );
 
   static Future<FlashNotesSettings> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonStr = prefs.getString('flash_notes_settings');
+    final jsonStr = await DatabaseHelper().getSetting('flash_notes_settings');
     if (jsonStr != null) {
       return FlashNotesSettings.fromJson(json.decode(jsonStr));
     }
@@ -7965,8 +8702,7 @@ class FlashNotesSettings {
   }
 
   Future<void> save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('flash_notes_settings', json.encode(toJson()));
+    await DatabaseHelper().saveSetting('flash_notes_settings', json.encode(toJson()));
   }
 }
 
@@ -8388,6 +9124,28 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
 
           const SizedBox(height: 24),
 
+          // SEZIONE D: Durata nota vocale
+          _buildSectionHeader(tr('voice_duration'), Icons.mic, sectionColor),
+          const SizedBox(height: 8),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            color: colorScheme.surfaceContainerLowest,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(tr('max_duration'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 12),
+                  _buildAudioDurationSlider(colorScheme),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           // Save button
           SizedBox(
             width: double.infinity,
@@ -8400,6 +9158,40 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
           const SizedBox(height: 32),
         ],
       ),
+    );
+  }
+
+  Widget _buildAudioDurationSlider(ColorScheme colorScheme) {
+    final durations = [30, 60, 120, 180, 300, 600];
+    final currentIndex = durations.indexOf(_settings.maxAudioDurationSeconds);
+    final sliderIndex = currentIndex >= 0 ? currentIndex.toDouble() : 2.0;
+
+    String durationLabel(int seconds) {
+      if (seconds < 60) return '$seconds ${tr('seconds')}';
+      final mins = seconds ~/ 60;
+      return '$mins min';
+    }
+
+    return Column(
+      children: [
+        Slider(
+          value: sliderIndex,
+          min: 0,
+          max: (durations.length - 1).toDouble(),
+          divisions: durations.length - 1,
+          label: durationLabel(durations[sliderIndex.round()]),
+          onChanged: (value) {
+            _updateSettings(_settings.copyWith(maxAudioDurationSeconds: durations[value.round()]));
+          },
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('30s', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+            Text('10 min', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ],
     );
   }
 
@@ -8426,6 +9218,237 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
     if (value <= 0.5) return tr('light_summary');
     if (value <= 0.75) return tr('reformulation');
     return tr('full_rewrite');
+  }
+}
+
+// ─── Ethos Aura (Premium Hub) ────────────────────────────────────────────────
+
+class EthosAuraSettings {
+  final bool oroscopoPurchased;
+  final bool unlimitedVoicePurchased;
+  final bool unlimitedProfilesPurchased;
+
+  const EthosAuraSettings({
+    this.oroscopoPurchased = false,
+    this.unlimitedVoicePurchased = false,
+    this.unlimitedProfilesPurchased = false,
+  });
+
+  EthosAuraSettings copyWith({
+    bool? oroscopoPurchased,
+    bool? unlimitedVoicePurchased,
+    bool? unlimitedProfilesPurchased,
+  }) {
+    return EthosAuraSettings(
+      oroscopoPurchased: oroscopoPurchased ?? this.oroscopoPurchased,
+      unlimitedVoicePurchased: unlimitedVoicePurchased ?? this.unlimitedVoicePurchased,
+      unlimitedProfilesPurchased: unlimitedProfilesPurchased ?? this.unlimitedProfilesPurchased,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'oroscopoPurchased': oroscopoPurchased,
+    'unlimitedVoicePurchased': unlimitedVoicePurchased,
+    'unlimitedProfilesPurchased': unlimitedProfilesPurchased,
+  };
+
+  factory EthosAuraSettings.fromJson(Map<String, dynamic> json) =>
+      EthosAuraSettings(
+        oroscopoPurchased: json['oroscopoPurchased'] ?? false,
+        unlimitedVoicePurchased: json['unlimitedVoicePurchased'] ?? false,
+        unlimitedProfilesPurchased: json['unlimitedProfilesPurchased'] ?? false,
+      );
+
+  static Future<EthosAuraSettings> load() async {
+    final jsonStr = await DatabaseHelper().getSetting('ethos_aura_settings');
+    if (jsonStr != null) {
+      return EthosAuraSettings.fromJson(json.decode(jsonStr));
+    }
+    return const EthosAuraSettings();
+  }
+
+  Future<void> save() async {
+    await DatabaseHelper().saveSetting('ethos_aura_settings', json.encode(toJson()));
+  }
+}
+
+class EthosAuraPage extends StatefulWidget {
+  const EthosAuraPage({super.key});
+
+  @override
+  State<EthosAuraPage> createState() => _EthosAuraPageState();
+}
+
+class _EthosAuraPageState extends State<EthosAuraPage> {
+  EthosAuraSettings _auraSettings = const EthosAuraSettings();
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final s = await EthosAuraSettings.load();
+    setState(() { _auraSettings = s; _loading = false; });
+  }
+
+  Future<void> _simulatePurchase(String feature) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('confirm_purchase')),
+        content: Text(tr('purchase_confirm_msg')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('confirm'))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    EthosAuraSettings updated;
+    switch (feature) {
+      case 'horoscope':
+        updated = _auraSettings.copyWith(oroscopoPurchased: true);
+        break;
+      case 'voice':
+        updated = _auraSettings.copyWith(unlimitedVoicePurchased: true);
+        break;
+      case 'profiles':
+        updated = _auraSettings.copyWith(unlimitedProfilesPurchased: true);
+        break;
+      default:
+        return;
+    }
+    await updated.save();
+    setState(() => _auraSettings = updated);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('purchase_success')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const auraColor = Color(0xFFAB47BC);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(tr('ethos_aura')),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // Header
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  color: auraColor.withValues(alpha: 0.08),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: auraColor.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.auto_awesome, color: auraColor, size: 40),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(tr('ethos_aura'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: auraColor)),
+                        const SizedBox(height: 4),
+                        Text(tr('ethos_aura_desc'), style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Horoscope purchase
+                _buildPurchaseTile(
+                  icon: Icons.auto_awesome,
+                  title: tr('unlock_horoscope'),
+                  price: '€0,50',
+                  purchased: _auraSettings.oroscopoPurchased,
+                  onTap: () => _simulatePurchase('horoscope'),
+                  colorScheme: colorScheme,
+                ),
+                const SizedBox(height: 8),
+
+                // Unlimited voice notes
+                _buildPurchaseTile(
+                  icon: Icons.mic,
+                  title: tr('unlock_unlimited_voice'),
+                  price: '€1,00',
+                  purchased: _auraSettings.unlimitedVoicePurchased,
+                  onTap: () => _simulatePurchase('voice'),
+                  colorScheme: colorScheme,
+                ),
+                const SizedBox(height: 8),
+
+                // Unlimited profiles
+                _buildPurchaseTile(
+                  icon: Icons.people,
+                  title: tr('unlock_unlimited_profiles'),
+                  price: '€2,50',
+                  purchased: _auraSettings.unlimitedProfilesPurchased,
+                  onTap: () => _simulatePurchase('profiles'),
+                  colorScheme: colorScheme,
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildPurchaseTile({
+    required IconData icon,
+    required String title,
+    required String price,
+    required bool purchased,
+    required VoidCallback onTap,
+    required ColorScheme colorScheme,
+  }) {
+    const auraColor = Color(0xFFAB47BC);
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: (purchased ? Colors.green : auraColor).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: purchased ? Colors.green : auraColor),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(purchased ? tr('purchased') : price, style: TextStyle(color: purchased ? Colors.green : colorScheme.onSurfaceVariant)),
+        trailing: purchased
+            ? const Icon(Icons.check_circle, color: Colors.green)
+            : FilledButton(
+                onPressed: onTap,
+                style: FilledButton.styleFrom(backgroundColor: auraColor),
+                child: Text(tr('unlock')),
+              ),
+      ),
+    );
   }
 }
 
@@ -8837,18 +9860,16 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
 
   Future<void> _restoreNote(int index) async {
     final trashed = _trashedNotes[index];
-    final prefs = await SharedPreferences.getInstance();
+    final db = DatabaseHelper();
     if (trashed.type == 'pro') {
-      final notesJson = prefs.getStringList('pro_notes') ?? [];
-      notesJson.add(json.encode(trashed.noteJson));
-      await prefs.setStringList('pro_notes', notesJson);
+      await db.insertProNote(ProNote.fromJson(trashed.noteJson));
     } else {
-      final notesJson = prefs.getStringList('flash_notes_v2') ?? [];
-      notesJson.add(json.encode(trashed.noteJson));
-      await prefs.setStringList('flash_notes_v2', notesJson);
+      await db.insertFlashNote(FlashNote.fromJson(trashed.noteJson));
+    }
+    if (trashed.id != null) {
+      await db.deleteTrashedNote(trashed.id!);
     }
     setState(() => _trashedNotes.removeAt(index));
-    await TrashedNote.saveAll(_trashedNotes);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -8860,8 +9881,11 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
   }
 
   Future<void> _deletePermanently(int index) async {
+    final trashed = _trashedNotes[index];
+    if (trashed.id != null) {
+      await DatabaseHelper().deleteTrashedNote(trashed.id!);
+    }
     setState(() => _trashedNotes.removeAt(index));
-    await TrashedNote.saveAll(_trashedNotes);
   }
 
   Future<void> _emptyTrash() async {
@@ -9294,8 +10318,12 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   String _groupingMode = 'monthly';
   String? _selectedGroup; // null = "Tutte"
   bool _showGroupSidebar = false;
+  // Selection mode
+  bool _selectionMode = false;
+  Set<int> _selectedNoteIds = {};
   // Audio playback
   ap.AudioPlayer? _audioPlayer;
+  StreamSubscription? _playerSubscription;
   int? _playingNoteIndex;
 
   @override
@@ -9308,6 +10336,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   @override
   void dispose() {
+    _playerSubscription?.cancel();
     _audioPlayer?.dispose();
     _controller.dispose();
     _searchController.dispose();
@@ -9379,30 +10408,22 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   }
 
   Future<void> _loadNotes() async {
-    final prefs = await SharedPreferences.getInstance();
-    final notesJson = prefs.getStringList('flash_notes_v2') ?? [];
+    final notes = await DatabaseHelper().getAllFlashNotes();
     setState(() {
-      _notes = notesJson
-          .map((noteStr) => FlashNote.fromJson(json.decode(noteStr)))
-          .toList();
+      _notes = notes;
     });
   }
 
   Future<void> _saveNotes() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      'flash_notes_v2',
-      _notes.map((note) => json.encode(note.toJson())).toList(),
-    );
+    await DatabaseHelper().replaceAllFlashNotes(_notes);
   }
 
-  void _addNote() {
+  Future<void> _addNote() async {
     if (_controller.text.isNotEmpty) {
-      setState(() {
-        _notes.add(FlashNote(content: _controller.text));
-        _controller.clear();
-      });
-      _saveNotes();
+      final note = FlashNote(content: _controller.text);
+      await DatabaseHelper().insertFlashNote(note);
+      _controller.clear();
+      await _loadNotes();
     }
   }
 
@@ -9539,14 +10560,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         calendar: tr('personal'),
       );
       try {
-        final prefs = await SharedPreferences.getInstance();
-        final eventsJson = prefs.getString('calendar_events_full') ?? '{}';
-        final Map<String, dynamic> decoded = json.decode(eventsJson);
-        final key = '${startDate.year}-${startDate.month}-${startDate.day}';
-        final List existing = decoded[key] ?? [];
-        existing.add(event.toJson());
-        decoded[key] = existing;
-        await prefs.setString('calendar_events_full', json.encode(decoded));
+        await DatabaseHelper().insertEvent(event);
 
         // Sync to Google Calendar if connected
         if (GoogleCalendarService.isSignedIn) {
@@ -9600,12 +10614,48 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         noteJson: note.toJson(),
         deletedAt: DateTime.now(),
       );
-      final existing = await TrashedNote.load();
-      existing.add(trashed);
-      await TrashedNote.saveAll(existing);
+      await DatabaseHelper().insertTrashedNote(trashed);
     }
-    setState(() => _notes.removeAt(index));
-    _saveNotes();
+    if (note.id != null) {
+      await DatabaseHelper().deleteFlashNote(note.id!);
+    }
+    await _loadNotes();
+  }
+
+  void _deleteSelectedNotes() {
+    final count = _selectedNoteIds.length;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('confirm_delete')),
+        content: Text('${tr('delete_selected_confirm')} ($count ${tr('notes')})?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final settings = await NoteProSettings.load();
+              for (final noteId in _selectedNoteIds) {
+                final note = _notes.firstWhere((n) => n.id == noteId, orElse: () => _notes.first);
+                if (settings.trashEnabled) {
+                  final trashed = TrashedNote(type: 'flash', noteJson: note.toJson(), deletedAt: DateTime.now());
+                  await DatabaseHelper().insertTrashedNote(trashed);
+                }
+                await DatabaseHelper().deleteFlashNote(noteId);
+              }
+              setState(() {
+                _selectionMode = false;
+                _selectedNoteIds.clear();
+              });
+              await _loadNotes();
+            },
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            child: Text(tr('delete')),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showDeleteConfirmation(int index) {
@@ -9628,6 +10678,43 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
+            child: Text(tr('delete')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteGroupDialog(String label, List<FlashNote> groupNotes) {
+    final colorScheme = Theme.of(context).colorScheme;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('confirm_delete')),
+        content: Text('${tr('delete_group_confirm')} "$label"? (${groupNotes.length} ${tr('notes')})'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final settings = await NoteProSettings.load();
+              for (final note in groupNotes) {
+                if (settings.trashEnabled) {
+                  final trashed = TrashedNote(type: 'flash', noteJson: note.toJson(), deletedAt: DateTime.now());
+                  await DatabaseHelper().insertTrashedNote(trashed);
+                }
+                if (note.id != null) {
+                  await DatabaseHelper().deleteFlashNote(note.id!);
+                }
+              }
+              setState(() {
+                _selectedGroup = null;
+                _showGroupSidebar = false;
+              });
+              await _loadNotes();
+            },
+            style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
             child: Text(tr('delete')),
           ),
         ],
@@ -9847,6 +10934,10 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   }
 
   void _openFlashNote(FlashNote note, int originalIndex) {
+    if (note.isAudioNote) {
+      _showAudioNoteViewer(note, originalIndex);
+      return;
+    }
     final heroTag = 'flash_note_${note.createdAt.millisecondsSinceEpoch}';
     Navigator.push(
       context,
@@ -9863,6 +10954,206 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         ),
       ),
     );
+  }
+
+  void _showAudioNoteViewer(FlashNote note, int originalIndex) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    ap.AudioPlayer? viewerPlayer;
+    bool isPlaying = false;
+    Duration position = Duration.zero;
+    Duration duration = Duration(milliseconds: note.audioDurationMs ?? 0);
+    String transcription = note.content.startsWith('🎤') ? '' : note.content;
+    bool isTranscribing = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(left: 24, right: 24, top: 16, bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: 20),
+                // Title
+                Row(
+                  children: [
+                    Icon(Icons.mic, color: accentColor),
+                    const SizedBox(width: 8),
+                    Text(tr('voice_note'), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                    const Spacer(),
+                    Text(
+                      _formatDateTime(note.createdAt),
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // Player
+                GestureDetector(
+                  onTap: () async {
+                    if (isPlaying) {
+                      await viewerPlayer?.pause();
+                      setSheetState(() => isPlaying = false);
+                    } else {
+                      viewerPlayer ??= ap.AudioPlayer();
+                      viewerPlayer!.onPositionChanged.listen((p) {
+                        setSheetState(() => position = p);
+                      });
+                      viewerPlayer!.onDurationChanged.listen((d) {
+                        setSheetState(() => duration = d);
+                      });
+                      viewerPlayer!.onPlayerComplete.listen((_) {
+                        setSheetState(() { isPlaying = false; position = Duration.zero; });
+                      });
+                      try {
+                        if (position > Duration.zero) {
+                          await viewerPlayer!.resume();
+                        } else {
+                          if (kIsWeb) {
+                            await viewerPlayer!.play(ap.UrlSource(note.audioPath!));
+                          } else {
+                            await viewerPlayer!.play(ap.DeviceFileSource(note.audioPath!));
+                          }
+                        }
+                        setSheetState(() => isPlaying = true);
+                      } catch (_) {}
+                    }
+                  },
+                  child: Container(
+                    width: 72, height: 72,
+                    decoration: BoxDecoration(
+                      color: isPlaying ? accentColor : accentColor.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                      boxShadow: isPlaying
+                          ? [BoxShadow(color: accentColor.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 4))]
+                          : null,
+                    ),
+                    child: Icon(
+                      isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color: isPlaying ? Colors.white : accentColor,
+                      size: 36,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Progress bar
+                SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 4,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    activeTrackColor: accentColor,
+                    inactiveTrackColor: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                    thumbColor: accentColor,
+                    overlayShape: SliderComponentShape.noOverlay,
+                  ),
+                  child: Slider(
+                    value: duration.inMilliseconds > 0
+                        ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+                        : 0.0,
+                    onChanged: (v) async {
+                      final newPos = Duration(milliseconds: (v * duration.inMilliseconds).toInt());
+                      await viewerPlayer?.seek(newPos);
+                      setSheetState(() => position = newPos);
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(_formatAudioDuration(position.inSeconds), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                      Text(_formatAudioDuration(duration.inSeconds), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Transcription section
+                if (transcription.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(tr('transcription'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 4),
+                        Text(transcription, style: TextStyle(fontSize: 14, color: colorScheme.onSurface)),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                // Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: isTranscribing ? null : () async {
+                          final settings = await FlashNotesSettings.load();
+                          if (settings.geminiApiKey.isEmpty) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(
+                                content: Text(tr('configure_gemini_first')),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            );
+                            return;
+                          }
+                          setSheetState(() => isTranscribing = true);
+                          try {
+                            final model = gemini.GenerativeModel(model: 'gemini-2.0-flash', apiKey: settings.geminiApiKey);
+                            final response = await model.generateContent([
+                              gemini.Content.text('Trascrivi questa nota vocale. Il contenuto attuale è: "${note.content}". Restituisci solo il testo trascritto e pulito.'),
+                            ]);
+                            setSheetState(() {
+                              transcription = response.text ?? '';
+                              isTranscribing = false;
+                            });
+                          } catch (e) {
+                            setSheetState(() => isTranscribing = false);
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                              );
+                            }
+                          }
+                        },
+                        icon: isTranscribing ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.text_fields, size: 18),
+                        label: Text(tr('transcribe')),
+                        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () {
+                        viewerPlayer?.stop();
+                        viewerPlayer?.dispose();
+                        Navigator.pop(ctx);
+                        _showDeleteConfirmation(originalIndex);
+                      },
+                      icon: Icon(Icons.delete_outline, color: colorScheme.error),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    ).then((_) {
+      viewerPlayer?.stop();
+      viewerPlayer?.dispose();
+    });
   }
 
   Route _buildExpandRoute(Widget page) {
@@ -9887,7 +11178,6 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   }
 
   Future<void> _openInNotePro(FlashNote flashNote) async {
-    final prefs = await SharedPreferences.getInstance();
     // Load folders
     Map<String, FolderStyle> folders = {
       'Generale': const FolderStyle(Icons.folder, Colors.blue),
@@ -9896,13 +11186,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       'Flash Notes': const FolderStyle(Icons.flash_on, Color(0xFFFFA726)),
       tr('private_folder'): const FolderStyle(Icons.lock, Color(0xFF7B1FA2)),
     };
-    final foldersJson = prefs.getString('custom_folders');
-    if (foldersJson != null) {
-      final Map<String, dynamic> decoded = json.decode(foldersJson);
-      for (final entry in decoded.entries) {
-        folders[entry.key] = FolderStyle.fromJson(entry.value);
-      }
-    }
+    final customFolders = await DatabaseHelper().getAllFolders();
+    folders.addAll(customFolders);
     // Create a ProNote from the flash note
     final title = flashNote.content.length > 40
         ? flashNote.content.substring(0, 40)
@@ -9921,10 +11206,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           note: proNote,
           folders: folders,
           onSave: (savedNote) async {
-            final prefs = await SharedPreferences.getInstance();
-            final notesJson = prefs.getStringList('pro_notes') ?? [];
-            notesJson.add(json.encode(savedNote.toJson()));
-            await prefs.setStringList('pro_notes', notesJson);
+            await DatabaseHelper().insertProNote(savedNote);
           },
         ),
       ),
@@ -9968,28 +11250,67 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         // MAIN CONTENT (full width)
         Column(
           children: [
+        // SELECTION MODE BAR
+        if (_selectionMode)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            color: accentColor.withValues(alpha: 0.08),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(() { _selectionMode = false; _selectedNoteIds.clear(); }),
+                ),
+                Text(
+                  '${_selectedNoteIds.length} ${tr('selected')}',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: accentColor),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      if (_selectedNoteIds.length == sortedNotes.length) {
+                        _selectedNoteIds.clear();
+                      } else {
+                        _selectedNoteIds = sortedNotes.where((n) => n.id != null).map((n) => n.id!).toSet();
+                      }
+                    });
+                  },
+                  child: Text(_selectedNoteIds.length == sortedNotes.length ? tr('deselect_all') : tr('select_all')),
+                ),
+                FilledButton.icon(
+                  onPressed: _selectedNoteIds.isEmpty ? null : () => _deleteSelectedNotes(),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: Text(tr('delete')),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: colorScheme.error,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
         // SEARCH BAR + VIEW TOGGLE
+        if (!_selectionMode)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Row(
             children: [
               // Sidebar toggle button
-              Container(
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  color: _selectedGroup != null ? accentColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _selectedGroup != null ? accentColor.withValues(alpha: 0.4) : colorScheme.outlineVariant.withValues(alpha: 0.3)),
-                ),
-                child: IconButton(
-                  icon: Icon(
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FloatingActionButton.small(
+                  heroTag: 'flash_group_fab',
+                  elevation: _selectedGroup != null ? 2 : 1,
+                  backgroundColor: _selectedGroup != null ? accentColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  onPressed: () => setState(() => _showGroupSidebar = !_showGroupSidebar),
+                  tooltip: tr('grouping_mode'),
+                  child: Icon(
                     _selectedGroup != null ? _getGroupIcon() : Icons.apps,
                     size: 20,
                     color: _selectedGroup != null ? accentColor : colorScheme.onSurfaceVariant,
                   ),
-                  onPressed: () => setState(() => _showGroupSidebar = !_showGroupSidebar),
-                  tooltip: tr('grouping_mode'),
-                  visualDensity: VisualDensity.compact,
                 ),
               ),
               Expanded(
@@ -10070,18 +11391,41 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       itemBuilder: (context, index) {
                         final note = sortedNotes[index];
                         final originalIndex = _notes.indexOf(note);
+                        final isSelected = note.id != null && _selectedNoteIds.contains(note.id);
                         return GestureDetector(
-                          onTap: () => _openFlashNote(note, originalIndex),
-                          onLongPress: () => _showDeleteConfirmation(originalIndex),
+                          onTap: () {
+                            if (_selectionMode) {
+                              setState(() {
+                                if (note.id != null) {
+                                  if (_selectedNoteIds.contains(note.id)) {
+                                    _selectedNoteIds.remove(note.id);
+                                    if (_selectedNoteIds.isEmpty) _selectionMode = false;
+                                  } else {
+                                    _selectedNoteIds.add(note.id!);
+                                  }
+                                }
+                              });
+                            } else {
+                              _openFlashNote(note, originalIndex);
+                            }
+                          },
+                          onLongPress: () {
+                            if (!_selectionMode) {
+                              setState(() {
+                                _selectionMode = true;
+                                if (note.id != null) _selectedNoteIds.add(note.id!);
+                              });
+                            }
+                          },
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             margin: const EdgeInsets.all(2),
                             decoration: BoxDecoration(
-                              color: colorScheme.surfaceContainerLowest,
+                              color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-                                width: 1,
+                                color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                width: isSelected ? 2 : 1,
                               ),
                             ),
                             child: Padding(
@@ -10114,26 +11458,28 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                             GestureDetector(
                                               onTap: () => _playAudioNote(originalIndex, note.audioPath!),
                                               child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                width: 56,
+                                                height: 56,
                                                 decoration: BoxDecoration(
-                                                  color: accentColor.withValues(alpha: 0.08),
-                                                  borderRadius: BorderRadius.circular(12),
+                                                  color: _playingNoteIndex == originalIndex
+                                                      ? accentColor
+                                                      : accentColor.withValues(alpha: 0.12),
+                                                  shape: BoxShape.circle,
+                                                  boxShadow: _playingNoteIndex == originalIndex
+                                                      ? [BoxShadow(color: accentColor.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 3))]
+                                                      : null,
                                                 ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      _playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                                                      color: accentColor, size: 24,
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Text(
-                                                      _formatAudioDuration((note.audioDurationMs ?? 0) ~/ 1000),
-                                                      style: TextStyle(fontWeight: FontWeight.w600, color: accentColor),
-                                                    ),
-                                                  ],
+                                                child: Icon(
+                                                  _playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                                                  color: _playingNoteIndex == originalIndex ? Colors.white : accentColor,
+                                                  size: 30,
                                                 ),
                                               ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              _formatAudioDuration((note.audioDurationMs ?? 0) ~/ 1000),
+                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accentColor),
                                             ),
                                           ],
                                         )
@@ -10156,8 +11502,10 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                         _buildCellAction(Icons.edit_note, colorScheme.primary, () => _openInNotePro(note)),
                                         const SizedBox(width: 6),
                                       ],
-                                      _buildCellAction(Icons.event, _isEthosTheme(context) ? const Color(0xFFA3274F) : const Color(0xFF1E88E5), () => _createEventFromFlashNote(note)),
-                                      const SizedBox(width: 6),
+                                      if (!note.isAudioNote) ...[
+                                        _buildCellAction(Icons.event, _isEthosTheme(context) ? const Color(0xFFA3274F) : const Color(0xFF1E88E5), () => _createEventFromFlashNote(note)),
+                                        const SizedBox(width: 6),
+                                      ],
                                       _buildCellAction(Icons.psychology, Colors.purple, () => _showAIOptions(note, originalIndex)),
                                     ],
                                   ),
@@ -10175,28 +11523,87 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                         final note = sortedNotes[index];
                         final originalIndex = _notes.indexOf(note);
                         final heroTag = 'flash_to_deep_${note.createdAt.millisecondsSinceEpoch}';
+                        final isSelected = note.id != null && _selectedNoteIds.contains(note.id);
                         return _SlideInItem(index: index, child: Hero(
                           tag: heroTag,
                           child: Material(
                             type: MaterialType.transparency,
                             child: GestureDetector(
-                              onTap: () => _openFlashNote(note, originalIndex),
-                              onLongPress: () => _showDeleteConfirmation(originalIndex),
+                              onTap: () {
+                                if (_selectionMode) {
+                                  setState(() {
+                                    if (note.id != null) {
+                                      if (_selectedNoteIds.contains(note.id)) {
+                                        _selectedNoteIds.remove(note.id);
+                                        if (_selectedNoteIds.isEmpty) _selectionMode = false;
+                                      } else {
+                                        _selectedNoteIds.add(note.id!);
+                                      }
+                                    }
+                                  });
+                                } else {
+                                  _openFlashNote(note, originalIndex);
+                                }
+                              },
+                              onLongPress: () {
+                                if (!_selectionMode) {
+                                  setState(() {
+                                    _selectionMode = true;
+                                    if (note.id != null) _selectedNoteIds.add(note.id!);
+                                  });
+                                }
+                              },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 margin: const EdgeInsets.only(bottom: 8),
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerLowest,
+                                  color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                  border: Border.all(
+                                    color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                    width: isSelected ? 2 : 1,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
-                                    CircleAvatar(
-                                      backgroundColor: accentColor.withValues(alpha: 0.12),
-                                      child: Icon(note.isAudioNote ? Icons.mic : Icons.flash_on, color: accentColor),
-                                    ),
+                                    if (_selectionMode)
+                                      Padding(
+                                        padding: const EdgeInsets.only(right: 12),
+                                        child: Container(
+                                          width: 24, height: 24,
+                                          decoration: BoxDecoration(
+                                            color: isSelected ? accentColor : Colors.transparent,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: isSelected ? accentColor : colorScheme.outlineVariant, width: 2),
+                                          ),
+                                          child: isSelected ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
+                                        ),
+                                      ),
+                                    if (note.isAudioNote)
+                                      GestureDetector(
+                                        onTap: () => _playAudioNote(originalIndex, note.audioPath!),
+                                        child: Container(
+                                          width: 44,
+                                          height: 44,
+                                          decoration: BoxDecoration(
+                                            color: _playingNoteIndex == originalIndex
+                                                ? accentColor
+                                                : accentColor.withValues(alpha: 0.12),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            _playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                                            color: _playingNoteIndex == originalIndex ? Colors.white : accentColor,
+                                            size: 26,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      CircleAvatar(
+                                        backgroundColor: accentColor.withValues(alpha: 0.12),
+                                        child: Icon(Icons.flash_on, color: accentColor),
+                                      ),
                                     const SizedBox(width: 16),
                                     Expanded(
                                       child: Column(
@@ -10237,26 +11644,20 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                         ],
                                       ),
                                     ),
-                                    if (note.isAudioNote)
-                                      IconButton(
-                                        icon: Icon(_playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded),
-                                        color: accentColor,
-                                        tooltip: _playingNoteIndex == originalIndex ? tr('stop') : tr('play'),
-                                        onPressed: () => _playAudioNote(originalIndex, note.audioPath!),
-                                      )
-                                    else
+                                    if (!note.isAudioNote)
                                       IconButton(
                                         icon: const Icon(Icons.edit_note),
                                         color: colorScheme.primary,
                                         tooltip: tr('open_in_deep_note'),
                                         onPressed: () => _openInNotePro(note),
                                       ),
-                                    IconButton(
-                                      icon: const Icon(Icons.event),
-                                      color: _isEthosTheme(context) ? const Color(0xFFA3274F) : const Color(0xFF1E88E5),
-                                      tooltip: tr('create_event'),
-                                      onPressed: () => _createEventFromFlashNote(note),
-                                    ),
+                                    if (!note.isAudioNote)
+                                      IconButton(
+                                        icon: const Icon(Icons.event),
+                                        color: _isEthosTheme(context) ? const Color(0xFFA3274F) : const Color(0xFF1E88E5),
+                                        tooltip: tr('create_event'),
+                                        onPressed: () => _createEventFromFlashNote(note),
+                                      ),
                                     IconButton(
                                       icon: const Icon(Icons.psychology),
                                       color: Colors.purple,
@@ -10290,7 +11691,12 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                     IconButton.filled(
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(tr('insert_image')), duration: const Duration(seconds: 2)),
+                          SnackBar(
+                            content: Text(tr('insert_image')),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            duration: const Duration(seconds: 2),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.camera_alt, size: 22),
@@ -10343,24 +11749,24 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               ),
             ),
           ),
-          // Sidebar panel (slides from left like S-Pen toolbar)
+          // Dropdown panel (vertical drop from top)
           Positioned(
-            left: 12, top: 12, bottom: 12,
+            left: 12, top: 56, right: 12,
             child: AnimatedSlide(
-              offset: _showGroupSidebar ? Offset.zero : const Offset(-1.5, 0),
-              duration: const Duration(milliseconds: 250),
+              offset: _showGroupSidebar ? Offset.zero : const Offset(0, -0.3),
+              duration: const Duration(milliseconds: 350),
               curve: Curves.easeOutCubic,
               child: AnimatedOpacity(
                 opacity: _showGroupSidebar ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 250),
                 child: Container(
                   width: 220,
-                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
                   decoration: BoxDecoration(
                     color: colorScheme.surfaceContainerLowest,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(4, 0))],
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(0, 4))],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -10406,15 +11812,17 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                           children: groupKeys.map((key) {
                             final isSelected = _selectedGroup == key;
                             final label = _getGroupLabel(key);
+                            final groupNotes = groupedNotes[key]!;
                             return ListTile(
                               dense: true,
                               leading: Icon(_getGroupIcon(), size: 20, color: isSelected ? accentColor : colorScheme.onSurfaceVariant),
                               title: Text(label, style: TextStyle(fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal, color: isSelected ? accentColor : null)),
-                              trailing: Text('${groupedNotes[key]!.length}', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                              trailing: Text('${groupNotes.length}', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                               selected: isSelected,
                               selectedTileColor: accentColor.withValues(alpha: 0.08),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               onTap: () => setState(() { _selectedGroup = key; _showGroupSidebar = false; }),
+                              onLongPress: () => _showDeleteGroupDialog(label, groupNotes),
                             );
                           }).toList(),
                         ),
@@ -10493,9 +11901,10 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     }
     // Stop any current playback
     await _audioPlayer?.stop();
+    _playerSubscription?.cancel();
     _audioPlayer?.dispose();
     _audioPlayer = ap.AudioPlayer();
-    _audioPlayer!.onPlayerComplete.listen((_) {
+    _playerSubscription = _audioPlayer!.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _playingNoteIndex = null);
     });
     try {
@@ -10522,6 +11931,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
     final colorScheme = Theme.of(context).colorScheme;
     final recorder = AudioRecorder();
+    final flashSettings = await FlashNotesSettings.load();
+    final maxDuration = flashSettings.maxAudioDurationSeconds;
 
     if (!await recorder.hasPermission()) {
       recorder.dispose();
@@ -10582,69 +11993,103 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                 const SizedBox(height: 24),
 
                 if (recordedPath == null) ...[
-                  // Record / Stop button
-                  GestureDetector(
-                    onTap: () async {
-                      if (isRecording) {
-                        timer?.cancel();
-                        final path = await recorder.stop();
-                        recordedPath = path;
-                        setSheetState(() => isRecording = false);
-                      } else {
-                        String path = '';
-                        if (!kIsWeb) {
-                          try {
-                            final tempDir = await getTemporaryDirectory();
-                            path = '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-                          } catch (_) {
-                            path = 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-                          }
-                        }
-                        await recorder.start(const RecordConfig(
-                          encoder: AudioEncoder.aacLc,
-                          bitRate: 128000,
-                          sampleRate: 44100,
-                        ), path: path);
-                        elapsedSeconds = 0;
-                        timer = Timer.periodic(const Duration(seconds: 1), (_) {
-                          elapsedSeconds++;
-                          setSheetState(() {});
-                          if (elapsedSeconds >= 120) {
-                            timer?.cancel();
-                            recorder.stop().then((path) {
-                              recordedPath = path;
-                              setSheetState(() => isRecording = false);
-                            });
-                          }
-                        });
-                        setSheetState(() => isRecording = true);
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutCubic,
-                      width: isRecording ? 64 : 80,
-                      height: isRecording ? 64 : 80,
-                      decoration: BoxDecoration(
-                        color: isRecording ? Colors.red : accentColor,
-                        shape: isRecording ? BoxShape.rectangle : BoxShape.circle,
-                        borderRadius: isRecording ? BorderRadius.circular(16) : null,
-                        boxShadow: [
-                          BoxShadow(
-                            color: (isRecording ? Colors.red : accentColor).withValues(alpha: 0.3),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
+                  // Pulsing ring behind mic button when recording
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (isRecording)
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0.8, end: 1.0),
+                          duration: const Duration(milliseconds: 1000),
+                          builder: (_, val, __) => Container(
+                            width: 100 * val,
+                            height: 100 * val,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.red.withValues(alpha: 0.3 * (2 - val)), width: 3),
+                            ),
                           ),
-                        ],
+                        ),
+                      // Record / Stop button
+                      GestureDetector(
+                        onTap: () async {
+                          if (isRecording) {
+                            timer?.cancel();
+                            final path = await recorder.stop();
+                            recordedPath = path;
+                            setSheetState(() => isRecording = false);
+                          } else {
+                            String path = '';
+                            if (!kIsWeb) {
+                              try {
+                                final tempDir = await getTemporaryDirectory();
+                                path = '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                              } catch (_) {
+                                path = 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                              }
+                            }
+                            await recorder.start(const RecordConfig(
+                              encoder: AudioEncoder.aacLc,
+                              bitRate: 128000,
+                              sampleRate: 44100,
+                            ), path: path);
+                            elapsedSeconds = 0;
+                            timer = Timer.periodic(const Duration(seconds: 1), (_) {
+                              elapsedSeconds++;
+                              setSheetState(() {});
+                              if (elapsedSeconds >= maxDuration) {
+                                timer?.cancel();
+                                recorder.stop().then((path) {
+                                  recordedPath = path;
+                                  setSheetState(() => isRecording = false);
+                                });
+                              }
+                            });
+                            setSheetState(() => isRecording = true);
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic,
+                          width: isRecording ? 64 : 80,
+                          height: isRecording ? 64 : 80,
+                          decoration: BoxDecoration(
+                            color: isRecording ? Colors.red : accentColor,
+                            shape: isRecording ? BoxShape.rectangle : BoxShape.circle,
+                            borderRadius: isRecording ? BorderRadius.circular(16) : null,
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isRecording ? Colors.red : accentColor).withValues(alpha: 0.3),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isRecording ? Icons.stop_rounded : Icons.mic,
+                            color: Colors.white,
+                            size: 36,
+                          ),
+                        ),
                       ),
-                      child: Icon(
-                        isRecording ? Icons.stop_rounded : Icons.mic,
-                        color: Colors.white,
-                        size: 36,
-                      ),
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 12),
+                  // Progress bar (recording progress to 2 min max)
+                  if (isRecording)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: elapsedSeconds / maxDuration,
+                          backgroundColor: colorScheme.outlineVariant.withValues(alpha: 0.2),
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.red.withValues(alpha: 0.7)),
+                          minHeight: 3,
+                        ),
+                      ),
+                    ),
+                  if (isRecording) const SizedBox(height: 8),
                   Text(
                     isRecording ? tr('tap_to_stop') : tr('tap_to_record'),
                     style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
@@ -10653,7 +12098,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        tr('max_2_minutes'),
+                        maxDuration >= 60 ? 'max ${maxDuration ~/ 60} min' : 'max $maxDuration ${tr('seconds')}',
                         style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
                       ),
                     ),
@@ -10799,9 +12244,27 @@ class FolderStyle {
     isShared: json['isShared'] ?? false,
     sharedEmails: (json['sharedEmails'] as List?)?.cast<String>() ?? [],
   );
+
+  Map<String, dynamic> toDbMap(String name) => {
+    'name': name,
+    'icon_code': icon.codePoint,
+    'color_value': color.value,
+    'is_custom': isCustom ? 1 : 0,
+    'is_shared': isShared ? 1 : 0,
+    'shared_emails': sharedEmails.isNotEmpty ? json.encode(sharedEmails) : null,
+  };
+
+  factory FolderStyle.fromDbMap(Map<String, dynamic> m) => FolderStyle(
+    IconData(m['icon_code'] as int, fontFamily: 'MaterialIcons'),
+    Color(m['color_value'] as int),
+    isCustom: (m['is_custom'] as int?) == 1,
+    isShared: (m['is_shared'] as int?) == 1,
+    sharedEmails: m['shared_emails'] != null ? (json.decode(m['shared_emails'] as String) as List).cast<String>() : [],
+  );
 }
 
 class ProNote {
+  final int? id;
   final String title;
   final String content;
   final String? contentDelta;
@@ -10813,6 +12276,7 @@ class ProNote {
   final DateTime? linkedDate;
 
   ProNote({
+    this.id,
     required this.title,
     required this.content,
     this.contentDelta,
@@ -10846,6 +12310,31 @@ class ProNote {
     folder: json['folder'] ?? 'Generale',
     linkedDate: json['linkedDate'] != null ? DateTime.parse(json['linkedDate']) : null,
     createdAt: DateTime.parse(json['createdAt']),
+  );
+
+  Map<String, dynamic> toDbMap() => {
+    'title': title,
+    'content': content,
+    'content_delta': contentDelta,
+    'header_text': headerText,
+    'footer_text': footerText,
+    'template_preset': templatePreset,
+    'folder': folder,
+    'linked_date': linkedDate?.millisecondsSinceEpoch,
+    'created_at': createdAt.millisecondsSinceEpoch,
+  };
+
+  factory ProNote.fromDbMap(Map<String, dynamic> m) => ProNote(
+    id: m['id'] as int?,
+    title: m['title'] as String,
+    content: m['content'] as String,
+    contentDelta: m['content_delta'] as String?,
+    headerText: m['header_text'] as String?,
+    footerText: m['footer_text'] as String?,
+    templatePreset: m['template_preset'] as String?,
+    folder: (m['folder'] as String?) ?? 'Generale',
+    linkedDate: m['linked_date'] != null ? DateTime.fromMillisecondsSinceEpoch(m['linked_date'] as int) : null,
+    createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
   );
 }
 
@@ -10922,8 +12411,7 @@ class NoteProSettings {
   );
 
   static Future<NoteProSettings> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonStr = prefs.getString('note_pro_settings');
+    final jsonStr = await DatabaseHelper().getSetting('note_pro_settings');
     if (jsonStr != null) {
       return NoteProSettings.fromJson(json.decode(jsonStr));
     }
@@ -10931,17 +12419,18 @@ class NoteProSettings {
   }
 
   Future<void> save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('note_pro_settings', json.encode(toJson()));
+    await DatabaseHelper().saveSetting('note_pro_settings', json.encode(toJson()));
   }
 }
 
 class TrashedNote {
+  final int? id;
   final String type; // 'pro' or 'flash'
   final Map<String, dynamic> noteJson;
   final DateTime deletedAt;
 
   const TrashedNote({
+    this.id,
     required this.type,
     required this.noteJson,
     required this.deletedAt,
@@ -10953,10 +12442,23 @@ class TrashedNote {
     'deletedAt': deletedAt.toIso8601String(),
   };
 
-  factory TrashedNote.fromJson(Map<String, dynamic> json) => TrashedNote(
-    type: json['type'],
-    noteJson: Map<String, dynamic>.from(json['noteJson']),
-    deletedAt: DateTime.parse(json['deletedAt']),
+  factory TrashedNote.fromJson(Map<String, dynamic> j) => TrashedNote(
+    type: j['type'],
+    noteJson: Map<String, dynamic>.from(j['noteJson']),
+    deletedAt: DateTime.parse(j['deletedAt']),
+  );
+
+  Map<String, dynamic> toDbMap() => {
+    'type': type,
+    'note_json': json.encode(noteJson),
+    'deleted_at': deletedAt.millisecondsSinceEpoch,
+  };
+
+  factory TrashedNote.fromDbMap(Map<String, dynamic> m) => TrashedNote(
+    id: m['id'] as int?,
+    type: m['type'] as String,
+    noteJson: Map<String, dynamic>.from(json.decode(m['note_json'] as String)),
+    deletedAt: DateTime.fromMillisecondsSinceEpoch(m['deleted_at'] as int),
   );
 
   int daysRemaining(int retentionDays) {
@@ -10965,28 +12467,15 @@ class TrashedNote {
   }
 
   static Future<List<TrashedNote>> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('trashed_notes') ?? [];
-    return list.map((e) => TrashedNote.fromJson(json.decode(e))).toList();
+    return await DatabaseHelper().getAllTrashedNotes();
   }
 
   static Future<void> saveAll(List<TrashedNote> notes) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      'trashed_notes',
-      notes.map((e) => json.encode(e.toJson())).toList(),
-    );
+    await DatabaseHelper().saveAllTrashedNotes(notes);
   }
 
   static Future<void> cleanExpired(int retentionDays) async {
-    final notes = await load();
-    final now = DateTime.now();
-    final valid = notes.where((n) =>
-      now.difference(n.deletedAt).inDays < retentionDays
-    ).toList();
-    if (valid.length != notes.length) {
-      await saveAll(valid);
-    }
+    await DatabaseHelper().cleanExpiredTrash(retentionDays);
   }
 }
 
@@ -11059,43 +12548,28 @@ class _NotesProPageState extends State<NotesProPage> {
   }
 
   Future<void> _loadCustomFolders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final foldersJson = prefs.getString('custom_folders');
-    if (foldersJson != null) {
-      final Map<String, dynamic> decoded = json.decode(foldersJson);
-      setState(() {
-        for (final entry in decoded.entries) {
-          _folders[entry.key] = FolderStyle.fromJson(entry.value);
-        }
-      });
-    }
+    final customFolders = await DatabaseHelper().getAllFolders();
+    setState(() {
+      _folders.addAll(customFolders);
+    });
   }
 
   Future<void> _saveCustomFolders() async {
-    final prefs = await SharedPreferences.getInstance();
     final customOnly = Map.fromEntries(
       _folders.entries.where((e) => e.value.isCustom),
     );
-    final encoded = customOnly.map((k, v) => MapEntry(k, v.toJson()));
-    await prefs.setString('custom_folders', json.encode(encoded));
+    await DatabaseHelper().saveAllFolders(customOnly);
   }
 
   Future<void> _loadNotes() async {
-    final prefs = await SharedPreferences.getInstance();
-    final notesJson = prefs.getStringList('pro_notes') ?? [];
+    final notes = await DatabaseHelper().getAllProNotes();
     setState(() {
-      _proNotes = notesJson
-          .map((noteStr) => ProNote.fromJson(json.decode(noteStr)))
-          .toList();
+      _proNotes = notes;
     });
   }
 
   Future<void> _saveNotes() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      'pro_notes',
-      _proNotes.map((note) => json.encode(note.toJson())).toList(),
-    );
+    await DatabaseHelper().replaceAllProNotes(_proNotes);
   }
 
   void _createNewNote() {
@@ -11104,9 +12578,9 @@ class _NotesProPageState extends State<NotesProPage> {
       MaterialPageRoute(
         builder: (context) => NoteEditorPage(
           folders: _folders,
-          onSave: (note) {
-            setState(() => _proNotes.add(note));
-            _saveNotes();
+          onSave: (note) async {
+            await DatabaseHelper().insertProNote(note);
+            await _loadNotes();
           },
         ),
       ),
@@ -11121,9 +12595,13 @@ class _NotesProPageState extends State<NotesProPage> {
         builder: (context) => NoteReadPage(
           note: note,
           folders: _folders,
-          onSave: (updatedNote) {
-            setState(() => _proNotes[index] = updatedNote);
-            _saveNotes();
+          onSave: (updatedNote) async {
+            if (note.id != null) {
+              await DatabaseHelper().updateProNote(note.id!, updatedNote);
+            } else {
+              await DatabaseHelper().insertProNote(updatedNote);
+            }
+            await _loadNotes();
           },
         ),
       ),
@@ -11139,12 +12617,12 @@ class _NotesProPageState extends State<NotesProPage> {
         noteJson: note.toJson(),
         deletedAt: DateTime.now(),
       );
-      final existing = await TrashedNote.load();
-      existing.add(trashed);
-      await TrashedNote.saveAll(existing);
+      await DatabaseHelper().insertTrashedNote(trashed);
     }
-    setState(() => _proNotes.removeAt(index));
-    _saveNotes();
+    if (note.id != null) {
+      await DatabaseHelper().deleteProNote(note.id!);
+    }
+    await _loadNotes();
   }
 
   List<ProNote> get _filteredNotes {
@@ -11223,7 +12701,11 @@ class _NotesProPageState extends State<NotesProPage> {
                 onSuccess();
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(tr('wrong_pin'))),
+                  SnackBar(
+                    content: Text(tr('wrong_pin')),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 );
               }
             },
@@ -11274,7 +12756,11 @@ class _NotesProPageState extends State<NotesProPage> {
                 onSuccess();
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(tr('wrong_pin'))),
+                  SnackBar(
+                    content: Text(tr('wrong_pin')),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 );
               }
             },
@@ -11303,7 +12789,11 @@ class _NotesProPageState extends State<NotesProPage> {
       });
       _saveNotes();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('note_moved_to_trash'))),
+        SnackBar(
+          content: Text(tr('note_moved_to_trash')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       );
     }
 
@@ -11314,6 +12804,59 @@ class _NotesProPageState extends State<NotesProPage> {
     }
   }
 
+  void _showDeleteFolderDialog(String folderName) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final count = _proNotes.where((n) => n.folder == folderName).length;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('confirm_delete')),
+        content: Text(
+          count > 0
+              ? '${tr('delete_folder_confirm')} "$folderName"?\n${tr('notes_moved_to_general').replaceAll('{n}', '$count')}'
+              : '${tr('delete_folder_confirm')} "$folderName"?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              // Move notes to "Generale"
+              for (int i = 0; i < _proNotes.length; i++) {
+                if (_proNotes[i].folder == folderName) {
+                  final updated = ProNote(
+                    id: _proNotes[i].id,
+                    title: _proNotes[i].title,
+                    content: _proNotes[i].content,
+                    contentDelta: _proNotes[i].contentDelta,
+                    headerText: _proNotes[i].headerText,
+                    footerText: _proNotes[i].footerText,
+                    templatePreset: _proNotes[i].templatePreset,
+                    createdAt: _proNotes[i].createdAt,
+                    folder: 'Generale',
+                    linkedDate: _proNotes[i].linkedDate,
+                  );
+                  _proNotes[i] = updated;
+                }
+              }
+              await _saveNotes();
+              setState(() {
+                _folders.remove(folderName);
+                if (_selectedFolder == folderName) _selectedFolder = tr('all_items');
+                _showFolderSidebar = false;
+              });
+              await DatabaseHelper().deleteFolder(folderName);
+              await _saveCustomFolders();
+            },
+            style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
+            child: Text(tr('delete')),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showCreateFolderDialog() async {
     final nameController = TextEditingController();
     IconData selectedIcon = Icons.folder;
@@ -11321,13 +12864,11 @@ class _NotesProPageState extends State<NotesProPage> {
     bool isShared = false;
     final emailController = TextEditingController();
     List<String> sharedEmails = [];
-    final prefs = await SharedPreferences.getInstance();
-    final profileJson = prefs.getString('user_profile');
-    final friends = profileJson != null
-        ? (UserProfile.fromJson(json.decode(profileJson))).friends
-        : <String>[];
+    final profile = await DatabaseHelper().getProfile();
+    final friends = profile?.friends ?? <String>[];
     List<String> selectedFriends = [];
 
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -11557,22 +13098,20 @@ class _NotesProPageState extends State<NotesProPage> {
                   child: Row(
                     children: [
                       // Folder sidebar toggle
-                      Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: _selectedFolder != tr('all_items') ? accentColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _selectedFolder != tr('all_items') ? accentColor.withValues(alpha: 0.4) : colorScheme.outlineVariant.withValues(alpha: 0.3)),
-                        ),
-                        child: IconButton(
-                          icon: Icon(
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FloatingActionButton.small(
+                          heroTag: 'deep_note_folder_fab',
+                          elevation: _selectedFolder != tr('all_items') ? 2 : 1,
+                          backgroundColor: _selectedFolder != tr('all_items') ? accentColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          onPressed: () => setState(() => _showFolderSidebar = !_showFolderSidebar),
+                          tooltip: tr('folders'),
+                          child: Icon(
                             _selectedFolder != tr('all_items') ? (_folders[_selectedFolder]?.icon ?? Icons.folder) : Icons.folder_outlined,
                             size: 20,
                             color: _selectedFolder != tr('all_items') ? accentColor : colorScheme.onSurfaceVariant,
                           ),
-                          onPressed: () => setState(() => _showFolderSidebar = !_showFolderSidebar),
-                          tooltip: tr('folders'),
-                          visualDensity: VisualDensity.compact,
                         ),
                       ),
                       Expanded(
@@ -11844,27 +13383,31 @@ class _NotesProPageState extends State<NotesProPage> {
             Positioned.fill(
               child: GestureDetector(
                 onTap: () => setState(() => _showFolderSidebar = false),
-                child: Container(color: Colors.black26),
-              ),
-            ),
-            // Sidebar panel (slides from left like S-Pen toolbar)
-            Positioned(
-              left: 12, top: 12, bottom: 12,
-              child: AnimatedSlide(
-                offset: _showFolderSidebar ? Offset.zero : const Offset(-1.5, 0),
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
                   opacity: _showFolderSidebar ? 1.0 : 0.0,
                   duration: const Duration(milliseconds: 200),
+                  child: Container(color: Colors.black26),
+                ),
+              ),
+            ),
+            // Dropdown panel (vertical drop from top)
+            Positioned(
+              left: 12, top: 56, right: 12,
+              child: AnimatedSlide(
+                offset: _showFolderSidebar ? Offset.zero : const Offset(0, -0.3),
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: _showFolderSidebar ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 250),
                   child: Container(
                     width: 220,
-                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerLowest,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(4, 0))],
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(0, 4))],
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -11917,6 +13460,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                   _onFolderTap(entry.key);
                                   setState(() => _showFolderSidebar = false);
                                 },
+                                onLongPress: entry.value.isCustom ? () => _showDeleteFolderDialog(entry.key) : null,
                               );
                             }).toList(),
                           ),
@@ -11995,6 +13539,9 @@ class NoteReadPage extends StatefulWidget {
 
 class _NoteReadPageState extends State<NoteReadPage> {
   late ProNote _currentNote;
+  quill.QuillController? _quillReadController;
+  final FocusNode _readFocusNode = FocusNode(canRequestFocus: false);
+  final ScrollController _readScrollController = ScrollController();
 
   static final _googleFontBuilders = <String, TextStyle Function()>{
     'Roboto': () => GoogleFonts.roboto(),
@@ -12024,6 +13571,31 @@ class _NoteReadPageState extends State<NoteReadPage> {
   void initState() {
     super.initState();
     _currentNote = widget.note;
+    _buildQuillController();
+  }
+
+  @override
+  void dispose() {
+    _quillReadController?.dispose();
+    _readFocusNode.dispose();
+    _readScrollController.dispose();
+    super.dispose();
+  }
+
+  void _buildQuillController() {
+    _quillReadController?.dispose();
+    _quillReadController = null;
+    if (_currentNote.contentDelta != null) {
+      try {
+        final deltaJson = jsonDecode(_currentNote.contentDelta!) as List;
+        final doc = quill.Document.fromJson(deltaJson);
+        _quillReadController = quill.QuillController(
+          document: doc,
+          selection: const TextSelection.collapsed(offset: 0),
+          readOnly: true,
+        );
+      } catch (_) {}
+    }
   }
 
   void _openEditor() async {
@@ -12035,13 +13607,19 @@ class _NoteReadPageState extends State<NoteReadPage> {
           existingNote: _currentNote,
           onSave: (updatedNote) {
             widget.onSave(updatedNote);
-            setState(() => _currentNote = updatedNote);
+            setState(() {
+              _currentNote = updatedNote;
+              _buildQuillController();
+            });
           },
         ),
       ),
     );
     if (result != null) {
-      setState(() => _currentNote = result);
+      setState(() {
+        _currentNote = result;
+        _buildQuillController();
+      });
     }
   }
 
@@ -12049,19 +13627,6 @@ class _NoteReadPageState extends State<NoteReadPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final folderStyle = widget.folders[_currentNote.folder];
-
-    quill.QuillController? quillController;
-    if (_currentNote.contentDelta != null) {
-      try {
-        final deltaJson = jsonDecode(_currentNote.contentDelta!) as List;
-        final doc = quill.Document.fromJson(deltaJson);
-        quillController = quill.QuillController(
-          document: doc,
-          selection: const TextSelection.collapsed(offset: 0),
-          readOnly: true,
-        );
-      } catch (_) {}
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -12135,11 +13700,11 @@ class _NoteReadPageState extends State<NoteReadPage> {
               const SizedBox(height: 16),
             ],
             // Content (Quill read-only)
-            if (quillController != null)
+            if (_quillReadController != null)
               quill.QuillEditor(
-                controller: quillController,
-                focusNode: FocusNode(canRequestFocus: false),
-                scrollController: ScrollController(),
+                controller: _quillReadController!,
+                focusNode: _readFocusNode,
+                scrollController: _readScrollController,
                 config: quill.QuillEditorConfig(
                   showCursor: false,
                   autoFocus: false,
@@ -12550,6 +14115,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   }
 
   void _applyTemplate(String name, BusinessTemplate template) {
+    _quillController.removeListener(_updateDocumentLinks);
+    _quillController.dispose();
     setState(() {
       _selectedTemplate = name;
       _headerController.text = template.header;
@@ -12560,6 +14127,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         document: quill.Document.fromJson(template.contentDelta),
         selection: const TextSelection.collapsed(offset: 0),
       );
+      _quillController.addListener(_updateDocumentLinks);
     });
   }
 
@@ -13335,7 +14903,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               curve: Curves.easeOutCubic,
               child: AnimatedOpacity(
                 opacity: _showToolPanel ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 250),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.of(context).size.height * 0.6,
@@ -13758,7 +15326,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
   }
 
   void _onSatBrightPan(Offset position, double height) {
-    final box = context.findRenderObject() as RenderBox?;
     // The square width is the remaining space; we use height as reference
     final w = 108.0; // approximate expanded width
     setState(() {
