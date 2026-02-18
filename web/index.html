@@ -69,10 +69,20 @@
   </style>
 </head>
 <body>
-  <div class="splash" id="splash">
+  <div class="splash" id="splash" style="position:fixed;inset:0;z-index:999;">
     <img src="icons/Icon-512.png" alt="Ethos Note">
     <p>Ethos Note</p>
   </div>
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Remove HTML splash once Flutter renders
+    function removeSplash() {
+      var s = document.getElementById('splash');
+      if (s) { s.style.transition='opacity 0.4s'; s.style.opacity='0'; setTimeout(function(){s.remove()},400); }
+    }
+    // Listen for Flutter first frame, with 5s fallback
+    window.addEventListener('flutter-first-frame', removeSplash);
+    setTimeout(removeSplash, 5000);
+  </script>
 </body>
 </html>

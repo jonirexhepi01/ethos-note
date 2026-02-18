@@ -1,4 +1,4 @@
-package com.example.ethos_note
+package com.ethosnote.app
 
 import io.flutter.embedding.android.FlutterActivity
 

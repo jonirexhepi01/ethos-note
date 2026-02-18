@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>ethos_note</string>
+	<string>Ethos Note</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -43,6 +43,16 @@
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ethos Note usa il microfono per registrare note vocali</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Ethos Note usa la fotocamera per scattare foto da allegare alle note</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Ethos Note accede alla galleria per allegare immagini alle note</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ethos Note usa la posizione per mostrare il meteo nella tua zona</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Ethos Note legge i dati di salute per mostrare il riepilogo giornaliero</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Ethos Note scrive dati sul ciclo mestruale in Salute</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

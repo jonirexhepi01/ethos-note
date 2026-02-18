@@ -1,5 +1,5 @@
 name: ethos_note
-description: "A new Flutter project."
+description: "Ethos Note - App completa per note, calendario e organizzazione personale con editor rich text, oroscopo, meteo e tracciamento ciclo."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -43,14 +45,18 @@ dependencies:
   google_fonts: ^6.2.1
   image_picker: ^1.1.2
   http: ^1.2.0
+  sqflite: ^2.3.0
+  path: ^1.8.0
   google_generative_ai: ^0.4.7
   google_sign_in: ^6.2.2
   googleapis: ^14.0.0
   extension_google_sign_in_as_googleapis_auth: ^2.0.12
   health: ^13.3.1
-  record: ^5.1.2
+  record: ^6.2.0
   audioplayers: ^6.1.0
   path_provider: ^2.1.5
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.10.0
 
 dev_dependencies:
   flutter_test:
