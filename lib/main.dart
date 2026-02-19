@@ -900,6 +900,168 @@ const _translations = <String, Map<String, String>>{
     'fr': 'Dossier prédéfini',
     'es': 'Carpeta predeterminada',
   },
+  'recurrence': {
+    'it': 'Ricorrenza',
+    'en': 'Recurrence',
+    'fr': 'Récurrence',
+    'es': 'Recurrencia',
+  },
+  'no_recurrence': {
+    'it': 'Nessuna',
+    'en': 'None',
+    'fr': 'Aucune',
+    'es': 'Ninguna',
+  },
+  'yearly': {
+    'it': 'Annuale',
+    'en': 'Yearly',
+    'fr': 'Annuel',
+    'es': 'Anual',
+  },
+  'recurring_event': {
+    'it': 'Evento ricorrente',
+    'en': 'Recurring event',
+    'fr': 'Événement récurrent',
+    'es': 'Evento recurrente',
+  },
+  'repeat_until': {
+    'it': 'Ripeti fino a',
+    'en': 'Repeat until',
+    'fr': 'Répéter jusqu\'à',
+    'es': 'Repetir hasta',
+  },
+  'voice_note_title': {
+    'it': 'Titolo nota vocale',
+    'en': 'Voice note title',
+    'fr': 'Titre note vocale',
+    'es': 'Título nota de voz',
+  },
+  'optional_title': {
+    'it': 'Titolo (opzionale)',
+    'en': 'Title (optional)',
+    'fr': 'Titre (optionnel)',
+    'es': 'Título (opcional)',
+  },
+  'attach_photo': {
+    'it': 'Allega foto',
+    'en': 'Attach photo',
+    'fr': 'Joindre photo',
+    'es': 'Adjuntar foto',
+  },
+  'title_format': {
+    'it': 'Formato titolo',
+    'en': 'Title format',
+    'fr': 'Format du titre',
+    'es': 'Formato título',
+  },
+  'all_caps': {
+    'it': 'TUTTO MAIUSCOLO',
+    'en': 'ALL CAPS',
+    'fr': 'TOUT EN MAJUSCULES',
+    'es': 'TODO MAYÚSCULAS',
+  },
+  'capitalize_words': {
+    'it': 'Prime Lettere Maiuscole',
+    'en': 'Capitalize Words',
+    'fr': 'Majuscules Initiales',
+    'es': 'Capitalizar Palabras',
+  },
+  'text_align': {
+    'it': 'Allineamento',
+    'en': 'Alignment',
+    'fr': 'Alignement',
+    'es': 'Alineación',
+  },
+  'cycle_period': {
+    'it': 'Periodo del ciclo',
+    'en': 'Cycle period',
+    'fr': 'Période du cycle',
+    'es': 'Período del ciclo',
+  },
+  'cycle_period_days': {
+    'it': 'Durata ciclo (giorni)',
+    'en': 'Cycle duration (days)',
+    'fr': 'Durée du cycle (jours)',
+    'es': 'Duración del ciclo (días)',
+  },
+  'flow_intensity': {
+    'it': 'Intensità flusso',
+    'en': 'Flow intensity',
+    'fr': 'Intensité du flux',
+    'es': 'Intensidad del flujo',
+  },
+  'flow_light': {
+    'it': 'Poco',
+    'en': 'Light',
+    'fr': 'Léger',
+    'es': 'Ligero',
+  },
+  'flow_medium': {
+    'it': 'Medio',
+    'en': 'Medium',
+    'fr': 'Moyen',
+    'es': 'Medio',
+  },
+  'flow_heavy': {
+    'it': 'Tanto',
+    'en': 'Heavy',
+    'fr': 'Abondant',
+    'es': 'Abundante',
+  },
+  'flow_very_heavy': {
+    'it': 'Abbondante',
+    'en': 'Very heavy',
+    'fr': 'Très abondant',
+    'es': 'Muy abundante',
+  },
+  'health_goals_met': {
+    'it': 'Obiettivi raggiunti!',
+    'en': 'Goals met!',
+    'fr': 'Objectifs atteints !',
+    'es': '¡Objetivos cumplidos!',
+  },
+  'export_note_pdf': {
+    'it': 'Esporta PDF',
+    'en': 'Export PDF',
+    'fr': 'Exporter PDF',
+    'es': 'Exportar PDF',
+  },
+  'emoji_icon': {
+    'it': 'Emoji',
+    'en': 'Emoji',
+    'fr': 'Emoji',
+    'es': 'Emoji',
+  },
+  'checklist': {
+    'it': 'Lista di controllo',
+    'en': 'Checklist',
+    'fr': 'Liste de contrôle',
+    'es': 'Lista de verificación',
+  },
+  'add_item': {
+    'it': 'Aggiungi elemento',
+    'en': 'Add item',
+    'fr': 'Ajouter un élément',
+    'es': 'Añadir elemento',
+  },
+  'completed_count': {
+    'it': '{done}/{total} completati',
+    'en': '{done}/{total} completed',
+    'fr': '{done}/{total} terminés',
+    'es': '{done}/{total} completados',
+  },
+  'predicted_cycle': {
+    'it': 'Ciclo previsto',
+    'en': 'Predicted cycle',
+    'fr': 'Cycle prévu',
+    'es': 'Ciclo previsto',
+  },
+  'forever': {
+    'it': 'Per sempre',
+    'en': 'Forever',
+    'fr': 'Pour toujours',
+    'es': 'Para siempre',
+  },
 };
 
 // ─── SQLite Database Helper ──────────────────────────────────────────────────
@@ -939,7 +1101,7 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -951,6 +1113,12 @@ class DatabaseHelper {
     }
     if (oldVersion < 3) {
       await db.execute('ALTER TABLE custom_folders ADD COLUMN is_private INTEGER DEFAULT 0');
+    }
+    if (oldVersion < 4) {
+      await db.execute('ALTER TABLE calendar_events ADD COLUMN recurrence TEXT');
+      await db.execute('ALTER TABLE calendar_events ADD COLUMN recurrence_end_date TEXT');
+      await db.execute('ALTER TABLE cycle_days ADD COLUMN flow_intensity TEXT DEFAULT \'medium\'');
+      await db.execute('ALTER TABLE custom_folders ADD COLUMN emoji_icon TEXT');
     }
   }
 
@@ -983,7 +1151,8 @@ class DatabaseHelper {
         date_key TEXT NOT NULL, calendar TEXT NOT NULL DEFAULT 'Personale',
         reminder TEXT, preset TEXT, attachment_path TEXT, attachment_base64 TEXT,
         notes TEXT, is_completed INTEGER NOT NULL DEFAULT 0,
-        google_event_id TEXT, shared_with TEXT
+        google_event_id TEXT, shared_with TEXT,
+        recurrence TEXT, recurrence_end_date TEXT
       )
     ''');
     await db.execute('CREATE INDEX idx_calendar_events_date_key ON calendar_events(date_key)');
@@ -1013,13 +1182,14 @@ class DatabaseHelper {
       CREATE TABLE custom_folders (
         name TEXT PRIMARY KEY,
         icon_code INTEGER NOT NULL, color_value INTEGER NOT NULL,
-        is_custom INTEGER DEFAULT 1, is_shared INTEGER DEFAULT 0, is_private INTEGER DEFAULT 0, shared_emails TEXT
+        is_custom INTEGER DEFAULT 1, is_shared INTEGER DEFAULT 0, is_private INTEGER DEFAULT 0, shared_emails TEXT,
+        emoji_icon TEXT
       )
     ''');
 
     await db.execute('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
     await db.execute('CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)');
-    await db.execute('CREATE TABLE cycle_days (day_key TEXT PRIMARY KEY)');
+    await db.execute('CREATE TABLE cycle_days (day_key TEXT PRIMARY KEY, flow_intensity TEXT DEFAULT \'medium\')');
   }
 
   // ── Pro Notes CRUD ──
@@ -1265,10 +1435,23 @@ class DatabaseHelper {
     return maps.map((m) => m['day_key'] as String).toSet();
   }
 
-  Future<void> addCycleDay(String dayKey) async {
+  Future<Map<String, String>> getCycleDaysWithIntensity() async {
+    if (_webMode) return {for (final k in _wCycleDays) k: 'medium'};
+    final db = await database;
+    final maps = await db.query('cycle_days');
+    return {for (final m in maps) m['day_key'] as String: (m['flow_intensity'] as String?) ?? 'medium'};
+  }
+
+  Future<void> addCycleDay(String dayKey, {String intensity = 'medium'}) async {
     if (_webMode) { _wCycleDays.add(dayKey); return; }
     final db = await database;
-    await db.insert('cycle_days', {'day_key': dayKey}, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert('cycle_days', {'day_key': dayKey, 'flow_intensity': intensity}, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> updateCycleDayIntensity(String dayKey, String intensity) async {
+    if (_webMode) return;
+    final db = await database;
+    await db.update('cycle_days', {'flow_intensity': intensity}, where: 'day_key = ?', whereArgs: [dayKey]);
   }
 
   Future<void> removeCycleDay(String dayKey) async {
@@ -2078,9 +2261,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
       navigationBarTheme: NavigationBarThemeData(
         elevation: 0,
         height: 65,
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        indicatorShape: const StadiumBorder(),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         backgroundColor: colorScheme.surface,
         surfaceTintColor: Colors.transparent,
@@ -2192,9 +2373,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         elevation: 0,
         height: 65,
         indicatorColor: _bordeauxLight.withValues(alpha: 0.15),
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        indicatorShape: const StadiumBorder(),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         backgroundColor: _anthracite,
         surfaceTintColor: Colors.transparent,
@@ -2554,6 +2733,8 @@ class CalendarEventFull {
   final String? googleEventId;
   final List<String> sharedWith;
   final String? attachmentBase64;
+  final String? recurrence; // null/daily/weekly/monthly/yearly
+  final String? recurrenceEndDate; // ISO date string
 
   CalendarEventFull({
     this.id,
@@ -2569,6 +2750,8 @@ class CalendarEventFull {
     this.googleEventId,
     List<String>? sharedWith,
     this.attachmentBase64,
+    this.recurrence,
+    this.recurrenceEndDate,
   }) : sharedWith = sharedWith ?? [];
 
   String get dateKey => '${startTime.year}-${startTime.month}-${startTime.day}';
@@ -2577,6 +2760,8 @@ class CalendarEventFull {
     bool? isCompleted,
     List<String>? sharedWith,
     String? attachmentBase64,
+    String? recurrence,
+    String? recurrenceEndDate,
   }) {
     return CalendarEventFull(
       id: id,
@@ -2592,6 +2777,8 @@ class CalendarEventFull {
       googleEventId: googleEventId,
       sharedWith: sharedWith ?? this.sharedWith,
       attachmentBase64: attachmentBase64 ?? this.attachmentBase64,
+      recurrence: recurrence ?? this.recurrence,
+      recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
     );
   }
 
@@ -2609,6 +2796,8 @@ class CalendarEventFull {
       if (googleEventId != null) 'googleEventId': googleEventId,
       'sharedWith': sharedWith,
       if (attachmentBase64 != null) 'attachmentBase64': attachmentBase64,
+      if (recurrence != null) 'recurrence': recurrence,
+      if (recurrenceEndDate != null) 'recurrenceEndDate': recurrenceEndDate,
     };
   }
 
@@ -2626,6 +2815,8 @@ class CalendarEventFull {
       googleEventId: json['googleEventId'],
       sharedWith: (json['sharedWith'] as List<dynamic>?)?.cast<String>() ?? [],
       attachmentBase64: json['attachmentBase64'],
+      recurrence: json['recurrence'],
+      recurrenceEndDate: json['recurrenceEndDate'],
     );
   }
 
@@ -2643,6 +2834,8 @@ class CalendarEventFull {
     'is_completed': isCompleted ? 1 : 0,
     'google_event_id': googleEventId,
     'shared_with': sharedWith.isNotEmpty ? json.encode(sharedWith) : null,
+    'recurrence': recurrence,
+    'recurrence_end_date': recurrenceEndDate,
   };
 
   factory CalendarEventFull.fromDbMap(Map<String, dynamic> m) => CalendarEventFull(
@@ -2659,6 +2852,8 @@ class CalendarEventFull {
     isCompleted: (m['is_completed'] as int?) == 1,
     googleEventId: m['google_event_id'] as String?,
     sharedWith: m['shared_with'] != null ? (json.decode(m['shared_with'] as String) as List).cast<String>() : [],
+    recurrence: m['recurrence'] as String?,
+    recurrenceEndDate: m['recurrence_end_date'] as String?,
   );
 }
 
@@ -2742,7 +2937,7 @@ String getZodiacSignFromDate(int month, int day, {String mode = 'icon_and_text'}
 }
 
 String getChineseZodiac(int year) {
-  const animals = ['🐒', '🐓', '🐕', '🐖', '🐀', '🐂', '🐅', '🐇', '🐉', '🐍', '🐴', '🐐'];
+  const animals = ['Scimmia', 'Gallo', 'Cane', 'Maiale', 'Topo', 'Bue', 'Tigre', 'Coniglio', 'Drago', 'Serpente', 'Cavallo', 'Capra'];
   return animals[year % 12];
 }
 
@@ -3201,7 +3396,19 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        title: Text('Ethos Note', style: TextStyle(fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? Theme.of(context).colorScheme.primary : null)),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Ethos Note', style: TextStyle(fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? Theme.of(context).colorScheme.primary : null)),
+            const SizedBox(width: 8),
+            if (_selectedIndex == 1) _CalendarIcon9(size: 22, color: _sectionColors[1])
+            else Icon(
+              _selectedIndex == 0 ? Icons.note : Icons.flash_on,
+              size: 22,
+              color: _sectionColors[_selectedIndex],
+            ),
+          ],
+        ),
         scrolledUnderElevation: 2,
       ),
       body: AnimatedSwitcher(
@@ -3230,8 +3437,8 @@ class _HomePageState extends State<HomePage> {
             label: 'Deep Note',
           ),
           NavigationDestination(
-            icon: _CalendarIcon9(size: 24, color: colorScheme.onSurfaceVariant),
-            selectedIcon: _CalendarIcon9(size: 24, color: _sectionColors[1]),
+            icon: Icon(Icons.calendar_today_outlined, color: colorScheme.onSurfaceVariant),
+            selectedIcon: Icon(Icons.calendar_month, color: _sectionColors[1]),
             label: tr('calendar'),
           ),
           NavigationDestination(
@@ -3269,6 +3476,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // Cycle tracking (private)
   Set<String> _cycleDays = {};
+  Map<String, String> _cycleDaysIntensity = {};
 
   // Ethos Aura (premium)
   EthosAuraSettings _auraSettings = const EthosAuraSettings();
@@ -3327,21 +3535,27 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _loadCycleDays() async {
     final days = await DatabaseHelper().getCycleDays();
-    setState(() => _cycleDays = days);
+    final intensityMap = await DatabaseHelper().getCycleDaysWithIntensity();
+    setState(() {
+      _cycleDays = days;
+      _cycleDaysIntensity = intensityMap;
+    });
   }
 
-  Future<void> _toggleCycleDay(DateTime day) async {
+  Future<void> _toggleCycleDay(DateTime day, {String intensity = 'medium'}) async {
     final key = '${day.year}-${day.month}-${day.day}';
     final adding = !_cycleDays.contains(key);
     setState(() {
       if (adding) {
         _cycleDays.add(key);
+        _cycleDaysIntensity[key] = intensity;
       } else {
         _cycleDays.remove(key);
+        _cycleDaysIntensity.remove(key);
       }
     });
     if (adding) {
-      await DatabaseHelper().addCycleDay(key);
+      await DatabaseHelper().addCycleDay(key, intensity: intensity);
     } else {
       await DatabaseHelper().removeCycleDay(key);
     }
@@ -3351,8 +3565,98 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
+  Future<void> _setCycleDayIntensity(DateTime day, String intensity) async {
+    final key = '${day.year}-${day.month}-${day.day}';
+    setState(() => _cycleDaysIntensity[key] = intensity);
+    await DatabaseHelper().updateCycleDayIntensity(key, intensity);
+  }
+
+  void _showIntensityPicker(BuildContext context, DateTime day, {VoidCallback? onChanged}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        final intensities = ['light', 'medium', 'heavy', 'very_heavy'];
+        final labels = [tr('flow_light'), tr('flow_medium'), tr('flow_heavy'), tr('flow_very_heavy')];
+        final droplets = ['💧', '💧💧', '💧💧💧', '💧💧💧💧'];
+        final currentIntensity = _getCycleIntensity(day);
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tr('flow_intensity'), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+              const SizedBox(height: 16),
+              ...List.generate(4, (i) => ListTile(
+                leading: Text(droplets[i], style: const TextStyle(fontSize: 18)),
+                title: Text(labels[i]),
+                trailing: currentIntensity == intensities[i] ? Icon(Icons.check_circle, color: Colors.red.shade400) : null,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                selectedTileColor: Colors.red.shade50,
+                selected: currentIntensity == intensities[i],
+                onTap: () {
+                  _setCycleDayIntensity(day, intensities[i]);
+                  Navigator.pop(ctx);
+                  onChanged?.call();
+                },
+              )),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   bool _isCycleDay(DateTime day) {
     return _cycleDays.contains('${day.year}-${day.month}-${day.day}');
+  }
+
+  String _getCycleIntensity(DateTime day) {
+    final key = '${day.year}-${day.month}-${day.day}';
+    return _cycleDaysIntensity[key] ?? 'medium';
+  }
+
+  String _intensityDroplets(String intensity) {
+    switch (intensity) {
+      case 'light': return '💧';
+      case 'medium': return '💧💧';
+      case 'heavy': return '💧💧💧';
+      case 'very_heavy': return '💧💧💧💧';
+      default: return '💧💧';
+    }
+  }
+
+  double _intensityFontSize(String intensity, double baseSize) {
+    switch (intensity) {
+      case 'light': return baseSize * 0.8;
+      case 'heavy': return baseSize * 1.1;
+      case 'very_heavy': return baseSize * 1.3;
+      default: return baseSize;
+    }
+  }
+
+  bool _isPredictedCycleDay(DateTime day) {
+    if (!_calSettings.showCycleTracking || _cycleDays.isEmpty) return false;
+    final period = _calSettings.cyclePeriodDays;
+    final today = DateTime.now();
+    // Find the most recent cycle day
+    DateTime? lastCycleStart;
+    for (final k in _cycleDays) {
+      final parts = k.split('-');
+      if (parts.length == 3) {
+        final d = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+        if (lastCycleStart == null || d.isAfter(lastCycleStart)) lastCycleStart = d;
+      }
+    }
+    if (lastCycleStart == null) return false;
+    final daysSinceLast = day.difference(lastCycleStart).inDays;
+    if (daysSinceLast <= 0) return false;
+    // Predict next ~5 days of cycle starting at each period multiple
+    final remainder = daysSinceLast % period;
+    return remainder >= 0 && remainder < 5 && day.isAfter(today.subtract(const Duration(days: 1)));
   }
 
   Future<void> _initGoogleCalendar() async {
@@ -3416,7 +3720,12 @@ class _CalendarPageState extends State<CalendarPage> {
     }
     await HealthService.checkAuthorization();
     if (HealthService.isAuthorized) {
-      _refreshHealth();
+      await _refreshHealth();
+      // If data came back empty, try clearing cache and re-fetching
+      if (_healthSnapshot != null && !_healthSnapshot!.hasData) {
+        await DatabaseHelper().saveCache('health_snapshot', '');
+        await _refreshHealth();
+      }
     }
   }
 
@@ -3448,7 +3757,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
     final bgAlpha = isDark || isEthos ? 0.15 : 0.10;
 
-    Widget buildSection(double value, Color color, String label, IconData icon) {
+    Widget buildSection(double value, Color color, String label, IconData icon, String realValue) {
       return Expanded(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -3461,7 +3770,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   const SizedBox(width: 3),
                   Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: color)),
                   const Spacer(),
-                  Text('${(value * 100).round()}%', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color.withValues(alpha: 0.8))),
+                  Text(realValue, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color.withValues(alpha: 0.8))),
                 ],
               ),
               const SizedBox(height: 3),
@@ -3480,13 +3789,17 @@ class _CalendarPageState extends State<CalendarPage> {
       );
     }
 
+    final stepsReal = _healthSnapshot?.steps?.toString() ?? '0';
+    final calsReal = _healthSnapshot?.calories != null ? '${_healthSnapshot!.calories!.round()} kcal' : '0 kcal';
+    final waterReal = _healthSnapshot?.waterLiters != null ? '${_healthSnapshot!.waterLiters!.toStringAsFixed(1)}L' : '0.0L';
+
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: [
-          buildSection(steps, stepsColor, tr('steps'), Icons.directions_walk),
-          buildSection(cals, caloriesColor, tr('calories'), Icons.local_fire_department),
-          buildSection(water, waterColor, tr('water'), Icons.water_drop_outlined),
+          buildSection(steps, stepsColor, tr('steps'), Icons.directions_walk, stepsReal),
+          buildSection(cals, caloriesColor, tr('calories'), Icons.local_fire_department, calsReal),
+          buildSection(water, waterColor, tr('water'), Icons.water_drop_outlined, waterReal),
         ],
       ),
     );
@@ -3805,7 +4118,11 @@ class _CalendarPageState extends State<CalendarPage> {
                     if (holiday != null)
                       Text(holiday.emoji, style: const TextStyle(fontSize: 8)),
                     if (_calSettings.showCycleTracking && _isCycleDay(day) && !isOutsideMonth)
-                      const Text('🩸', style: TextStyle(fontSize: 8)),
+                      Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 8))),
+                    if (_calSettings.showCycleTracking && !_isCycleDay(day) && !isOutsideMonth && _isPredictedCycleDay(day))
+                      Text('🩸', style: TextStyle(fontSize: 7, color: Colors.red.withValues(alpha: 0.3))),
+                    if (isToday && !isOutsideMonth && _healthSnapshot?.allGoalsMet == true)
+                      const Text('⭐', style: TextStyle(fontSize: 8)),
                   ],
                 ),
               ),
@@ -3952,7 +4269,9 @@ class _CalendarPageState extends State<CalendarPage> {
                 const Spacer(),
                 if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 13)),
                 if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 10)),
-                if (_calSettings.showCycleTracking && _isCycleDay(day)) const Text('🩸', style: TextStyle(fontSize: 10)),
+                if (_calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 10))),
+                if (_calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 8, color: Colors.red.withValues(alpha: 0.3))),
+                if (isToday && _healthSnapshot?.allGoalsMet == true) const Text('⭐', style: TextStyle(fontSize: 10)),
               ],
             ),
             if (events.isNotEmpty)
@@ -3965,7 +4284,7 @@ class _CalendarPageState extends State<CalendarPage> {
             if (events.isNotEmpty) ...[
               for (int ei = 0; ei < events.take(2).length; ei++)
                 GestureDetector(
-                  onTap: () => _editEvent(day, ei),
+                  onTap: () => _showDayEventsBottomSheet(day),
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 1),
                     padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
@@ -4050,18 +4369,40 @@ class _CalendarPageState extends State<CalendarPage> {
                             if (_calSettings.showCycleTracking)
                               Padding(
                                 padding: const EdgeInsets.only(right: 8),
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    _toggleCycleDay(day);
-                                    setSheetState(() {});
-                                  },
-                                  icon: Text(_isCycleDay(day) ? '🩸' : '🩸', style: const TextStyle(fontSize: 14)),
-                                  label: Text(_isCycleDay(day) ? 'Rimuovi' : 'Ciclo'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: _isCycleDay(day) ? Colors.red : null,
-                                    side: _isCycleDay(day) ? const BorderSide(color: Colors.red) : null,
-                                  ),
-                                ),
+                                child: _isCycleDay(day)
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: () => _showIntensityPicker(context, day, onChanged: () => setSheetState(() {})),
+                                          icon: Text(_intensityDroplets(_getCycleIntensity(day)), style: const TextStyle(fontSize: 12)),
+                                          label: Text(tr('flow_intensity')),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.red,
+                                            side: const BorderSide(color: Colors.red),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          onPressed: () { _toggleCycleDay(day); setSheetState(() {}); },
+                                          icon: const Icon(Icons.close, size: 18),
+                                          tooltip: 'Rimuovi ciclo',
+                                          style: IconButton.styleFrom(foregroundColor: Colors.red),
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ],
+                                    )
+                                  : OutlinedButton.icon(
+                                      onPressed: () {
+                                        _toggleCycleDay(day);
+                                        setSheetState(() {});
+                                        Future.delayed(const Duration(milliseconds: 300), () {
+                                          if (mounted) _showIntensityPicker(context, day, onChanged: () => setSheetState(() {}));
+                                        });
+                                      },
+                                      icon: const Text('🩸', style: TextStyle(fontSize: 14)),
+                                      label: const Text('Ciclo'),
+                                    ),
                               ),
                             FilledButton.icon(
                               onPressed: () {
@@ -4396,11 +4737,12 @@ class _CalendarPageState extends State<CalendarPage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Flexible(
+          Expanded(
+            flex: 3,
             child: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'split', icon: Icon(Icons.view_agenda, size: 16)),
-                ButtonSegment(value: 'fullScreen', icon: _CalendarIcon9(size: 16)),
+              segments: [
+                ButtonSegment(value: 'split', icon: const Icon(Icons.view_agenda, size: 16), label: Text(tr('split_layout'))),
+                ButtonSegment(value: 'fullScreen', icon: const _CalendarIcon9(size: 16), label: Text(tr('full_layout'))),
               ],
               selected: {_calSettings.calendarLayout},
               onSelectionChanged: (v) {
@@ -4418,15 +4760,16 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
           ),
           const SizedBox(width: 6),
-          Flexible(
+          Expanded(
+            flex: 2,
             child: Opacity(
               opacity: isFullScreen ? 1.0 : 0.35,
               child: IgnorePointer(
                 ignoring: !isFullScreen,
                 child: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'month', icon: Icon(Icons.calendar_view_month, size: 16)),
-                    ButtonSegment(value: 'week', icon: Icon(Icons.view_week, size: 16)),
+                  segments: [
+                    ButtonSegment(value: 'month', label: Text(tr('month'))),
+                    ButtonSegment(value: 'week', label: Text(tr('week'))),
                   ],
                   selected: {_calSettings.calendarViewMode},
                   onSelectionChanged: (v) {
@@ -4444,7 +4787,6 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
           ),
-          const Spacer(),
         ],
       ),
     );
@@ -4654,15 +4996,30 @@ class _CalendarPageState extends State<CalendarPage> {
                           if (_calSettings.showCycleTracking)
                             Padding(
                               padding: const EdgeInsets.only(right: 4),
-                              child: IconButton(
-                                onPressed: () => _toggleCycleDay(_selectedDay!),
-                                icon: Text(_isCycleDay(_selectedDay!) ? '🩸' : '🩸', style: const TextStyle(fontSize: 16)),
-                                tooltip: _isCycleDay(_selectedDay!) ? 'Rimuovi ciclo' : 'Segna ciclo',
-                                style: IconButton.styleFrom(
-                                  foregroundColor: _isCycleDay(_selectedDay!) ? Colors.red : null,
-                                ),
-                                visualDensity: VisualDensity.compact,
-                              ),
+                              child: _isCycleDay(_selectedDay!)
+                                ? GestureDetector(
+                                    onTap: () => _showIntensityPicker(context, _selectedDay!),
+                                    onLongPress: () => _toggleCycleDay(_selectedDay!),
+                                    child: Chip(
+                                      label: Text(_intensityDroplets(_getCycleIntensity(_selectedDay!)), style: const TextStyle(fontSize: 12)),
+                                      deleteIcon: const Icon(Icons.close, size: 14),
+                                      onDeleted: () => _toggleCycleDay(_selectedDay!),
+                                      backgroundColor: Colors.red.shade50,
+                                      side: BorderSide(color: Colors.red.shade200),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                : IconButton(
+                                    onPressed: () {
+                                      _toggleCycleDay(_selectedDay!);
+                                      Future.delayed(const Duration(milliseconds: 300), () {
+                                        if (mounted) _showIntensityPicker(context, _selectedDay!);
+                                      });
+                                    },
+                                    icon: const Text('🩸', style: TextStyle(fontSize: 16)),
+                                    tooltip: 'Segna ciclo',
+                                    visualDensity: VisualDensity.compact,
+                                  ),
                             ),
                           FilledButton.icon(
                             onPressed: _createEvent,
@@ -4801,7 +5158,8 @@ class _CalendarPageState extends State<CalendarPage> {
                         children: [
                           if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 16)),
                           if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 12)),
-                          if (_calSettings.showCycleTracking && _isCycleDay(day)) const Text('🩸', style: TextStyle(fontSize: 12)),
+                          if (_calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 12))),
+                          if (_calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 10, color: Colors.red.withValues(alpha: 0.3))),
                         ],
                       ),
                     ],
@@ -4905,32 +5263,50 @@ class _CalendarPageState extends State<CalendarPage> {
             ],
           ),
         ),
-        // Row 1: days 0-2 (Lun, Mar, Mer)
+        // Swipeable week grid
         Expanded(
-          child: Row(
-            children: [
-              for (int i = 0; i < 3; i++)
-                buildWeekDayCell(days[i], weekDaysShort[i]),
-            ],
-          ),
-        ),
-        // Row 2: days 3-5 (Gio, Ven, Sab)
-        Expanded(
-          child: Row(
-            children: [
-              for (int i = 3; i < 6; i++)
-                buildWeekDayCell(days[i], weekDaysShort[i]),
-            ],
-          ),
-        ),
-        // Row 3: day 6 (Dom) + preview days 7-8 (Lun, Mar next week)
-        Expanded(
-          child: Row(
-            children: [
-              buildWeekDayCell(days[6], weekDaysShort[6]),
-              buildWeekDayCell(days[7], weekDaysShort[7], isPreview: true),
-              buildWeekDayCell(days[8], weekDaysShort[8], isPreview: true),
-            ],
+          child: GestureDetector(
+            onHorizontalDragEnd: (details) {
+              if (details.primaryVelocity != null) {
+                if (details.primaryVelocity! < -100) {
+                  setState(() => _focusedDay = _focusedDay.add(const Duration(days: 7)));
+                } else if (details.primaryVelocity! > 100) {
+                  setState(() => _focusedDay = _focusedDay.subtract(const Duration(days: 7)));
+                }
+              }
+            },
+            child: Column(
+              children: [
+                // Row 1: days 0-2 (Lun, Mar, Mer)
+                Expanded(
+                  child: Row(
+                    children: [
+                      for (int i = 0; i < 3; i++)
+                        buildWeekDayCell(days[i], weekDaysShort[i]),
+                    ],
+                  ),
+                ),
+                // Row 2: days 3-5 (Gio, Ven, Sab)
+                Expanded(
+                  child: Row(
+                    children: [
+                      for (int i = 3; i < 6; i++)
+                        buildWeekDayCell(days[i], weekDaysShort[i]),
+                    ],
+                  ),
+                ),
+                // Row 3: day 6 (Dom) + preview days 7-8 (Lun, Mar next week)
+                Expanded(
+                  child: Row(
+                    children: [
+                      buildWeekDayCell(days[6], weekDaysShort[6]),
+                      buildWeekDayCell(days[7], weekDaysShort[7], isPreview: true),
+                      buildWeekDayCell(days[8], weekDaysShort[8], isPreview: true),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -5195,6 +5571,8 @@ class HealthSnapshot {
   /// Water progress: 0.0–1.0 (target 2.0 liters)
   double get waterProgress => waterLiters != null ? (waterLiters! / 2.0).clamp(0.0, 1.0) : 0.0;
 
+  bool get allGoalsMet => stepsProgress >= 1.0 && caloriesProgress >= 1.0 && waterProgress >= 1.0;
+
   Map<String, dynamic> toJson() => {
     'steps': steps,
     'heartRate': heartRate,
@@ -5306,7 +5684,30 @@ class HealthService {
   static Future<void> checkAuthorization() async {
     if (!isSupported) return;
     final prefs = await SharedPreferences.getInstance();
-    _authorized = prefs.getBool('health_authorized') ?? false;
+    final savedAuth = prefs.getBool('health_authorized') ?? false;
+    if (!savedAuth) { _authorized = false; return; }
+    // Verify the permission is still valid with the OS
+    try {
+      final health = Health();
+      await health.configure();
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final hasSteps = await health.hasPermissions(
+          [HealthDataType.STEPS],
+          permissions: [HealthDataAccess.READ],
+        );
+        _authorized = hasSteps == true;
+        if (!_authorized) {
+          await prefs.setBool('health_authorized', false);
+          lastError = 'permissions_revoked';
+        }
+      } else {
+        // iOS: trust saved flag (hasPermissions returns null for READ)
+        _authorized = true;
+      }
+    } catch (e) {
+      _authorized = savedAuth; // fallback to saved flag
+      if (kDebugMode) debugPrint('Health checkAuth error: $e');
+    }
   }
 
   static Future<void> disconnect() async {
@@ -5320,12 +5721,16 @@ class HealthService {
       return HealthSnapshot(fetchedAt: DateTime.now());
     }
 
-    // Check cache (30 min)
+    // Check cache (15 min)
     final cached = await DatabaseHelper().getCache('health_snapshot');
-    if (cached != null) {
-      final snapshot = HealthSnapshot.fromJson(json.decode(cached));
-      if (DateTime.now().difference(snapshot.fetchedAt).inMinutes < 30) {
-        return snapshot;
+    if (cached != null && cached.isNotEmpty) {
+      try {
+        final snapshot = HealthSnapshot.fromJson(json.decode(cached));
+        if (DateTime.now().difference(snapshot.fetchedAt).inMinutes < 15 && snapshot.hasData) {
+          return snapshot;
+        }
+      } catch (_) {
+        // Invalid cache, re-fetch
       }
     }
 
@@ -5547,6 +5952,7 @@ class CalendarSettings {
 
   // Cycle tracking (private)
   final bool showCycleTracking;
+  final int cyclePeriodDays; // default 28
 
   // Religion (for holidays)
   final String religione;
@@ -5571,6 +5977,7 @@ class CalendarSettings {
     this.calendarLayout = 'split',
     this.calendarViewMode = 'month',
     this.showCycleTracking = false,
+    this.cyclePeriodDays = 28,
     this.religione = 'Cattolica',
   });
 
@@ -5599,6 +6006,7 @@ class CalendarSettings {
     String? calendarLayout,
     String? calendarViewMode,
     bool? showCycleTracking,
+    int? cyclePeriodDays,
     String? religione,
   }) {
     return CalendarSettings(
@@ -5621,6 +6029,7 @@ class CalendarSettings {
       calendarLayout: calendarLayout ?? this.calendarLayout,
       calendarViewMode: calendarViewMode ?? this.calendarViewMode,
       showCycleTracking: showCycleTracking ?? this.showCycleTracking,
+      cyclePeriodDays: cyclePeriodDays ?? this.cyclePeriodDays,
       religione: religione ?? this.religione,
     );
   }
@@ -5645,6 +6054,7 @@ class CalendarSettings {
     'calendarLayout': calendarLayout,
     'calendarViewMode': calendarViewMode,
     'showCycleTracking': showCycleTracking,
+    'cyclePeriodDays': cyclePeriodDays,
     'religione': religione,
   };
 
@@ -5674,6 +6084,7 @@ class CalendarSettings {
         calendarLayout: json['calendarLayout'] ?? 'split',
         calendarViewMode: json['calendarViewMode'] ?? 'month',
         showCycleTracking: json['showCycleTracking'] ?? false,
+        cyclePeriodDays: json['cyclePeriodDays'] ?? 28,
         religione: json['religione'] ?? tr('catholic'),
       );
 
@@ -6479,6 +6890,29 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 _updateSettings(_settings.copyWith(showCycleTracking: v));
               },
             ),
+            if (_settings.showCycleTracking) ...[
+              const Divider(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_month, color: Colors.red),
+                title: Text(tr('cycle_period_days')),
+                subtitle: Slider(
+                  value: _settings.cyclePeriodDays.toDouble(),
+                  min: 20,
+                  max: 45,
+                  divisions: 25,
+                  label: '${_settings.cyclePeriodDays} ${tr('days')}',
+                  activeColor: Colors.red,
+                  onChanged: (v) {
+                    _updateSettings(_settings.copyWith(cyclePeriodDays: v.round()));
+                  },
+                ),
+                trailing: Text(
+                  '${_settings.cyclePeriodDays}',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
+                ),
+              ),
+            ],
             const Divider(),
             Row(
               children: [
@@ -6738,6 +7172,8 @@ class _EventEditorPageState extends State<EventEditorPage> {
   List<String> _sharedWith = [];
   List<String> _availableFriends = [];
   String? _attachmentBase64;
+  String? _recurrence; // null/daily/weekly/monthly/yearly
+  DateTime? _recurrenceEndDate;
 
   final List<String> _calendars = [
     tr('personal'),
@@ -6765,6 +7201,8 @@ class _EventEditorPageState extends State<EventEditorPage> {
       _selectedReminder = existing.reminder;
       _sharedWith = List<String>.from(existing.sharedWith);
       _attachmentBase64 = existing.attachmentBase64;
+      _recurrence = existing.recurrence;
+      _recurrenceEndDate = existing.recurrenceEndDate != null ? DateTime.tryParse(existing.recurrenceEndDate!) : null;
     } else {
       _startTime = DateTime(
         widget.selectedDate.year,
@@ -6792,17 +7230,60 @@ class _EventEditorPageState extends State<EventEditorPage> {
         ? _titleController.text
         : (_attachmentBase64 != null ? tr('event') : null);
     if (title != null) {
-      widget.onSave(
-        CalendarEventFull(
-          title: title,
-          startTime: _startTime,
-          endTime: _endTime,
-          calendar: _selectedCalendar,
-          reminder: _selectedReminder,
-          sharedWith: _sharedWith,
-          attachmentBase64: _attachmentBase64,
-        ),
+      final baseEvent = CalendarEventFull(
+        title: title,
+        startTime: _startTime,
+        endTime: _endTime,
+        calendar: _selectedCalendar,
+        reminder: _selectedReminder,
+        sharedWith: _sharedWith,
+        attachmentBase64: _attachmentBase64,
+        recurrence: _recurrence,
+        recurrenceEndDate: _recurrenceEndDate?.toIso8601String(),
       );
+      widget.onSave(baseEvent);
+
+      // Generate recurring copies
+      if (_recurrence != null) {
+        final duration = _endTime.difference(_startTime);
+        DateTime nextStart = _startTime;
+        // "Per sempre" = null end date → generate 2 years of events
+        final effectiveEnd = _recurrenceEndDate ?? _startTime.add(const Duration(days: 730));
+        int maxOccurrences = 730;
+        int count = 0;
+        while (count < maxOccurrences) {
+          count++;
+          switch (_recurrence) {
+            case 'daily':
+              nextStart = nextStart.add(const Duration(days: 1));
+              break;
+            case 'weekly':
+              nextStart = nextStart.add(const Duration(days: 7));
+              break;
+            case 'monthly':
+              nextStart = DateTime(nextStart.year, nextStart.month + 1, nextStart.day, nextStart.hour, nextStart.minute);
+              break;
+            case 'yearly':
+              nextStart = DateTime(nextStart.year + 1, nextStart.month, nextStart.day, nextStart.hour, nextStart.minute);
+              break;
+            default:
+              count = maxOccurrences;
+              continue;
+          }
+          if (nextStart.isAfter(effectiveEnd)) break;
+          widget.onSave(CalendarEventFull(
+            title: title,
+            startTime: nextStart,
+            endTime: nextStart.add(duration),
+            calendar: _selectedCalendar,
+            reminder: _selectedReminder,
+            sharedWith: _sharedWith,
+            recurrence: _recurrence,
+            recurrenceEndDate: _recurrenceEndDate?.toIso8601String(),
+          ));
+        }
+      }
+
       Navigator.pop(context);
     }
   }
@@ -6934,7 +7415,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
                     child: InputDecorator(
                       decoration: InputDecoration(
                         labelText: tr('start_time'),
-                        prefixIcon: _CalendarIcon9(size: 22),
+                        prefixIcon: const Icon(Icons.calendar_today, size: 20),
                       ),
                       child: Text(_formatDate(_startTime)),
                     ),
@@ -6947,7 +7428,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
                     child: InputDecorator(
                       decoration: InputDecoration(
                         labelText: tr('end_time'),
-                        prefixIcon: _CalendarIcon9(size: 22),
+                        prefixIcon: const Icon(Icons.calendar_today, size: 20),
                       ),
                       child: Text(_formatDate(_endTime)),
                     ),
@@ -6994,7 +7475,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
               value: _selectedCalendar,
               decoration: InputDecoration(
                 labelText: tr('calendar_name'),
-                prefixIcon: _CalendarIcon9(size: 22),
+                prefixIcon: const Icon(Icons.calendar_today, size: 20),
               ),
               items: _calendars
                   .map((cal) => DropdownMenuItem(value: cal, child: Text(cal)))
@@ -7024,6 +7505,77 @@ class _EventEditorPageState extends State<EventEditorPage> {
                 );
               }).toList(),
             ),
+            const SizedBox(height: 24),
+            Text(
+              tr('recurrence'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  label: Text(tr('no_recurrence')),
+                  selected: _recurrence == null,
+                  onSelected: (_) => setState(() { _recurrence = null; _recurrenceEndDate = null; }),
+                ),
+                for (final r in ['daily', 'weekly', 'monthly', 'yearly'])
+                  ChoiceChip(
+                    label: Text(tr(r)),
+                    selected: _recurrence == r,
+                    onSelected: (sel) => setState(() {
+                      _recurrence = sel ? r : null;
+                      if (!sel) _recurrenceEndDate = null;
+                    }),
+                    selectedColor: colorScheme.primaryContainer,
+                  ),
+              ],
+            ),
+            if (_recurrence != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _recurrenceEndDate ?? _startTime.add(const Duration(days: 30)),
+                          firstDate: _startTime,
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) setState(() => _recurrenceEndDate = picked);
+                      },
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: tr('repeat_until'),
+                          prefixIcon: const Icon(Icons.event_repeat, size: 20),
+                        ),
+                        child: Text(
+                          _recurrenceEndDate != null
+                              ? '${_recurrenceEndDate!.day}/${_recurrenceEndDate!.month}/${_recurrenceEndDate!.year}'
+                              : tr('forever'),
+                          style: TextStyle(
+                            color: _recurrenceEndDate == null ? colorScheme.primary : null,
+                            fontWeight: _recurrenceEndDate == null ? FontWeight.w600 : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_recurrenceEndDate != null) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => setState(() => _recurrenceEndDate = null),
+                      icon: const Icon(Icons.all_inclusive, size: 20),
+                      tooltip: tr('forever'),
+                      style: IconButton.styleFrom(foregroundColor: colorScheme.primary),
+                    ),
+                  ],
+                ],
+              ),
+            ],
             if (_availableFriends.isNotEmpty) ...[
               const SizedBox(height: 24),
               Text(
@@ -12553,46 +13105,110 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   void _showWriteSheet() {
     final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    String? attachedImageBase64;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 20, right: 20, top: 20,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _controller,
-              maxLines: 5,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: tr('new_flash_note'),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () {
-                  _addNote();
-                  Navigator.pop(ctx);
-                },
-                icon: const Icon(Icons.check, size: 18),
-                label: Text(tr('save')),
-                style: FilledButton.styleFrom(
-                  backgroundColor: accentColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20, right: 20, top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                maxLines: 5,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: tr('new_flash_note'),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
-            ),
-          ],
+              if (attachedImageBase64 != null) ...[
+                const SizedBox(height: 12),
+                Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        base64Decode(attachedImageBase64!),
+                        height: 120,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Colors.black54,
+                        child: IconButton(
+                          icon: const Icon(Icons.close, size: 14, color: Colors.white),
+                          padding: EdgeInsets.zero,
+                          onPressed: () => setSheetState(() => attachedImageBase64 = null),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  IconButton.filled(
+                    onPressed: () async {
+                      try {
+                        final picker = ImagePicker();
+                        final XFile? image = await picker.pickImage(
+                          source: ImageSource.gallery,
+                          maxWidth: 1024,
+                          maxHeight: 1024,
+                          imageQuality: 80,
+                        );
+                        if (image != null) {
+                          final bytes = await image.readAsBytes();
+                          setSheetState(() => attachedImageBase64 = base64Encode(bytes));
+                        }
+                      } catch (_) {}
+                    },
+                    icon: const Icon(Icons.camera_alt, size: 20),
+                    tooltip: tr('attach_photo'),
+                    style: IconButton.styleFrom(
+                      backgroundColor: accentColor.withValues(alpha: 0.15),
+                      foregroundColor: accentColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        if (_controller.text.isNotEmpty) {
+                          final note = FlashNote(content: _controller.text, imageBase64: attachedImageBase64);
+                          await DatabaseHelper().insertFlashNote(note);
+                          _controller.clear();
+                          await _loadNotes();
+                        }
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                      icon: const Icon(Icons.check, size: 18),
+                      label: Text(tr('save')),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accentColor,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -12666,6 +13282,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     Timer? timer;
     bool isPlayingPreview = false;
     ap.AudioPlayer? previewPlayer;
+    final voiceTitleController = TextEditingController();
 
     if (!mounted) return;
     showModalBottomSheet(
@@ -12815,6 +13432,19 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       ),
                     ),
                 ] else ...[
+                  // Optional title
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: TextField(
+                      controller: voiceTitleController,
+                      decoration: InputDecoration(
+                        hintText: tr('optional_title'),
+                        prefixIcon: const Icon(Icons.title, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
                   // Preview controls
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -12876,7 +13506,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       onPressed: () {
                         setState(() {
                           _notes.add(FlashNote(
-                            content: '🎤 Nota vocale (${_formatAudioDuration(elapsedSeconds)})',
+                            content: voiceTitleController.text.isNotEmpty
+                                ? voiceTitleController.text
+                                : '🎤 Nota vocale (${_formatAudioDuration(elapsedSeconds)})',
                             audioPath: recordedPath,
                             audioDurationMs: elapsedSeconds * 1000,
                           ));
@@ -12913,6 +13545,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       timer?.cancel();
       recorder.dispose();
       previewPlayer?.dispose();
+      voiceTitleController.dispose();
     });
   }
 
@@ -12940,7 +13573,15 @@ class FolderStyle {
   final bool isShared;
   final bool isPrivate;
   final List<String> sharedEmails;
-  const FolderStyle(this.icon, this.color, {this.isCustom = false, this.isShared = false, this.isPrivate = false, this.sharedEmails = const []});
+  final String? emojiIcon;
+  const FolderStyle(this.icon, this.color, {this.isCustom = false, this.isShared = false, this.isPrivate = false, this.sharedEmails = const [], this.emojiIcon});
+
+  Widget buildIcon({double size = 22, Color? iconColor}) {
+    if (emojiIcon != null) {
+      return Text(emojiIcon!, style: TextStyle(fontSize: size));
+    }
+    return Icon(icon, size: size, color: iconColor);
+  }
 
   Map<String, dynamic> toJson() => {
     'iconCode': icon.codePoint,
@@ -12949,6 +13590,7 @@ class FolderStyle {
     'isShared': isShared,
     'isPrivate': isPrivate,
     'sharedEmails': sharedEmails,
+    if (emojiIcon != null) 'emojiIcon': emojiIcon,
   };
 
   factory FolderStyle.fromJson(Map<String, dynamic> json) => FolderStyle(
@@ -12958,6 +13600,7 @@ class FolderStyle {
     isShared: json['isShared'] ?? false,
     isPrivate: json['isPrivate'] ?? false,
     sharedEmails: (json['sharedEmails'] as List?)?.cast<String>() ?? [],
+    emojiIcon: json['emojiIcon'],
   );
 
   Map<String, dynamic> toDbMap(String name) => {
@@ -12968,6 +13611,7 @@ class FolderStyle {
     'is_shared': isShared ? 1 : 0,
     'is_private': isPrivate ? 1 : 0,
     'shared_emails': sharedEmails.isNotEmpty ? json.encode(sharedEmails) : null,
+    'emoji_icon': emojiIcon,
   };
 
   factory FolderStyle.fromDbMap(Map<String, dynamic> m) => FolderStyle(
@@ -12977,6 +13621,7 @@ class FolderStyle {
     isShared: (m['is_shared'] as int?) == 1,
     isPrivate: (m['is_private'] as int?) == 1,
     sharedEmails: m['shared_emails'] != null ? (json.decode(m['shared_emails'] as String) as List).cast<String>() : [],
+    emojiIcon: m['emoji_icon'] as String?,
   );
 }
 
@@ -13615,8 +14260,7 @@ class _NotesProPageState extends State<NotesProPage> {
 
   void _showFolderOptionsSheet(String folderName) {
     final colorScheme = Theme.of(context).colorScheme;
-    final style = _folders[folderName];
-    final isBuiltIn = style != null && !style.isCustom;
+    final isPrivate = folderName == tr('private_folder');
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -13647,25 +14291,25 @@ class _NotesProPageState extends State<NotesProPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: isBuiltIn
-                      ? null
-                      : () {
-                          Navigator.pop(ctx);
-                          _showDeleteFolderDialog(folderName);
-                        },
-                  icon: Icon(isBuiltIn ? Icons.block : Icons.delete_outline),
-                  label: Text(isBuiltIn ? tr('cannot_delete_builtin') : tr('delete')),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: isBuiltIn ? null : colorScheme.error,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              if (!isPrivate) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showDeleteFolderDialog(folderName);
+                    },
+                    icon: const Icon(Icons.delete_outline),
+                    label: Text(tr('delete')),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colorScheme.error,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -13919,9 +14563,12 @@ class _NotesProPageState extends State<NotesProPage> {
 
   void _showCreateFolderDialog() async {
     final nameController = TextEditingController();
+    final emojiController = TextEditingController();
     IconData selectedIcon = Icons.folder;
     Color selectedColor = Colors.blue;
     bool isShared = false;
+    bool isPrivate = false;
+    String? selectedEmoji;
     final emailController = TextEditingController();
     List<String> sharedEmails = [];
     final profile = await DatabaseHelper().getProfile();
@@ -13953,25 +14600,87 @@ class _NotesProPageState extends State<NotesProPage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _availableIcons.map((icon) {
-                    final isSelected = selectedIcon == icon;
-                    return GestureDetector(
-                      onTap: () => setDialogState(() => selectedIcon = icon),
+                  children: [
+                    ..._availableIcons.map((icon) {
+                      final isSelected = selectedEmoji == null && selectedIcon == icon;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() { selectedIcon = icon; selectedEmoji = null; }),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isSelected ? selectedColor.withValues(alpha: 0.2) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected ? selectedColor : Colors.grey.withValues(alpha: 0.3),
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Icon(icon, size: 22, color: isSelected ? selectedColor : Colors.grey),
+                        ),
+                      );
+                    }),
+                    // Emoji picker button
+                    GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: ctx,
+                          builder: (emojiCtx) => AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: Text(tr('emoji_icon')),
+                            content: TextField(
+                              controller: emojiController,
+                              autofocus: true,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 32),
+                              decoration: InputDecoration(
+                                hintText: '😀',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onChanged: (val) {
+                                if (val.isNotEmpty) {
+                                  final chars = val.characters;
+                                  if (chars.isNotEmpty) {
+                                    emojiController.text = chars.last;
+                                    emojiController.selection = TextSelection.fromPosition(TextPosition(offset: emojiController.text.length));
+                                  }
+                                }
+                              },
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(emojiCtx), child: Text(tr('cancel'))),
+                              FilledButton(
+                                onPressed: () {
+                                  if (emojiController.text.isNotEmpty) {
+                                    setDialogState(() => selectedEmoji = emojiController.text);
+                                  }
+                                  Navigator.pop(emojiCtx);
+                                },
+                                child: Text(tr('save')),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                       child: Container(
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: isSelected ? selectedColor.withValues(alpha: 0.2) : Colors.transparent,
+                          color: selectedEmoji != null ? selectedColor.withValues(alpha: 0.2) : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: isSelected ? selectedColor : Colors.grey.withValues(alpha: 0.3),
-                            width: isSelected ? 2 : 1,
+                            color: selectedEmoji != null ? selectedColor : Colors.grey.withValues(alpha: 0.3),
+                            width: selectedEmoji != null ? 2 : 1,
                           ),
                         ),
-                        child: Icon(icon, size: 22, color: isSelected ? selectedColor : Colors.grey),
+                        child: Center(
+                          child: selectedEmoji != null
+                              ? Text(selectedEmoji!, style: const TextStyle(fontSize: 22))
+                              : const Text('😀', style: TextStyle(fontSize: 18)),
+                        ),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Text(tr('color'), style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -14040,6 +14749,14 @@ class _NotesProPageState extends State<NotesProPage> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(tr('make_private')),
+                  subtitle: Text(tr('folder_is_private')),
+                  secondary: const Icon(Icons.lock_outline),
+                  value: isPrivate,
+                  onChanged: (v) => setDialogState(() => isPrivate = v),
+                ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(tr('share_with')),
@@ -14124,7 +14841,9 @@ class _NotesProPageState extends State<NotesProPage> {
                       selectedColor,
                       isCustom: true,
                       isShared: isShared,
+                      isPrivate: isPrivate,
                       sharedEmails: allShared,
+                      emojiIcon: selectedEmoji,
                     );
                   });
                   _saveCustomFolders();
@@ -14278,7 +14997,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                         children: [
                                           Row(
                                             children: [
-                                              Icon(_folders[note.folder]?.icon, color: folderColor, size: 15),
+                                              _folders[note.folder]?.buildIcon(size: 15, iconColor: folderColor) ?? Icon(Icons.folder, color: folderColor, size: 15),
                                               const SizedBox(width: 5),
                                               Expanded(
                                                 child: Text(note.title,
@@ -14317,16 +15036,37 @@ class _NotesProPageState extends State<NotesProPage> {
                                                 child: Text(note.folder,
                                                     style: TextStyle(fontSize: 9, color: folderColor, fontWeight: FontWeight.w600)),
                                               ),
-                                              GestureDetector(
-                                                onTap: () => _deleteNote(noteIndex),
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(4),
-                                                  decoration: BoxDecoration(
-                                                    color: colorScheme.error.withValues(alpha: 0.08),
-                                                    borderRadius: BorderRadius.circular(8),
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  GestureDetector(
+                                                    onTap: () async {
+                                                      final pdfBytes = await generateNotePdfFromProNote(note);
+                                                      if (!context.mounted) return;
+                                                      Navigator.push(context, MaterialPageRoute(builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '${note.title}.pdf')));
+                                                    },
+                                                    child: Container(
+                                                      padding: const EdgeInsets.all(4),
+                                                      decoration: BoxDecoration(
+                                                        color: colorScheme.primary.withValues(alpha: 0.08),
+                                                        borderRadius: BorderRadius.circular(8),
+                                                      ),
+                                                      child: Icon(Icons.picture_as_pdf, size: 15, color: colorScheme.primary),
+                                                    ),
                                                   ),
-                                                  child: Icon(Icons.delete_outline, size: 15, color: colorScheme.error),
-                                                ),
+                                                  const SizedBox(width: 4),
+                                                  GestureDetector(
+                                                    onTap: () => _deleteNote(noteIndex),
+                                                    child: Container(
+                                                      padding: const EdgeInsets.all(4),
+                                                      decoration: BoxDecoration(
+                                                        color: colorScheme.error.withValues(alpha: 0.08),
+                                                        borderRadius: BorderRadius.circular(8),
+                                                      ),
+                                                      child: Icon(Icons.delete_outline, size: 15, color: colorScheme.error),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),
@@ -14366,7 +15106,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                             CircleAvatar(
                                               radius: 22,
                                               backgroundColor: folderColor.withValues(alpha: 0.12),
-                                              child: Icon(_folders[note.folder]?.icon, color: folderColor, size: 22),
+                                              child: _folders[note.folder]?.buildIcon(size: 22, iconColor: folderColor) ?? Icon(Icons.folder, color: folderColor, size: 22),
                                             ),
                                             const SizedBox(width: 16),
                                             Expanded(
@@ -14401,7 +15141,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                                         child: Row(
                                                           mainAxisSize: MainAxisSize.min,
                                                           children: [
-                                                            Icon(_folders[note.folder]?.icon, size: 12, color: folderColor),
+                                                            _folders[note.folder]?.buildIcon(size: 12, iconColor: folderColor) ?? Icon(Icons.folder, size: 12, color: folderColor),
                                                             const SizedBox(width: 4),
                                                             Text(note.folder,
                                                                 style: TextStyle(fontSize: 11, color: folderColor, fontWeight: FontWeight.w600)),
@@ -14419,6 +15159,17 @@ class _NotesProPageState extends State<NotesProPage> {
                                                   ),
                                                 ],
                                               ),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.picture_as_pdf),
+                                              color: colorScheme.primary,
+                                              iconSize: 22,
+                                              tooltip: tr('export_note_pdf'),
+                                              onPressed: () async {
+                                                final pdfBytes = await generateNotePdfFromProNote(note);
+                                                if (!context.mounted) return;
+                                                Navigator.push(context, MaterialPageRoute(builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '${note.title}.pdf')));
+                                              },
                                             ),
                                             IconButton(
                                               icon: const Icon(Icons.delete_outline),
@@ -14510,7 +15261,7 @@ class _NotesProPageState extends State<NotesProPage> {
                               final count = _proNotes.where((n) => n.folder == entry.key).length;
                               return ListTile(
                                 dense: true,
-                                leading: Icon(entry.value.icon, size: 20, color: isSelected ? entry.value.color : colorScheme.onSurfaceVariant),
+                                leading: entry.value.buildIcon(size: 20, iconColor: isSelected ? entry.value.color : colorScheme.onSurfaceVariant),
                                 title: Text(entry.key, style: TextStyle(fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal, color: isSelected ? entry.value.color : null)),
                                 trailing: (entry.value.isPrivate || entry.key == tr('private_folder'))
                                     ? Row(mainAxisSize: MainAxisSize.min, children: [
@@ -14724,7 +15475,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
               children: [
                 if (folderStyle != null)
                   Chip(
-                    avatar: Icon(folderStyle.icon, size: 16, color: folderStyle.color),
+                    avatar: folderStyle.buildIcon(size: 16, iconColor: folderStyle.color),
                     label: Text(_currentNote.folder),
                     backgroundColor: folderStyle.color.withValues(alpha: 0.1),
                     side: BorderSide.none,
@@ -14843,12 +15594,16 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   late TextEditingController _footerController;
   late quill.QuillController _quillController;
   late FocusNode _editorFocusNode;
+  late FocusNode _titleFocusNode;
   late ScrollController _editorScrollController;
   String _selectedFolder = 'Generale';
   bool _showHeader = false;
   bool _showFooter = false;
   String? _selectedTemplate;
   DateTime? _linkedDate;
+  bool _isTitleFocused = false;
+  TextAlign _titleAlignment = TextAlign.start;
+  Offset _toolbarOffset = Offset.zero;
 
   String _selectedFontFamily = 'Sans Serif';
   bool _showLinkGallery = true;
@@ -14972,6 +15727,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     _headerController = TextEditingController();
     _footerController = TextEditingController();
     _editorFocusNode = FocusNode();
+    _titleFocusNode = FocusNode();
+    _titleFocusNode.addListener(() {
+      setState(() => _isTitleFocused = _titleFocusNode.hasFocus);
+    });
     _editorScrollController = ScrollController();
 
     if (widget.existingNote != null) {
@@ -15669,10 +16428,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   );
                 },
               ),
-              // Checkbox
+              // Checklist (Apple Notes style)
               toolBtn(
-                icon: Icon(Icons.check_box_outlined, size: 18, color: colorScheme.onSurface),
-                tooltip: 'Checkbox',
+                icon: Icon(Icons.checklist, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('checklist'),
                 onPressed: () => _quillController.formatSelection(quill.Attribute.unchecked),
               ),
               vDivider(),
@@ -15926,6 +16685,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 // TITLE
                 TextField(
                   controller: _titleController,
+                  focusNode: _titleFocusNode,
+                  textAlign: _titleAlignment,
                   decoration: InputDecoration(
                     labelText: tr('title'),
                     hintText: tr('title'),
@@ -15933,6 +16694,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   ),
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? colorScheme.primary : null),
                 ),
+                // (title toolbar moved to Positioned overlay below)
                 const SizedBox(height: 8),
                 // HEADER (collapsible)
                 if (_showHeader) ...[
@@ -16023,31 +16785,122 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               ],
             ),
           ),
-          // Formatting toolbar panel (animated, horizontal at bottom)
-          Positioned(
-            left: 56,
-            right: 12,
-            bottom: 24,
-            child: AnimatedSlide(
-              offset: _showToolPanel ? Offset.zero : const Offset(0, 1.5),
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutCubic,
-              child: AnimatedOpacity(
-                opacity: _showToolPanel ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 250),
-                child: _buildSPenToolbar(),
+          // Title formatting toolbar (overlay, always visible when title focused)
+          if (_isTitleFocused)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(16),
+                color: colorScheme.surfaceContainerLowest,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: colorScheme.outlineVariant),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ActionChip(
+                        label: Text(tr('all_caps'), style: const TextStyle(fontSize: 11)),
+                        avatar: const Icon(Icons.text_fields, size: 16),
+                        onPressed: () {
+                          _titleController.text = _titleController.text.toUpperCase();
+                          _titleController.selection = TextSelection.fromPosition(TextPosition(offset: _titleController.text.length));
+                        },
+                      ),
+                      ActionChip(
+                        label: Text(tr('capitalize_words'), style: const TextStyle(fontSize: 11)),
+                        avatar: const Icon(Icons.title, size: 16),
+                        onPressed: () {
+                          _titleController.text = _titleController.text.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}' : w).join(' ');
+                          _titleController.selection = TextSelection.fromPosition(TextPosition(offset: _titleController.text.length));
+                        },
+                      ),
+                      SegmentedButton<TextAlign>(
+                        segments: const [
+                          ButtonSegment(value: TextAlign.start, icon: Icon(Icons.format_align_left, size: 16)),
+                          ButtonSegment(value: TextAlign.center, icon: Icon(Icons.format_align_center, size: 16)),
+                          ButtonSegment(value: TextAlign.end, icon: Icon(Icons.format_align_right, size: 16)),
+                        ],
+                        selected: {_titleAlignment},
+                        onSelectionChanged: (v) => setState(() => _titleAlignment = v.first),
+                        showSelectedIcon: false,
+                        style: const ButtonStyle(
+                          visualDensity: VisualDensity.compact,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
+          // Formatting toolbar panel (animated, draggable)
+          if (_showToolPanel && !_isTitleFocused)
+            Positioned(
+              left: 56 + _toolbarOffset.dx,
+              right: 12 - _toolbarOffset.dx,
+              bottom: 24 - _toolbarOffset.dy,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Drag handle
+                  GestureDetector(
+                    onPanUpdate: (details) {
+                      setState(() {
+                        _toolbarOffset += Offset(details.delta.dx, details.delta.dy);
+                        final size = MediaQuery.of(context).size;
+                        _toolbarOffset = Offset(
+                          _toolbarOffset.dx.clamp(-44.0, size.width - 100),
+                          _toolbarOffset.dy.clamp(-(size.height - 100), 16.0),
+                        );
+                      });
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 20,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                      ),
+                      child: Container(
+                        width: 24,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                  _buildSPenToolbar(),
+                ],
+              ),
+            ),
           // FAB toggle
           Positioned(
             left: 12,
             bottom: 24,
             child: FloatingActionButton.small(
               heroTag: 'spen_toolbar_fab',
-              onPressed: () => setState(() => _showToolPanel = !_showToolPanel),
-              backgroundColor: _showToolPanel ? colorScheme.primaryContainer : colorScheme.primary,
-              foregroundColor: _showToolPanel ? colorScheme.onPrimaryContainer : colorScheme.onPrimary,
+              onPressed: () {
+                if (_isTitleFocused) {
+                  // Unfocus title and show editor toolbar
+                  _titleFocusNode.unfocus();
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    if (mounted) setState(() => _showToolPanel = !_showToolPanel);
+                  });
+                } else {
+                  setState(() { _showToolPanel = !_showToolPanel; _toolbarOffset = Offset.zero; });
+                }
+              },
+              backgroundColor: (_showToolPanel || _isTitleFocused) ? colorScheme.primaryContainer : colorScheme.primary,
+              foregroundColor: (_showToolPanel || _isTitleFocused) ? colorScheme.onPrimaryContainer : colorScheme.onPrimary,
               child: Icon(_showToolPanel ? Icons.close : Icons.brush),
             ),
           ),
@@ -16068,12 +16921,79 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     _footerController.dispose();
     _quillController.dispose();
     _editorFocusNode.dispose();
+    _titleFocusNode.dispose();
     _editorScrollController.dispose();
     super.dispose();
   }
 }
 
 // ── PDF Viewer Page ──
+
+Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
+  final doc = pw.Document();
+  pw.Font regularFont;
+  pw.Font boldFont;
+  try {
+    regularFont = await PdfGoogleFonts.nunitoRegular();
+    boldFont = await PdfGoogleFonts.nunitoBold();
+  } catch (_) {
+    regularFont = pw.Font.helvetica();
+    boldFont = pw.Font.helveticaBold();
+  }
+  final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
+  final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22);
+  final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
+
+  final List<pw.Widget> bodyWidgets = [];
+  if (note.contentDelta != null) {
+    try {
+      final deltaJson = json.decode(note.contentDelta!) as List;
+      for (final op in deltaJson) {
+        if (op is Map && op['insert'] is String) {
+          final text = op['insert'] as String;
+          if (text.isEmpty) continue;
+          final attrs = op['attributes'] as Map<String, dynamic>?;
+          pw.TextStyle style = baseStyle;
+          if (attrs != null) {
+            pw.FontWeight? fw;
+            pw.FontStyle? fs;
+            if (attrs['bold'] == true) fw = pw.FontWeight.bold;
+            if (attrs['italic'] == true) fs = pw.FontStyle.italic;
+            style = baseStyle.copyWith(
+              font: (fw == pw.FontWeight.bold) ? boldFont : null,
+              fontWeight: fw,
+              fontStyle: fs,
+            );
+          }
+          bodyWidgets.add(pw.Text(text, style: style));
+        }
+      }
+    } catch (_) {
+      bodyWidgets.add(pw.Text(note.content, style: baseStyle));
+    }
+  } else {
+    bodyWidgets.add(pw.Text(note.content, style: baseStyle));
+  }
+
+  doc.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(40),
+      header: note.headerText != null && note.headerText!.isNotEmpty
+          ? (_) => pw.Text(note.headerText!, style: headerStyle)
+          : null,
+      footer: note.footerText != null && note.footerText!.isNotEmpty
+          ? (_) => pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(note.footerText!, style: headerStyle))
+          : null,
+      build: (context) => [
+        pw.Text(note.title, style: titleStyle),
+        pw.SizedBox(height: 16),
+        ...bodyWidgets,
+      ],
+    ),
+  );
+  return doc.save();
+}
 
 class _PdfViewerPage extends StatelessWidget {
   final Uint8List pdfBytes;

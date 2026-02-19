@@ -53,6 +53,8 @@
 	<string>Ethos Note legge i dati di salute per mostrare il riepilogo giornaliero</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Ethos Note scrive dati sul ciclo mestruale in Salute</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Ethos Note usa Face ID per proteggere la cartella privata</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
