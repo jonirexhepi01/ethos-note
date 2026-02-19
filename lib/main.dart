@@ -1072,7 +1072,7 @@ const _translations = <String, Map<String, String>>{
   'lock_deep_note_desc': {'it': 'Richiedi autenticazione biometrica per accedere a Deep Note', 'en': 'Require biometric authentication to access Deep Note', 'fr': 'Exiger une authentification biométrique pour accéder à Deep Note', 'es': 'Requerir autenticación biométrica para acceder a Deep Note'},
   'lock_flash_notes': {'it': 'Blocca Flash Notes', 'en': 'Lock Flash Notes', 'fr': 'Verrouiller Flash Notes', 'es': 'Bloquear Flash Notes'},
   'lock_flash_notes_desc': {'it': 'Richiedi autenticazione biometrica per accedere a Flash Notes', 'en': 'Require biometric authentication to access Flash Notes', 'fr': 'Exiger une authentification biométrique pour accéder à Flash Notes', 'es': 'Requerir autenticación biométrica para acceder a Flash Notes'},
-  'save_flash_to_deep': {'it': 'Salvataggio flash note su Deep Note', 'en': 'Save flash notes to Deep Note', 'fr': 'Sauvegarder les flash notes dans Deep Note', 'es': 'Guardar flash notes en Deep Note'},
+  'save_flash_to_deep': {'it': 'Salvataggio in Deep Note', 'en': 'Save to Deep Note', 'fr': 'Sauvegarde dans Deep Note', 'es': 'Guardar en Deep Note'},
   'ai_formatting': {'it': 'Formattazione AI', 'en': 'AI Formatting', 'fr': 'Formatage IA', 'es': 'Formato IA'},
   'simple_formatting': {'it': 'Semplice', 'en': 'Simple', 'fr': 'Simple', 'es': 'Simple'},
   'advanced_formatting': {'it': 'Avanzata', 'en': 'Advanced', 'fr': 'Avancé', 'es': 'Avanzado'},
@@ -2973,8 +2973,8 @@ String getZodiacSignFromDate(int month, int day, {String mode = 'icon_and_text'}
 }
 
 String getChineseZodiac(int year) {
-  const animals = ['Scimmia', 'Gallo', 'Cane', 'Maiale', 'Topo', 'Bue', 'Tigre', 'Coniglio', 'Drago', 'Serpente', 'Cavallo', 'Capra'];
-  return animals[year % 12];
+  const emojis = ['🐒', '🐓', '🐕', '🐖', '🐀', '🐂', '🐅', '🐇', '🐉', '🐍', '🐎', '🐐'];
+  return emojis[year % 12];
 }
 
 // ─── Horoscope Data ─────────────────────────────────────────────────────────
@@ -6723,35 +6723,22 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               },
             ),
             if (_settings.showZodiac) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(tr('zodiac_display'), style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 8),
-              RadioListTile<String>(
-                title: Text(tr('icon_only')),
-                value: 'icon_only',
-                groupValue: _settings.zodiacDisplayMode,
-                activeColor: Color(_settings.calendarColorValue),
-                onChanged: (v) => _updateSettings(_settings.copyWith(zodiacDisplayMode: v)),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-              RadioListTile<String>(
-                title: Text(tr('icon_and_text')),
-                value: 'icon_and_text',
-                groupValue: _settings.zodiacDisplayMode,
-                activeColor: Color(_settings.calendarColorValue),
-                onChanged: (v) => _updateSettings(_settings.copyWith(zodiacDisplayMode: v)),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-              RadioListTile<String>(
-                title: Text(tr('text_only')),
-                value: 'text_only',
-                groupValue: _settings.zodiacDisplayMode,
-                activeColor: Color(_settings.calendarColorValue),
-                onChanged: (v) => _updateSettings(_settings.copyWith(zodiacDisplayMode: v)),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<String>(
+                  segments: [
+                    ButtonSegment(value: 'icon_only', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('icon_only'), style: const TextStyle(fontSize: 11)))),
+                    ButtonSegment(value: 'icon_and_text', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('icon_and_text'), style: const TextStyle(fontSize: 11)))),
+                    ButtonSegment(value: 'text_only', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('text_only'), style: const TextStyle(fontSize: 11)))),
+                  ],
+                  selected: {_settings.zodiacDisplayMode},
+                  onSelectionChanged: (sel) => _updateSettings(_settings.copyWith(zodiacDisplayMode: sel.first)),
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                ),
               ),
               const Divider(),
               SwitchListTile(
@@ -6795,25 +6782,26 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             // Alert type
             Text(tr('alerts'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 8),
-            ...(_alertTypes.entries.map((entry) {
-              return RadioListTile<String>(
-                title: Text(entry.value),
-                value: entry.key,
-                groupValue: _settings.alertConfig.alertType,
-                activeColor: Color(_settings.calendarColorValue),
-                onChanged: (value) {
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                segments: _alertTypes.entries.map((entry) {
+                  return ButtonSegment(value: entry.key, label: FittedBox(fit: BoxFit.scaleDown, child: Text(entry.value, style: const TextStyle(fontSize: 11))));
+                }).toList(),
+                selected: {_settings.alertConfig.alertType},
+                onSelectionChanged: (sel) {
                   _updateSettings(_settings.copyWith(
                     alertConfig: CalendarAlertConfig(
-                      alertType: value!,
+                      alertType: sel.first,
                       soundName: _settings.alertConfig.soundName,
                       durationSeconds: _settings.alertConfig.durationSeconds,
                     ),
                   ));
                 },
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              );
-            })),
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
+            ),
 
             // Sound (only if not vibration-only)
             if (showSound) ...[
@@ -6995,20 +6983,29 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(tr('holidays'),
-                style: TextStyle(fontSize: 13)),
+            Text(tr('holidays'), style: const TextStyle(fontSize: 13)),
             const SizedBox(height: 12),
-            ...religions.entries.map((e) => RadioListTile<String>(
-              title: Text(e.key == tr('none_religion') ? tr('other_none') : e.key),
-              secondary: Icon(e.value),
-              value: e.key,
-              groupValue: _settings.religione,
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              onChanged: (value) {
-                _updateSettings(_settings.copyWith(religione: value));
-              },
-            )),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                segments: religions.entries.map((e) {
+                  return ButtonSegment(
+                    value: e.key,
+                    icon: Icon(e.value, size: 18),
+                    label: FittedBox(fit: BoxFit.scaleDown, child: Text(
+                      e.key == tr('none_religion') ? tr('other_none') : e.key,
+                      style: const TextStyle(fontSize: 10),
+                    )),
+                  );
+                }).toList(),
+                selected: {_settings.religione},
+                onSelectionChanged: (sel) {
+                  _updateSettings(_settings.copyWith(religione: sel.first));
+                },
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
+            ),
           ],
         ),
       ),
@@ -10197,10 +10194,10 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                 width: double.infinity,
                 child: SegmentedButton<String>(
                   segments: [
-                    ButtonSegment(value: 'never', label: Text(tr('auto_save_never'), style: const TextStyle(fontSize: 11))),
-                    ButtonSegment(value: 'daily', label: Text(tr('daily'), style: const TextStyle(fontSize: 11))),
-                    ButtonSegment(value: 'weekly', label: Text(tr('weekly'), style: const TextStyle(fontSize: 11))),
-                    ButtonSegment(value: 'monthly', label: Text(tr('monthly'), style: const TextStyle(fontSize: 11))),
+                    ButtonSegment(value: 'never', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('auto_save_never'), style: const TextStyle(fontSize: 11)))),
+                    ButtonSegment(value: 'daily', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('daily'), style: const TextStyle(fontSize: 11)))),
+                    ButtonSegment(value: 'weekly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('weekly'), style: const TextStyle(fontSize: 11)))),
+                    ButtonSegment(value: 'monthly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('monthly'), style: const TextStyle(fontSize: 11)))),
                   ],
                   selected: {_settings.autoSaveMode == 'custom' ? 'never' : _settings.autoSaveMode},
                   onSelectionChanged: (sel) {
@@ -10240,10 +10237,10 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                 width: double.infinity,
                 child: SegmentedButton<String>(
                   segments: [
-                    ButtonSegment(value: 'daily', label: Text(tr('daily'), style: const TextStyle(fontSize: 12))),
-                    ButtonSegment(value: 'weekly', label: Text(tr('weekly'), style: const TextStyle(fontSize: 12))),
-                    ButtonSegment(value: 'monthly', label: Text(tr('monthly'), style: const TextStyle(fontSize: 12))),
-                    ButtonSegment(value: 'yearly', label: Text(tr('yearly'), style: const TextStyle(fontSize: 12))),
+                    ButtonSegment(value: 'daily', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('daily'), style: const TextStyle(fontSize: 11)))),
+                    ButtonSegment(value: 'weekly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('weekly'), style: const TextStyle(fontSize: 11)))),
+                    ButtonSegment(value: 'monthly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('monthly'), style: const TextStyle(fontSize: 11)))),
+                    ButtonSegment(value: 'yearly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('yearly'), style: const TextStyle(fontSize: 11)))),
                   ],
                   selected: {_settings.groupingMode},
                   onSelectionChanged: (sel) {
@@ -16003,13 +16000,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   DateTime? _linkedDate;
   bool _isTitleFocused = false;
   TextAlign _titleAlignment = TextAlign.start;
-  Offset _toolbarOffset = Offset.zero;
-
   String _selectedFontFamily = 'Sans Serif';
   bool _showLinkGallery = true;
   List<String> _documentLinks = [];
   bool _isAiLoading = false;
-  bool _showToolPanel = false;
+  List<Map<String, dynamic>> _customTemplates = [];
 
   static const _fontFamilies = {
     'Sans Serif': 'sans-serif',
@@ -16161,7 +16156,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     }
     _quillController.addListener(_updateDocumentLinks);
     _updateDocumentLinks();
+    _loadCustomTemplates();
+  }
 
+  Future<void> _loadCustomTemplates() async {
+    final settings = await NoteProSettings.load();
+    if (mounted) {
+      setState(() => _customTemplates = settings.customTemplates);
+    }
   }
 
   void _updateDocumentLinks() {
@@ -16930,11 +16932,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 onPressed: () {
                   final RenderBox box = context.findRenderObject() as RenderBox;
                   final offset = box.localToGlobal(Offset.zero);
-                  showMenu<String>(
-                    context: context,
-                    position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
-                    items: _businessTemplates.keys.map((name) {
-                      return PopupMenuItem(
+                  final items = <PopupMenuEntry<String>>[
+                    ..._businessTemplates.keys.map((name) {
+                      return PopupMenuItem<String>(
                         value: name,
                         child: Row(
                           children: [
@@ -16947,7 +16947,31 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                           ],
                         ),
                       );
-                    }).toList(),
+                    }),
+                    if (_customTemplates.isNotEmpty) ...[
+                      const PopupMenuDivider(),
+                      ..._customTemplates.map((t) {
+                        final name = t['name'] as String? ?? 'Template';
+                        return PopupMenuItem<String>(
+                          value: 'custom:$name',
+                          child: Row(
+                            children: [
+                              Icon(
+                                _selectedTemplate == name ? Icons.check : Icons.note_outlined,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(name),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ];
+                  showMenu<String>(
+                    context: context,
+                    position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
+                    items: items,
                   ).then((v) { if (v != null) _onTemplateSelected(v); });
                 },
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -17023,12 +17047,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
   }
 
-  void _onTemplateSelected(String name) {
-    final template = _businessTemplates[name]!;
+  void _onTemplateSelected(String value) {
+    final isCustom = value.startsWith('custom:');
+    final displayName = isCustom ? value.substring(7) : value;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('${tr('apply')} "$name"?'),
+        title: Text('${tr('apply')} "$displayName"?'),
         content: const Text(
           'Il contenuto attuale verrà sostituito con il template selezionato.',
         ),
@@ -17040,13 +17066,36 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _applyTemplate(name, template);
+              if (isCustom) {
+                _applyCustomTemplate(displayName);
+              } else {
+                _applyTemplate(displayName, _businessTemplates[displayName]!);
+              }
             },
             child: Text(tr('apply')),
           ),
         ],
       ),
     );
+  }
+
+  void _applyCustomTemplate(String name) {
+    final t = _customTemplates.firstWhere(
+      (t) => t['name'] == name,
+      orElse: () => {},
+    );
+    final deltaStr = t['delta'] as String?;
+    if (deltaStr == null) return;
+    _quillController.removeListener(_updateDocumentLinks);
+    _quillController.dispose();
+    setState(() {
+      _selectedTemplate = name;
+      _quillController = quill.QuillController(
+        document: quill.Document.fromJson(json.decode(deltaStr) as List),
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+      _quillController.addListener(_updateDocumentLinks);
+    });
   }
 
   @override
@@ -17244,71 +17293,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 ),
               ),
             ),
-          // Formatting toolbar panel (animated, draggable)
-          if (_showToolPanel && !_isTitleFocused)
+          // Formatting toolbar (always visible when editor focused)
+          if (!_isTitleFocused)
             Positioned(
-              left: 56 + _toolbarOffset.dx,
-              right: 12 - _toolbarOffset.dx,
-              bottom: 24 - _toolbarOffset.dy,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Drag handle
-                  GestureDetector(
-                    onPanUpdate: (details) {
-                      setState(() {
-                        _toolbarOffset += Offset(details.delta.dx, details.delta.dy);
-                        final size = MediaQuery.of(context).size;
-                        _toolbarOffset = Offset(
-                          _toolbarOffset.dx.clamp(-44.0, size.width - 100),
-                          _toolbarOffset.dy.clamp(-(size.height - 100), 16.0),
-                        );
-                      });
-                    },
-                    child: Container(
-                      width: 40,
-                      height: 20,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                      ),
-                      child: Container(
-                        width: 24,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                  ),
-                  _buildSPenToolbar(),
-                ],
-              ),
+              left: 16,
+              right: 16,
+              bottom: 12,
+              child: _buildSPenToolbar(),
             ),
-          // FAB toggle
-          Positioned(
-            left: 12,
-            bottom: 24,
-            child: FloatingActionButton.small(
-              heroTag: 'spen_toolbar_fab',
-              onPressed: () {
-                if (_isTitleFocused) {
-                  // Unfocus title and show editor toolbar
-                  _titleFocusNode.unfocus();
-                  Future.delayed(const Duration(milliseconds: 100), () {
-                    if (mounted) setState(() => _showToolPanel = !_showToolPanel);
-                  });
-                } else {
-                  setState(() { _showToolPanel = !_showToolPanel; _toolbarOffset = Offset.zero; });
-                }
-              },
-              backgroundColor: (_showToolPanel || _isTitleFocused) ? colorScheme.primaryContainer : colorScheme.primary,
-              foregroundColor: (_showToolPanel || _isTitleFocused) ? colorScheme.onPrimaryContainer : colorScheme.onPrimary,
-              child: Icon(_showToolPanel ? Icons.close : Icons.brush),
-            ),
-          ),
         ],
       ),
     );
