@@ -44,6 +44,13 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Deep link for widget navigation -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="ethosnote"/>
+            </intent-filter>
             <!-- Receive shared audio files (e.g. WhatsApp voice messages) -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
@@ -68,6 +75,55 @@
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
             </intent-filter>
         </activity-alias>
+        <!-- Widget: Flash Notes Shortcuts (3x1) -->
+        <receiver
+            android:name=".widget.FlashNotesShortcutsProvider"
+            android:exported="true"
+            android:label="@string/widget_flash_shortcuts_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_flash_shortcuts_info"/>
+        </receiver>
+
+        <!-- Widget: Quick Flash Note Bar (4x1) -->
+        <receiver
+            android:name=".widget.QuickFlashNoteBarProvider"
+            android:exported="true"
+            android:label="@string/widget_quick_flash_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quick_flash_bar_info"/>
+        </receiver>
+
+        <!-- Widget: Calendar (4x5) -->
+        <receiver
+            android:name=".widget.CalendarWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_calendar_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+                <action android:name="com.ethosnote.app.widget.ACTION_PREV"/>
+                <action android:name="com.ethosnote.app.widget.ACTION_NEXT"/>
+                <action android:name="com.ethosnote.app.widget.ACTION_TOGGLE_VIEW"/>
+                <action android:name="com.ethosnote.app.widget.ACTION_DAY_CLICK"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_calendar_info"/>
+        </receiver>
+
+        <!-- Calendar widget RemoteViews service -->
+        <service
+            android:name=".widget.CalendarRemoteViewsService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false"/>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

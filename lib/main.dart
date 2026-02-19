@@ -32,6 +32,7 @@ import 'package:path/path.dart' as p;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:home_widget/home_widget.dart';
 import 'dart:io' show File;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -3343,12 +3344,51 @@ class _HomePageState extends State<HomePage> {
   int _refreshKey = 0;
   UserProfile _userProfile = UserProfile();
   static const _shareChannel = MethodChannel('com.ethosnote.app/share');
+  static const _deepLinkChannel = MethodChannel('com.ethosnote.app/deeplink');
+  String? _pendingDeepLink;
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
     _checkSharedFile();
+    _checkDeepLink();
+  }
+
+  Future<void> _checkDeepLink() async {
+    if (kIsWeb) return;
+    try {
+      final String? link = await _deepLinkChannel.invokeMethod('getDeepLink');
+      if (link != null && link.isNotEmpty) {
+        _handleDeepLink(link);
+      }
+    } catch (_) {}
+  }
+
+  void _handleDeepLink(String uri) {
+    final parsed = Uri.tryParse(uri);
+    if (parsed == null || parsed.scheme != 'ethosnote') return;
+    final host = parsed.host;
+    final pathSegments = parsed.pathSegments;
+
+    if (host == 'flashnote') {
+      // Switch to Flash Notes tab (index 2)
+      setState(() {
+        _selectedIndex = 2;
+        _refreshKey++;
+      });
+      final mode = pathSegments.isNotEmpty ? pathSegments[0] : 'text';
+      _pendingDeepLink = 'flashnote/$mode';
+    } else if (host == 'calendar') {
+      // Switch to Calendar tab (index 1)
+      setState(() {
+        _selectedIndex = 1;
+        _refreshKey++;
+      });
+      if (pathSegments.isNotEmpty) {
+        _pendingDeepLink = 'calendar/${pathSegments[0]}';
+      }
+    }
   }
 
   Future<void> _checkSharedFile() async {
@@ -3444,10 +3484,31 @@ class _HomePageState extends State<HomePage> {
     final colorScheme = theme.colorScheme;
     final accentColor = _sectionColors[_selectedIndex];
 
+    // Resolve pending deep link parameters
+    String? flashInitialMode;
+    DateTime? calendarInitialDate;
+    if (_pendingDeepLink != null) {
+      final dl = _pendingDeepLink!;
+      _pendingDeepLink = null;
+      if (dl.startsWith('flashnote/')) {
+        flashInitialMode = dl.substring('flashnote/'.length);
+      } else if (dl.startsWith('calendar/')) {
+        final dateStr = dl.substring('calendar/'.length);
+        final parts = dateStr.split('-');
+        if (parts.length == 3) {
+          calendarInitialDate = DateTime(
+            int.tryParse(parts[0]) ?? DateTime.now().year,
+            int.tryParse(parts[1]) ?? DateTime.now().month,
+            int.tryParse(parts[2]) ?? DateTime.now().day,
+          );
+        }
+      }
+    }
+
     final pages = [
       const NotesProPage(),
-      const CalendarPage(),
-      const FlashNotesPage(),
+      CalendarPage(key: ValueKey('cal_$_refreshKey'), initialDate: calendarInitialDate),
+      FlashNotesPage(key: ValueKey('flash_$_refreshKey'), initialMode: flashInitialMode),
     ];
 
     return Scaffold(
@@ -3550,7 +3611,8 @@ class _HomePageState extends State<HomePage> {
 }
 
 class CalendarPage extends StatefulWidget {
-  const CalendarPage({super.key});
+  final DateTime? initialDate;
+  const CalendarPage({super.key, this.initialDate});
 
   @override
   State<CalendarPage> createState() => _CalendarPageState();
@@ -3596,6 +3658,9 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialDate != null) {
+      _focusedDay = widget.initialDate!;
+    }
     _selectedDay = _focusedDay;
     _holidays = Holidays.getHolidays(_calSettings.religione);
     _loadEvents();
@@ -3968,6 +4033,26 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _saveEvents() async {
     await DatabaseHelper().saveAllEvents(_events);
+    _syncCalendarEventsToWidget();
+  }
+
+  Future<void> _syncCalendarEventsToWidget() async {
+    if (kIsWeb) return;
+    try {
+      // Build compact JSON: { "2026-2-19": [{"title":"...","calendar":"Personale"}], ... }
+      final Map<String, dynamic> compact = {};
+      for (final entry in _events.entries) {
+        compact[entry.key] = entry.value.map((e) => {
+          'title': e.title,
+          'calendar': e.calendar,
+        }).toList();
+      }
+      final jsonString = jsonEncode(compact);
+      await HomeWidget.saveWidgetData('calendar_widget_events', jsonString);
+      await HomeWidget.updateWidget(
+        androidName: 'com.ethosnote.app.widget.CalendarWidgetProvider',
+      );
+    } catch (_) {}
   }
 
   void _scheduleNotification(CalendarEventFull event) {
@@ -11686,7 +11771,8 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
 }
 
 class FlashNotesPage extends StatefulWidget {
-  const FlashNotesPage({super.key});
+  final String? initialMode; // 'text', 'photo', 'voice'
+  const FlashNotesPage({super.key, this.initialMode});
 
   @override
   State<FlashNotesPage> createState() => _FlashNotesPageState();
@@ -11715,6 +11801,24 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     _loadNotes();
     _loadViewMode();
     _loadGroupingMode();
+    // Handle deep link initial mode from widget
+    if (widget.initialMode != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        switch (widget.initialMode) {
+          case 'photo':
+            _addPhotoNote();
+            break;
+          case 'voice':
+            // Focus on text field — voice recording is inline in the input bar
+            _controller.clear();
+            FocusScope.of(context).requestFocus(FocusNode());
+            break;
+          default:
+            // 'text' — just focus on the input
+            break;
+        }
+      });
+    }
   }
 
   @override
@@ -12079,6 +12183,24 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         // Sync to Google Calendar if connected
         if (GoogleCalendarService.isSignedIn) {
           GoogleCalendarService.pushEvent(event);
+        }
+
+        // Sync calendar widget
+        if (!kIsWeb) {
+          try {
+            final allEvents = await DatabaseHelper().getAllEvents();
+            final Map<String, dynamic> compact = {};
+            for (final entry in allEvents.entries) {
+              compact[entry.key] = entry.value.map((e) => {
+                'title': e.title,
+                'calendar': e.calendar,
+              }).toList();
+            }
+            await HomeWidget.saveWidgetData('calendar_widget_events', jsonEncode(compact));
+            await HomeWidget.updateWidget(
+              androidName: 'com.ethosnote.app.widget.CalendarWidgetProvider',
+            );
+          } catch (_) {}
         }
 
         if (mounted) {

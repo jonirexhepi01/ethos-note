@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center"
+    android:background="@drawable/widget_background"
+    android:padding="8dp">
+
+    <!-- Text shortcut -->
+    <FrameLayout
+        android:id="@+id/btn_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:clickable="true"
+        android:gravity="center">
+        <ImageView
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="center"
+            android:background="@drawable/widget_icon_circle"
+            android:src="@android:drawable/ic_menu_edit"
+            android:padding="10dp"
+            android:contentDescription="Testo" />
+    </FrameLayout>
+
+    <!-- Photo shortcut -->
+    <FrameLayout
+        android:id="@+id/btn_photo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:clickable="true"
+        android:gravity="center">
+        <ImageView
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="center"
+            android:background="@drawable/widget_icon_circle"
+            android:src="@android:drawable/ic_menu_camera"
+            android:padding="10dp"
+            android:contentDescription="Foto" />
+    </FrameLayout>
+
+    <!-- Voice shortcut -->
+    <FrameLayout
+        android:id="@+id/btn_voice"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:clickable="true"
+        android:gravity="center">
+        <ImageView
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="center"
+            android:background="@drawable/widget_icon_circle"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:padding="10dp"
+            android:contentDescription="Vocale" />
+    </FrameLayout>
+
+</LinearLayout>

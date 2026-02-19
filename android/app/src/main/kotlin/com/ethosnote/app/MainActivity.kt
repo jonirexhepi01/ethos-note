@@ -9,10 +9,14 @@ import java.io.File
 
 class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.ethosnote.app/share"
+    private val DEEP_LINK_CHANNEL = "com.ethosnote.app/deeplink"
     private var sharedFilePath: String? = null
+    private var pendingDeepLink: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Share channel (existing)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getSharedFile" -> {
@@ -22,6 +26,18 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // Deep link channel (new for widgets)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEEP_LINK_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getDeepLink" -> {
+                    result.success(pendingDeepLink)
+                    pendingDeepLink = null // Clear after reading
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         handleIntent(intent)
     }
 
@@ -32,6 +48,16 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         if (intent == null) return
+
+        // Handle deep links from widgets (ethosnote:// scheme)
+        if (intent.action == Intent.ACTION_VIEW && intent.data != null) {
+            val uri = intent.data
+            if (uri != null && uri.scheme == "ethosnote") {
+                pendingDeepLink = uri.toString()
+                return
+            }
+        }
+
         if (intent.action == Intent.ACTION_SEND) {
             val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
             if (uri != null) {
