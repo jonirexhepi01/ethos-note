@@ -12416,18 +12416,27 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                       color: colorScheme.onSurface,
                       height: 1.6,
                     ),
-                    decoration: InputDecoration(
+                    decoration: InputDecoration.collapsed(
                       hintText: tr('type_message'),
                       hintStyle: TextStyle(
                         fontSize: 16,
                         color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                       ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
                     ),
                     maxLines: null,
                     textCapitalization: TextCapitalization.sentences,
                     keyboardType: TextInputType.multiline,
+                    contextMenuBuilder: (context, editableTextState) {
+                      return AdaptiveTextSelectionToolbar.buttonItems(
+                        anchors: editableTextState.contextMenuAnchors,
+                        buttonItems: <ContextMenuButtonItem>[
+                          ContextMenuButtonItem(label: 'Taglia', onPressed: () => editableTextState.cutSelection(SelectionChangedCause.toolbar)),
+                          ContextMenuButtonItem(label: 'Copia', onPressed: () => editableTextState.copySelection(SelectionChangedCause.toolbar)),
+                          ContextMenuButtonItem(label: 'Incolla', onPressed: () => editableTextState.pasteText(SelectionChangedCause.toolbar)),
+                          ContextMenuButtonItem(label: 'Seleziona tutto', onPressed: () => editableTextState.selectAll(SelectionChangedCause.toolbar)),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ],
@@ -15373,6 +15382,7 @@ class _NotesProPageState extends State<NotesProPage> {
   String _searchQuery = '';
   bool _isGridView = false;
   bool _showFolderSidebar = false;
+  bool _isAiAvailable = false;
 
   static const _availableIcons = [
     Icons.folder, Icons.work, Icons.person, Icons.school,
@@ -15394,6 +15404,7 @@ class _NotesProPageState extends State<NotesProPage> {
     _loadCustomFolders();
     _loadSettings();
     _loadViewMode();
+    _loadAiAvailability();
   }
 
   @override
@@ -15405,6 +15416,176 @@ class _NotesProPageState extends State<NotesProPage> {
   Future<void> _loadViewMode() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() => _isGridView = prefs.getBool('notes_view_mode_grid') ?? false);
+  }
+
+  Future<void> _loadAiAvailability() async {
+    final settings = await FlashNotesSettings.load();
+    if (mounted) {
+      setState(() => _isAiAvailable = settings.geminiEnabled && settings.geminiApiKey.isNotEmpty);
+    }
+  }
+
+  void _showDeepNoteAIOptions(ProNote note, int noteIndex) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        final colorScheme = Theme.of(ctx).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
+              Text('Gemini AI', style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.auto_awesome, color: Colors.purple),
+                title: const Text('Riassunto intelligente'),
+                subtitle: const Text('Crea un riassunto breve della nota'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _callDeepNoteAI(note, noteIndex, 'riassumi');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.spellcheck, color: Colors.purple),
+                title: const Text('Correggi e formatta'),
+                subtitle: const Text('Correggi errori e migliora il testo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _callDeepNoteAI(note, noteIndex, 'correggi');
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _callDeepNoteAI(ProNote note, int noteIndex, String action) async {
+    final settings = await FlashNotesSettings.load();
+    final apiKey = settings.geminiApiKey;
+    if (apiKey.isEmpty) return;
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(children: [
+          const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 12),
+          const Text('AI in corso...'),
+        ]),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 15),
+      ),
+    );
+
+    try {
+      final text = note.content;
+      if (text.isEmpty) return;
+
+      final String prompt;
+      final String title;
+      if (action == 'riassumi') {
+        prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
+        title = 'Riassunto intelligente';
+      } else {
+        prompt = 'Correggi errori ortografici, grammaticali e di punteggiatura nel seguente testo italiano. Migliora la formattazione mantenendo il significato originale:\n\n$text';
+        title = 'Correggi e formatta';
+      }
+
+      final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
+      final response = await model.generateContent([gemini.Content.text(prompt)]);
+      final result = response.text ?? '';
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (ctx) {
+          final colorScheme = Theme.of(ctx).colorScheme;
+          return DraggableScrollableSheet(
+            initialChildSize: 0.5,
+            minChildSize: 0.3,
+            maxChildSize: 0.85,
+            expand: false,
+            builder: (_, scrollController) => Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    const Icon(Icons.auto_awesome, color: Colors.purple),
+                    const SizedBox(width: 8),
+                    Text(title, style: Theme.of(ctx).textTheme.titleLarge),
+                  ]),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      child: Card(
+                        elevation: 0,
+                        color: colorScheme.surfaceContainerLowest,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: SelectableText(result, style: const TextStyle(height: 1.6)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: result));
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: const Text('Copiato'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                            );
+                          },
+                          icon: const Icon(Icons.copy, size: 18),
+                          label: const Text('Copia'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            // Open editor with the AI result
+                            _editNote(noteIndex);
+                          },
+                          icon: const Icon(Icons.edit, size: 18),
+                          label: const Text('Modifica nota'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      );
+    }
   }
 
   Future<void> _toggleViewMode() async {
@@ -16557,6 +16738,20 @@ class _NotesProPageState extends State<NotesProPage> {
                                                       child: Icon(Icons.picture_as_pdf, size: 15, color: colorScheme.primary),
                                                     ),
                                                   ),
+                                                  if (_isAiAvailable) ...[
+                                                    const SizedBox(width: 4),
+                                                    GestureDetector(
+                                                      onTap: () => _showDeepNoteAIOptions(note, noteIndex),
+                                                      child: Container(
+                                                        padding: const EdgeInsets.all(4),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.purple.withValues(alpha: 0.08),
+                                                          borderRadius: BorderRadius.circular(8),
+                                                        ),
+                                                        child: const Icon(Icons.psychology, size: 15, color: Colors.purple),
+                                                      ),
+                                                    ),
+                                                  ],
                                                   const SizedBox(width: 4),
                                                   GestureDetector(
                                                     onTap: () => _deleteNote(noteIndex),
@@ -16663,6 +16858,14 @@ class _NotesProPageState extends State<NotesProPage> {
                                                 ],
                                               ),
                                             ),
+                                            if (_isAiAvailable)
+                                              IconButton(
+                                                icon: const Icon(Icons.psychology),
+                                                color: Colors.purple,
+                                                iconSize: 22,
+                                                tooltip: 'AI',
+                                                onPressed: () => _showDeepNoteAIOptions(note, noteIndex),
+                                              ),
                                             IconButton(
                                               icon: const Icon(Icons.picture_as_pdf),
                                               color: colorScheme.primary,
@@ -16996,13 +17199,13 @@ class _NoteReadPageState extends State<NoteReadPage> {
             Text(
               _currentNote.title,
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
                 fontFamily: _isEthosTheme(context) ? 'Georgia' : null,
                 color: _isEthosTheme(context) ? colorScheme.primary : null,
               ),
             ),
-            Divider(height: 32, color: colorScheme.outlineVariant),
+            Divider(height: 24, thickness: 0.5, color: colorScheme.outlineVariant),
             // Header
             if (_currentNote.headerText != null && _currentNote.headerText!.isNotEmpty) ...[
               Container(
@@ -17459,63 +17662,69 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
     pw.Font regularFont;
     pw.Font boldFont;
+    pw.Font italicFont;
     try {
       regularFont = await PdfGoogleFonts.nunitoRegular();
       boldFont = await PdfGoogleFonts.nunitoBold();
+      italicFont = await PdfGoogleFonts.nunitoItalic();
     } catch (_) {
       regularFont = pw.Font.helvetica();
       boldFont = pw.Font.helveticaBold();
+      italicFont = pw.Font.helveticaOblique();
     }
 
     final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
+    final boldStyle = pw.TextStyle(font: boldFont, fontSize: 12);
+    final italicStyle = pw.TextStyle(font: italicFont, fontSize: 12);
     final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22);
     final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
 
-    // Walk Delta operations to build PDF widgets
+    // Walk Delta inline — text and images in order
     final delta = _quillController.document.toDelta();
     final List<pw.Widget> bodyWidgets = [];
+    String textBuffer = '';
+
+    void flushText() {
+      if (textBuffer.isEmpty) return;
+      for (final line in textBuffer.split('\n')) {
+        if (line.trim().isEmpty) {
+          bodyWidgets.add(pw.SizedBox(height: 6));
+        } else {
+          bodyWidgets.add(pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 4),
+            child: pw.Text(line, style: baseStyle),
+          ));
+        }
+      }
+      textBuffer = '';
+    }
 
     for (final op in delta.toList()) {
       if (op.data is String) {
-        final text = op.data as String;
-        if (text.isEmpty) continue;
-        // Check for bold/italic attributes
-        final attrs = op.attributes;
-        pw.TextStyle style = baseStyle;
-        if (attrs != null) {
-          pw.FontWeight? fw;
-          pw.FontStyle? fs;
-          if (attrs['bold'] == true) fw = pw.FontWeight.bold;
-          if (attrs['italic'] == true) fs = pw.FontStyle.italic;
-          style = baseStyle.copyWith(
-            font: (fw == pw.FontWeight.bold) ? boldFont : null,
-            fontWeight: fw,
-            fontStyle: fs,
-          );
-        }
-        bodyWidgets.add(pw.Text(text, style: style));
+        textBuffer += op.data as String;
       } else if (op.data is Map) {
+        flushText();
         final map = op.data as Map;
         if (map.containsKey('image')) {
           final imgStr = map['image'] as String;
-          if (imgStr.startsWith('data:image/')) {
-            try {
-              final b64 = imgStr.split(',').last;
-              final bytes = base64Decode(b64);
-              final image = pw.MemoryImage(bytes);
-              bodyWidgets.add(
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                  child: pw.Image(image, width: 300),
-                ),
-              );
-            } catch (_) {
-              // skip broken images
+          try {
+            Uint8List? imgBytes;
+            if (imgStr.startsWith('data:image/')) {
+              imgBytes = base64Decode(imgStr.split(',').last);
+            } else if (imgStr.startsWith('http')) {
+              // skip remote images
             }
-          }
+            if (imgBytes != null) {
+              bodyWidgets.add(pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                child: pw.Image(pw.MemoryImage(imgBytes), width: 400),
+              ));
+            }
+          } catch (_) {}
         }
       }
     }
+    flushText();
 
     doc.addPage(
       pw.MultiPage(
@@ -17528,8 +17737,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
             ? (_) => pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(footerText, style: headerStyle))
             : null,
         build: (context) => [
-          pw.Text(title, style: titleStyle),
-          pw.SizedBox(height: 16),
+          if (title.isNotEmpty) ...[
+            pw.Text(title, style: titleStyle),
+            pw.Divider(thickness: 0.5),
+            pw.SizedBox(height: 8),
+          ],
           ...bodyWidgets,
         ],
       ),
@@ -17917,6 +18129,24 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Undo / Redo
+              IconButton(
+                icon: Icon(Icons.undo, size: 20, color: colorScheme.onSurfaceVariant),
+                onPressed: () { _quillController.undo(); setState(() {}); },
+                tooltip: 'Annulla',
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                icon: Icon(Icons.redo, size: 20, color: colorScheme.onSurfaceVariant),
+                onPressed: () { _quillController.redo(); setState(() {}); },
+                tooltip: 'Ripeti',
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+              gap,
               // H1, H2
               ActionChip(
                 avatar: Text('H1', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
@@ -18253,25 +18483,23 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
             padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 8),
             child: Column(
               children: [
-                // TITLE — clean, no box
+                // TITLE — free, no box at all
                 TextField(
                   controller: _titleController,
                   focusNode: _titleFocusNode,
                   textAlign: _titleAlignment,
-                  decoration: InputDecoration(
+                  decoration: InputDecoration.collapsed(
                     hintText: tr('title'),
                     hintStyle: TextStyle(
-                      fontSize: 24,
+                      fontSize: 26,
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                     ),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
                   ),
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? colorScheme.primary : null),
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? colorScheme.primary : null),
                 ),
                 // (title toolbar moved to Positioned overlay below)
-                const SizedBox(height: 8),
+                Divider(height: 24, thickness: 0.5, color: colorScheme.outlineVariant),
                 // HEADER (collapsible)
                 if (_showHeader) ...[
                   TextField(
@@ -18299,6 +18527,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                         config: quill.QuillEditorConfig(
                           placeholder: 'Scrivi qui la tua nota...',
                           padding: const EdgeInsets.fromLTRB(0, 8, 0, 80),
+                          contextMenuBuilder: (context, rawEditorState) {
+                            return AdaptiveTextSelectionToolbar.buttonItems(
+                              anchors: rawEditorState.contextMenuAnchors,
+                              buttonItems: <ContextMenuButtonItem>[
+                                ContextMenuButtonItem(label: 'Taglia', onPressed: () => rawEditorState.cutSelection(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: 'Copia', onPressed: () => rawEditorState.copySelection(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: 'Incolla', onPressed: () => rawEditorState.pasteText(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: 'Seleziona tutto', onPressed: () => rawEditorState.selectAll(SelectionChangedCause.toolbar)),
+                              ],
+                            );
+                          },
                           customStyleBuilder: _customStyleBuilder,
                           embedBuilders: [_DividerEmbedBuilder(), _ImageEmbedBuilder()],
                           characterShortcutEvents: quill.standardCharactersShortcutEvents,
@@ -18462,26 +18701,49 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
   if (note.contentDelta != null) {
     try {
       final deltaJson = json.decode(note.contentDelta!) as List;
-      for (final op in deltaJson) {
-        if (op is Map && op['insert'] is String) {
-          final text = op['insert'] as String;
-          if (text.isEmpty) continue;
-          final attrs = op['attributes'] as Map<String, dynamic>?;
-          pw.TextStyle style = baseStyle;
-          if (attrs != null) {
-            pw.FontWeight? fw;
-            pw.FontStyle? fs;
-            if (attrs['bold'] == true) fw = pw.FontWeight.bold;
-            if (attrs['italic'] == true) fs = pw.FontStyle.italic;
-            style = baseStyle.copyWith(
-              font: (fw == pw.FontWeight.bold) ? boldFont : null,
-              fontWeight: fw,
-              fontStyle: fs,
-            );
+      String textBuffer = '';
+
+      void flushText() {
+        if (textBuffer.isEmpty) return;
+        for (final line in textBuffer.split('\n')) {
+          if (line.trim().isEmpty) {
+            bodyWidgets.add(pw.SizedBox(height: 6));
+          } else {
+            bodyWidgets.add(pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 4),
+              child: pw.Text(line, style: baseStyle),
+            ));
           }
-          bodyWidgets.add(pw.Text(text, style: style));
+        }
+        textBuffer = '';
+      }
+
+      for (final op in deltaJson) {
+        if (op is Map) {
+          final insert = op['insert'];
+          if (insert is String) {
+            textBuffer += insert;
+          } else if (insert is Map) {
+            flushText();
+            if (insert.containsKey('image')) {
+              final imgStr = insert['image'] as String;
+              try {
+                Uint8List? imgBytes;
+                if (imgStr.startsWith('data:image/')) {
+                  imgBytes = base64Decode(imgStr.split(',').last);
+                }
+                if (imgBytes != null) {
+                  bodyWidgets.add(pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                    child: pw.Image(pw.MemoryImage(imgBytes), width: 400),
+                  ));
+                }
+              } catch (_) {}
+            }
+          }
         }
       }
+      flushText();
     } catch (_) {
       bodyWidgets.add(pw.Text(note.content, style: baseStyle));
     }
@@ -18500,8 +18762,11 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
           ? (_) => pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(note.footerText!, style: headerStyle))
           : null,
       build: (context) => [
-        pw.Text(note.title, style: titleStyle),
-        pw.SizedBox(height: 16),
+        if (note.title.isNotEmpty) ...[
+          pw.Text(note.title, style: titleStyle),
+          pw.Divider(thickness: 0.5),
+          pw.SizedBox(height: 8),
+        ],
         ...bodyWidgets,
       ],
     ),
