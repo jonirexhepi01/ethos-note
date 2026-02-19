@@ -5,9 +5,10 @@ import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill/quill_delta.dart' as quill_delta;
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
+// pdf/printing used for PdfPreview viewer
 import 'package:printing/printing.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -16,6 +17,8 @@ import 'package:google_generative_ai/google_generative_ai.dart' as gemini;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:googleapis/calendar/v3.dart' as gcal;
+import 'package:googleapis/drive/v3.dart' as gdrive;
+import 'package:file_picker/file_picker.dart';
 import 'package:health/health.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, TargetPlatform, defaultTargetPlatform;
@@ -28,6 +31,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -560,6 +564,14 @@ const _translations = <String, Map<String, String>>{
   // --- Flash/Deep Note UI ---
   'stop': {'it': 'Ferma', 'en': 'Stop', 'fr': 'Arrêter', 'es': 'Detener'},
   'photo': {'it': 'Foto', 'en': 'Photo', 'fr': 'Photo', 'es': 'Foto'},
+  'add_caption': {'it': 'Aggiungi didascalia...', 'en': 'Add caption...', 'fr': 'Ajouter une légende...', 'es': 'Añadir descripción...'},
+  'gallery': {'it': 'Galleria', 'en': 'Gallery', 'fr': 'Galerie', 'es': 'Galería'},
+  'camera': {'it': 'Fotocamera', 'en': 'Camera', 'fr': 'Appareil photo', 'es': 'Cámara'},
+  'open_pdf': {'it': 'Apri PDF', 'en': 'Open PDF', 'fr': 'Ouvrir PDF', 'es': 'Abrir PDF'},
+  'from_file': {'it': 'Da File', 'en': 'From File', 'fr': 'Depuis un fichier', 'es': 'Desde archivo'},
+  'from_google_drive': {'it': 'Da Google Drive', 'en': 'From Google Drive', 'fr': 'Depuis Google Drive', 'es': 'Desde Google Drive'},
+  'no_pdf_found': {'it': 'Nessun PDF trovato', 'en': 'No PDF found', 'fr': 'Aucun PDF trouvé', 'es': 'Ningún PDF encontrado'},
+  'loading_pdf': {'it': 'Caricamento PDF...', 'en': 'Loading PDF...', 'fr': 'Chargement du PDF...', 'es': 'Cargando PDF...'},
   'write_action': {'it': 'Scrivi', 'en': 'Write', 'fr': 'Écrire', 'es': 'Escribir'},
   'audio': {'it': 'Audio', 'en': 'Audio', 'fr': 'Audio', 'es': 'Audio'},
   'by_day': {'it': 'Per giorno', 'en': 'By day', 'fr': 'Par jour', 'es': 'Por día'},
@@ -581,6 +593,8 @@ const _translations = <String, Map<String, String>>{
   // --- Health card ---
   'sleep': {'it': 'Sonno', 'en': 'Sleep', 'fr': 'Sommeil', 'es': 'Sueño'},
   'steps': {'it': 'Passi', 'en': 'Steps', 'fr': 'Pas', 'es': 'Pasos'},
+  'calories': {'it': 'Calorie', 'en': 'Calories', 'fr': 'Calories', 'es': 'Calorías'},
+  'water': {'it': 'Acqua', 'en': 'Water', 'fr': 'Eau', 'es': 'Agua'},
   'health_ios_android': {'it': 'Disponibile su iOS (Apple Health) e Android (Health Connect)', 'en': 'Available on iOS (Apple Health) and Android (Health Connect)', 'fr': 'Disponible sur iOS (Apple Health) et Android (Health Connect)', 'es': 'Disponible en iOS (Apple Health) y Android (Health Connect)'},
   'tap_connect_apple': {'it': 'Tocca per collegare Apple Health', 'en': 'Tap to connect Apple Health', 'fr': 'Appuyez pour connecter Apple Health', 'es': 'Toca para conectar Apple Health'},
   'tap_connect_health': {'it': 'Tocca per collegare Health Connect', 'en': 'Tap to connect Health Connect', 'fr': 'Appuyez pour connecter Health Connect', 'es': 'Toca para conectar Health Connect'},
@@ -614,7 +628,7 @@ const _translations = <String, Map<String, String>>{
   'mic_permission_denied': {'it': 'Permesso microfono non concesso', 'en': 'Microphone permission denied', 'fr': 'Permission du microphone refusée', 'es': 'Permiso de micrófono denegado'},
   'pins_no_match': {'it': 'I PIN non corrispondono o sono troppo corti', 'en': 'PINs don\'t match or are too short', 'fr': 'Les PIN ne correspondent pas ou sont trop courts', 'es': 'Los PIN no coinciden o son muy cortos'},
   'note_moved_private': {'it': 'Nota spostata in Privata', 'en': 'Note moved to Private', 'fr': 'Note déplacée dans Privé', 'es': 'Nota movida a Privada'},
-  'configure_gemini': {'it': 'Configura la chiave API Gemini nelle impostazioni Flash Notes', 'en': 'Configure the Gemini API key in Flash Notes settings', 'fr': 'Configurez la clé API Gemini dans les paramètres Flash Notes', 'es': 'Configura la clave API Gemini en los ajustes de Flash Notes'},
+  'configure_gemini': {'it': 'Configura nelle Integrazioni', 'en': 'Configure in Integrations', 'fr': 'Configurer dans les Intégrations', 'es': 'Configurar en Integraciones'},
   'event_save_error': {'it': 'Errore nel salvataggio dell\'evento', 'en': 'Error saving event', 'fr': 'Erreur lors de l\'enregistrement de l\'événement', 'es': 'Error al guardar el evento'},
   'event_added_on': {'it': 'aggiunto il', 'en': 'added on', 'fr': 'ajouté le', 'es': 'añadido el'},
 
@@ -697,6 +711,195 @@ const _translations = <String, Map<String, String>>{
   'voice_duration': {'it': 'Durata nota vocale', 'en': 'Voice note duration', 'fr': 'Durée note vocale', 'es': 'Duración nota de voz'},
   'horoscope_locked': {'it': 'Oroscopo bloccato', 'en': 'Horoscope locked', 'fr': 'Horoscope verrouillé', 'es': 'Horóscopo bloqueado'},
   'unlock_to_read': {'it': 'Sblocca per leggere l\'oroscopo completo', 'en': 'Unlock to read the full horoscope', 'fr': 'Débloquez pour lire l\'horoscope complet', 'es': 'Desbloquea para leer el horóscopo completo'},
+  // Samsung Health guide
+  'samsung_health_guide': {'it': 'Guida Samsung Health', 'en': 'Samsung Health Guide', 'fr': 'Guide Samsung Health', 'es': 'Guía Samsung Health'},
+  'samsung_health_guide_desc': {'it': 'Come collegare Samsung Health a Health Connect', 'en': 'How to connect Samsung Health to Health Connect', 'fr': 'Comment connecter Samsung Health à Health Connect', 'es': 'Cómo conectar Samsung Health a Health Connect'},
+  'samsung_step_1': {
+    'it': '1. Apri Samsung Health sul telefono',
+    'en': '1. Open Samsung Health on your phone',
+    'fr': '1. Ouvrez Samsung Health sur votre téléphone',
+    'es': '1. Abre Samsung Health en tu teléfono',
+  },
+  'samsung_step_2': {
+    'it': '2. Vai in Impostazioni (⚙️ in alto a destra)',
+    'en': '2. Go to Settings (⚙️ top right)',
+    'fr': '2. Allez dans Paramètres (⚙️ en haut à droite)',
+    'es': '2. Ve a Ajustes (⚙️ arriba a la derecha)',
+  },
+  'samsung_step_3': {
+    'it': '3. Tocca "App e servizi connessi"',
+    'en': '3. Tap "Connected apps and services"',
+    'fr': '3. Appuyez sur "Applications et services connectés"',
+    'es': '3. Toca "Apps y servicios conectados"',
+  },
+  'samsung_step_4': {
+    'it': '4. Attiva la sincronizzazione con Health Connect',
+    'en': '4. Enable sync with Health Connect',
+    'fr': '4. Activez la synchronisation avec Health Connect',
+    'es': '4. Activa la sincronización con Health Connect',
+  },
+  'samsung_step_5': {
+    'it': '5. Seleziona tutti i tipi di dati da condividere (passi, sonno, battito, ecc.)',
+    'en': '5. Select all data types to share (steps, sleep, heart rate, etc.)',
+    'fr': '5. Sélectionnez tous les types de données à partager (pas, sommeil, fréquence cardiaque, etc.)',
+    'es': '5. Selecciona todos los tipos de datos a compartir (pasos, sueño, ritmo cardíaco, etc.)',
+  },
+  'samsung_step_6': {
+    'it': '6. Torna qui e premi "Connetti Health Connect"',
+    'en': '6. Come back here and tap "Connect Health Connect"',
+    'fr': '6. Revenez ici et appuyez sur "Connecter Health Connect"',
+    'es': '6. Vuelve aquí y pulsa "Conectar Health Connect"',
+  },
+  'samsung_note_install': {
+    'it': 'Se non hai Health Connect, scaricalo gratis dal Google Play Store.',
+    'en': 'If you don\'t have Health Connect, download it free from Google Play Store.',
+    'fr': 'Si vous n\'avez pas Health Connect, téléchargez-le gratuitement depuis le Google Play Store.',
+    'es': 'Si no tienes Health Connect, descárgalo gratis desde Google Play Store.',
+  },
+  'samsung_note_sync': {
+    'it': 'I dati si sincronizzano automaticamente dopo il collegamento. Potrebbe servire qualche minuto.',
+    'en': 'Data syncs automatically after linking. It may take a few minutes.',
+    'fr': 'Les données se synchronisent automatiquement après la liaison. Cela peut prendre quelques minutes.',
+    'es': 'Los datos se sincronizan automáticamente después de vincular. Puede tardar unos minutos.',
+  },
+  'health_connect_not_installed': {
+    'it': 'Health Connect non trovato. Installa o aggiorna Health Connect dal Play Store e riprova.',
+    'en': 'Health Connect not found. Install or update Health Connect from Play Store and try again.',
+    'fr': 'Health Connect introuvable. Installez ou mettez à jour Health Connect depuis le Play Store et réessayez.',
+    'es': 'Health Connect no encontrado. Instala o actualiza Health Connect desde Play Store e intenta de nuevo.',
+  },
+  'auth_denied_msg': {
+    'it': 'Autorizzazione negata. Assicurati di concedere tutti i permessi richiesti nella schermata di Health Connect.',
+    'en': 'Authorization denied. Make sure to grant all requested permissions in the Health Connect screen.',
+    'fr': 'Autorisation refusée. Assurez-vous d\'accorder toutes les autorisations demandées dans l\'écran Health Connect.',
+    'es': 'Autorización denegada. Asegúrate de conceder todos los permisos solicitados en la pantalla de Health Connect.',
+  },
+  'health_error_generic': {
+    'it': 'Errore di connessione. Verifica che Health Connect sia installato e aggiornato.',
+    'en': 'Connection error. Verify that Health Connect is installed and up to date.',
+    'fr': 'Erreur de connexion. Vérifiez que Health Connect est installé et à jour.',
+    'es': 'Error de conexión. Verifica que Health Connect esté instalado y actualizado.',
+  },
+  'biometric_auth': {
+    'it': 'Autenticazione biometrica',
+    'en': 'Biometric authentication',
+    'fr': 'Authentification biométrique',
+    'es': 'Autenticación biométrica',
+  },
+  'biometric_desc': {
+    'it': 'Usa Face ID o impronta digitale per sbloccare la cartella privata',
+    'en': 'Use Face ID or fingerprint to unlock the private folder',
+    'fr': 'Utilisez Face ID ou empreinte digitale pour déverrouiller le dossier privé',
+    'es': 'Usa Face ID o huella digital para desbloquear la carpeta privada',
+  },
+  'biometric_reason': {
+    'it': 'Autenticati per accedere alla cartella privata',
+    'en': 'Authenticate to access the private folder',
+    'fr': 'Authentifiez-vous pour accéder au dossier privé',
+    'es': 'Autentícate para acceder a la carpeta privada',
+  },
+  'biometric_not_available': {
+    'it': 'Autenticazione biometrica non disponibile su questo dispositivo',
+    'en': 'Biometric authentication not available on this device',
+    'fr': 'Authentification biométrique non disponible sur cet appareil',
+    'es': 'Autenticación biométrica no disponible en este dispositivo',
+  },
+  'pin_exactly_4': {
+    'it': 'PIN di 4 cifre',
+    'en': '4-digit PIN',
+    'fr': 'PIN à 4 chiffres',
+    'es': 'PIN de 4 dígitos',
+  },
+  'enable_biometric': {
+    'it': 'Attivare la biometria?',
+    'en': 'Enable biometrics?',
+    'fr': 'Activer la biométrie ?',
+    'es': '¿Activar biometría?',
+  },
+  'no_thanks': {
+    'it': 'No grazie',
+    'en': 'No thanks',
+    'fr': 'Non merci',
+    'es': 'No gracias',
+  },
+  'enable': {
+    'it': 'Attiva',
+    'en': 'Enable',
+    'fr': 'Activer',
+    'es': 'Activar',
+  },
+  'pin_must_be_4': {
+    'it': 'Il PIN deve essere di 4 cifre',
+    'en': 'PIN must be 4 digits',
+    'fr': 'Le PIN doit comporter 4 chiffres',
+    'es': 'El PIN debe tener 4 dígitos',
+  },
+  'settings_section': {
+    'it': 'Impostazioni',
+    'en': 'Settings',
+    'fr': 'Paramètres',
+    'es': 'Configuración',
+  },
+  'app_section': {
+    'it': 'App',
+    'en': 'App',
+    'fr': 'App',
+    'es': 'App',
+  },
+  'other_section': {
+    'it': 'Altro',
+    'en': 'Other',
+    'fr': 'Autre',
+    'es': 'Otros',
+  },
+  'export_as_pdf': {
+    'it': 'Esporta PDF',
+    'en': 'Export PDF',
+    'fr': 'Exporter PDF',
+    'es': 'Exportar PDF',
+  },
+  'exporting_pdf': {
+    'it': 'Generazione PDF...',
+    'en': 'Generating PDF...',
+    'fr': 'Génération PDF...',
+    'es': 'Generando PDF...',
+  },
+  'image_too_large': {
+    'it': 'Immagine troppo grande (max 2MB)',
+    'en': 'Image too large (max 2MB)',
+    'fr': 'Image trop grande (max 2 Mo)',
+    'es': 'Imagen demasiado grande (máx 2MB)',
+  },
+  'folder_options': {
+    'it': 'Opzioni Cartella',
+    'en': 'Folder Options',
+    'fr': 'Options du dossier',
+    'es': 'Opciones de carpeta',
+  },
+  'edit_folder': {
+    'it': 'Modifica Cartella',
+    'en': 'Edit Folder',
+    'fr': 'Modifier le dossier',
+    'es': 'Editar carpeta',
+  },
+  'make_private': {
+    'it': 'Rendi Privata',
+    'en': 'Make Private',
+    'fr': 'Rendre privé',
+    'es': 'Hacer privada',
+  },
+  'folder_is_private': {
+    'it': 'Cartella protetta da PIN',
+    'en': 'Folder protected by PIN',
+    'fr': 'Dossier protégé par PIN',
+    'es': 'Carpeta protegida por PIN',
+  },
+  'cannot_delete_builtin': {
+    'it': 'Cartella predefinita',
+    'en': 'Built-in folder',
+    'fr': 'Dossier prédéfini',
+    'es': 'Carpeta predeterminada',
+  },
 };
 
 // ─── SQLite Database Helper ──────────────────────────────────────────────────
@@ -736,15 +939,19 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Future schema migrations go here:
-    // if (oldVersion < 2) { await db.execute('ALTER TABLE ...'); }
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE flash_notes ADD COLUMN image_base64 TEXT');
+    }
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE custom_folders ADD COLUMN is_private INTEGER DEFAULT 0');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -764,7 +971,7 @@ class DatabaseHelper {
       CREATE TABLE flash_notes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         content TEXT NOT NULL, audio_path TEXT, audio_duration_ms INTEGER,
-        created_at INTEGER NOT NULL
+        image_base64 TEXT, created_at INTEGER NOT NULL
       )
     ''');
     await db.execute('CREATE INDEX idx_flash_notes_created_at ON flash_notes(created_at)');
@@ -806,7 +1013,7 @@ class DatabaseHelper {
       CREATE TABLE custom_folders (
         name TEXT PRIMARY KEY,
         icon_code INTEGER NOT NULL, color_value INTEGER NOT NULL,
-        is_custom INTEGER DEFAULT 1, is_shared INTEGER DEFAULT 0, shared_emails TEXT
+        is_custom INTEGER DEFAULT 1, is_shared INTEGER DEFAULT 0, is_private INTEGER DEFAULT 0, shared_emails TEXT
       )
     ''');
 
@@ -845,7 +1052,7 @@ class DatabaseHelper {
   // ── Flash Notes CRUD ──
 
   Future<int> insertFlashNote(FlashNote note) async {
-    if (_webMode) { final id = _nextId(); _wFlashNotes.insert(0, FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, createdAt: note.createdAt)); return id; }
+    if (_webMode) { final id = _nextId(); _wFlashNotes.insert(0, FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, createdAt: note.createdAt)); return id; }
     final db = await database;
     return await db.insert('flash_notes', note.toDbMap());
   }
@@ -858,7 +1065,7 @@ class DatabaseHelper {
   }
 
   Future<int> updateFlashNote(int id, FlashNote note) async {
-    if (_webMode) { final i = _wFlashNotes.indexWhere((n) => n.id == id); if (i >= 0) _wFlashNotes[i] = FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, createdAt: note.createdAt); return 1; }
+    if (_webMode) { final i = _wFlashNotes.indexWhere((n) => n.id == id); if (i >= 0) _wFlashNotes[i] = FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, createdAt: note.createdAt); return 1; }
     final db = await database;
     return await db.update('flash_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
   }
@@ -1136,7 +1343,18 @@ void main() async {
     await DatabaseHelper().database;
     await _migrateSharedPrefsToSqlite();
   }
-  await _initDemoDataIfNeeded();
+  // await _initDemoDataIfNeeded(); // Demo data disabled
+  // One-time DB wipe to start clean
+  final _prefs = await SharedPreferences.getInstance();
+  if (_prefs.getBool('db_wiped_v1') != true) {
+    final db = await DatabaseHelper().database;
+    await db.delete('pro_notes');
+    await db.delete('flash_notes');
+    await db.delete('calendar_events');
+    await db.delete('trashed_notes');
+    await db.delete('user_profile');
+    await _prefs.setBool('db_wiped_v1', true);
+  }
   await NotificationService.init();
   runApp(const EthosNoteApp());
 }
@@ -3057,6 +3275,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // Split layout: calendar compression on scroll
   bool _isCalendarCompact = false;
+  bool _compactCooldown = false;
   final ScrollController _eventsScrollController = ScrollController();
 
   // Google Calendar
@@ -3085,7 +3304,11 @@ class _CalendarPageState extends State<CalendarPage> {
     final offset = _eventsScrollController.offset;
     if (offset > 30 && !_isCalendarCompact) {
       setState(() => _isCalendarCompact = true);
-    } else if (offset <= 0 && _isCalendarCompact) {
+      _compactCooldown = true;
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) _compactCooldown = false;
+      });
+    } else if (offset <= 5 && _isCalendarCompact && !_compactCooldown) {
       setState(() => _isCalendarCompact = false);
     }
   }
@@ -3182,10 +3405,10 @@ class _CalendarPageState extends State<CalendarPage> {
         setState(() => _healthSnapshot = HealthSnapshot(
           steps: 6320,
           heartRate: 72,
-          sleepHours: 6.5,
+          calories: 1450,
           weight: 70,
           bloodOxygen: 98,
-          workoutMinutes: 18,
+          waterLiters: 1.2,
           fetchedAt: DateTime.now(),
         ));
       }
@@ -3208,20 +3431,20 @@ class _CalendarPageState extends State<CalendarPage> {
     final isEthos = _isEthosTheme(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final sleep = _healthSnapshot?.sleepScore ?? 0.0;
     final steps = _healthSnapshot?.stepsProgress ?? 0.0;
-    final workout = _healthSnapshot?.workoutProgress ?? 0.0;
+    final cals = _healthSnapshot?.caloriesProgress ?? 0.0;
+    final water = _healthSnapshot?.waterProgress ?? 0.0;
 
     // Colors for each section adapted to theme
-    final sleepColor = isEthos
-        ? const Color(0xFF7B1FA2) // purple-bordeaux
-        : isDark ? const Color(0xFF9575CD) : const Color(0xFF7E57C2);
     final stepsColor = isEthos
         ? const Color(0xFFB8566B) // bordeaux accent
         : isDark ? const Color(0xFF4FC3F7) : const Color(0xFF039BE5);
-    final workoutColor = isEthos
+    final caloriesColor = isEthos
         ? const Color(0xFFA3274F) // deep bordeaux
-        : isDark ? const Color(0xFF81C784) : const Color(0xFF43A047);
+        : isDark ? const Color(0xFFFFB74D) : const Color(0xFFEF6C00);
+    final waterColor = isEthos
+        ? const Color(0xFF7B1FA2) // purple-bordeaux
+        : isDark ? const Color(0xFF4DD0E1) : const Color(0xFF00897B);
 
     final bgAlpha = isDark || isEthos ? 0.15 : 0.10;
 
@@ -3261,9 +3484,9 @@ class _CalendarPageState extends State<CalendarPage> {
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: [
-          buildSection(sleep, sleepColor, tr('sleep'), Icons.bedtime_outlined),
           buildSection(steps, stepsColor, tr('steps'), Icons.directions_walk),
-          buildSection(workout, workoutColor, tr('sport'), Icons.fitness_center),
+          buildSection(cals, caloriesColor, tr('calories'), Icons.local_fire_department),
+          buildSection(water, waterColor, tr('water'), Icons.water_drop_outlined),
         ],
       ),
     );
@@ -3354,7 +3577,12 @@ class _CalendarPageState extends State<CalendarPage> {
   List<CalendarEventFull> _getEventsForDay(DateTime day) {
     final local = _events[_dateKey(day)] ?? [];
     final google = _googleEvents[_dateKey(day)] ?? [];
-    return [...local, ...google];
+    // Filter out Google events that duplicate a local event (same title + close startTime)
+    final filtered = google.where((g) => !local.any((l) =>
+      l.title == g.title &&
+      l.startTime.difference(g.startTime).inMinutes.abs() < 2
+    )).toList();
+    return [...local, ...filtered];
   }
 
   void _createEvent() {
@@ -4163,15 +4391,16 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildLayoutToggle() {
+    final isFullScreen = _calSettings.calendarLayout == 'fullScreen';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Expanded(
+          Flexible(
             child: SegmentedButton<String>(
-              segments: [
-                ButtonSegment(value: 'split', icon: const Icon(Icons.view_agenda, size: 18), label: Text(tr('split_layout'))),
-                ButtonSegment(value: 'fullScreen', icon: const _CalendarIcon9(size: 18), label: Text(tr('full_layout'))),
+              segments: const [
+                ButtonSegment(value: 'split', icon: Icon(Icons.view_agenda, size: 16)),
+                ButtonSegment(value: 'fullScreen', icon: _CalendarIcon9(size: 16)),
               ],
               selected: {_calSettings.calendarLayout},
               onSelectionChanged: (v) {
@@ -4181,44 +4410,41 @@ class _CalendarPageState extends State<CalendarPage> {
                 });
                 _calSettings.save();
               },
-              style: ButtonStyle(
+              showSelectedIcon: false,
+              style: const ButtonStyle(
                 visualDensity: VisualDensity.compact,
-                textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 12)),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
           ),
-          if (_calSettings.calendarLayout == 'fullScreen') ...[
-            const SizedBox(width: 8),
-            SegmentedButton<String>(
-              segments: [
-                ButtonSegment(value: 'month', label: Text(tr('month'))),
-                ButtonSegment(value: 'week', label: Text(tr('week'))),
-              ],
-              selected: {_calSettings.calendarViewMode},
-              onSelectionChanged: (v) {
-                setState(() {
-                  _calSettings = _calSettings.copyWith(calendarViewMode: v.first);
-                });
-                _calSettings.save();
-              },
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 12)),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Opacity(
+              opacity: isFullScreen ? 1.0 : 0.35,
+              child: IgnorePointer(
+                ignoring: !isFullScreen,
+                child: SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'month', icon: Icon(Icons.calendar_view_month, size: 16)),
+                    ButtonSegment(value: 'week', icon: Icon(Icons.view_week, size: 16)),
+                  ],
+                  selected: {_calSettings.calendarViewMode},
+                  onSelectionChanged: (v) {
+                    setState(() {
+                      _calSettings = _calSettings.copyWith(calendarViewMode: v.first);
+                    });
+                    _calSettings.save();
+                  },
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
               ),
             ),
-          ],
-          if (GoogleCalendarService.isSignedIn) ...[
-            const SizedBox(width: 8),
-            _isLoadingGoogle
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : IconButton(
-                    icon: const Icon(Icons.sync, size: 20),
-                    tooltip: '${tr('connect')} Google Calendar',
-                    onPressed: _fetchGoogleEvents,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  ),
-          ],
+          ),
+          const Spacer(),
         ],
       ),
     );
@@ -4799,7 +5025,11 @@ class CalendarAlertConfig {
 // ── Google Calendar Service ──
 class GoogleCalendarService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [gcal.CalendarApi.calendarScope],
+    serverClientId: '18187658102-mf0k5htarr8rvajdono1q7grtbbk0m1e.apps.googleusercontent.com',
+    scopes: [
+      gcal.CalendarApi.calendarScope,
+      gdrive.DriveApi.driveReadonlyScope,
+    ],
   );
 
   static GoogleSignInAccount? _currentUser;
@@ -4825,6 +5055,18 @@ class GoogleCalendarService {
     } catch (e) {
       if (kDebugMode) debugPrint('Google Sign-In error: $e');
       return false;
+    }
+  }
+
+  static Future<gdrive.DriveApi?> getDriveApi() async {
+    if (_currentUser == null) return null;
+    try {
+      final httpClient = await _googleSignIn.authenticatedClient();
+      if (httpClient == null) return null;
+      return gdrive.DriveApi(httpClient);
+    } catch (e) {
+      if (kDebugMode) debugPrint('Drive API error: $e');
+      return null;
     }
   }
 
@@ -4926,50 +5168,50 @@ class GoogleCalendarService {
 class HealthSnapshot {
   final int? steps;
   final double? heartRate;
-  final double? sleepHours;
+  final double? calories;
   final double? weight;
   final double? bloodOxygen;
-  final double? workoutMinutes;
+  final double? waterLiters;
   final DateTime fetchedAt;
 
   const HealthSnapshot({
     this.steps,
     this.heartRate,
-    this.sleepHours,
+    this.calories,
     this.weight,
     this.bloodOxygen,
-    this.workoutMinutes,
+    this.waterLiters,
     required this.fetchedAt,
   });
 
-  bool get hasData => steps != null || heartRate != null || sleepHours != null || weight != null || bloodOxygen != null || workoutMinutes != null;
-
-  /// Sleep score: 0.0–1.0 (target 8h)
-  double get sleepScore => sleepHours != null ? (sleepHours! / 8.0).clamp(0.0, 1.0) : 0.0;
+  bool get hasData => steps != null || heartRate != null || calories != null || weight != null || bloodOxygen != null || waterLiters != null;
 
   /// Steps progress: 0.0–1.0 (target 10000)
   double get stepsProgress => steps != null ? (steps! / 10000).clamp(0.0, 1.0) : 0.0;
 
-  /// Workout progress: 0.0–1.0 (target 30 min)
-  double get workoutProgress => workoutMinutes != null ? (workoutMinutes! / 30.0).clamp(0.0, 1.0) : 0.0;
+  /// Calories progress: 0.0–1.0 (target 2000 kcal)
+  double get caloriesProgress => calories != null ? (calories! / 2000).clamp(0.0, 1.0) : 0.0;
+
+  /// Water progress: 0.0–1.0 (target 2.0 liters)
+  double get waterProgress => waterLiters != null ? (waterLiters! / 2.0).clamp(0.0, 1.0) : 0.0;
 
   Map<String, dynamic> toJson() => {
     'steps': steps,
     'heartRate': heartRate,
-    'sleepHours': sleepHours,
+    'calories': calories,
     'weight': weight,
     'bloodOxygen': bloodOxygen,
-    'workoutMinutes': workoutMinutes,
+    'waterLiters': waterLiters,
     'fetchedAt': fetchedAt.toIso8601String(),
   };
 
   factory HealthSnapshot.fromJson(Map<String, dynamic> json) => HealthSnapshot(
     steps: json['steps'],
     heartRate: (json['heartRate'] as num?)?.toDouble(),
-    sleepHours: (json['sleepHours'] as num?)?.toDouble(),
+    calories: (json['calories'] as num?)?.toDouble(),
     weight: (json['weight'] as num?)?.toDouble(),
     bloodOxygen: (json['bloodOxygen'] as num?)?.toDouble(),
-    workoutMinutes: (json['workoutMinutes'] as num?)?.toDouble(),
+    waterLiters: (json['waterLiters'] as num?)?.toDouble(),
     fetchedAt: DateTime.parse(json['fetchedAt']),
   );
 }
@@ -4982,32 +5224,81 @@ class HealthService {
 
   static bool _authorized = false;
   static bool get isAuthorized => _authorized;
+  static String? lastError;
 
   static final _types = [
     HealthDataType.STEPS,
     HealthDataType.HEART_RATE,
     HealthDataType.BLOOD_OXYGEN,
     HealthDataType.WEIGHT,
-    HealthDataType.SLEEP_ASLEEP,
-    HealthDataType.SLEEP_DEEP,
-    HealthDataType.SLEEP_LIGHT,
-    HealthDataType.SLEEP_REM,
-    HealthDataType.WORKOUT,
+    HealthDataType.TOTAL_CALORIES_BURNED,
+    HealthDataType.WATER,
+  ];
+
+  static final _permissions = [
+    HealthDataAccess.READ, // STEPS
+    HealthDataAccess.READ, // HEART_RATE
+    HealthDataAccess.READ, // BLOOD_OXYGEN
+    HealthDataAccess.READ, // WEIGHT
+    HealthDataAccess.READ, // TOTAL_CALORIES_BURNED
+    HealthDataAccess.READ, // WATER
   ];
 
   static Future<bool> requestAuthorization() async {
     if (!isSupported) return false;
+    lastError = null;
     try {
       final health = Health();
       await health.configure();
-      _authorized = await health.requestAuthorization(_types);
-      if (_authorized) {
+
+      // Check if Health Connect is available (Android only)
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final available = await health.isHealthConnectAvailable();
+        if (!available) {
+          lastError = 'health_connect_not_installed';
+          if (kDebugMode) debugPrint('Health Connect not available');
+          try { await health.installHealthConnect(); } catch (_) {}
+          return false;
+        }
+      }
+
+      // Request authorization — may return false even if user granted permissions
+      await health.requestAuthorization(
+        _types,
+        permissions: _permissions,
+      );
+
+      // Verify actual permissions with hasPermissions (more reliable on Android)
+      bool granted = false;
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        // Check if at least STEPS permission was granted
+        final hasSteps = await health.hasPermissions(
+          [HealthDataType.STEPS],
+          permissions: [HealthDataAccess.READ],
+        );
+        granted = hasSteps == true;
+        if (kDebugMode) debugPrint('Health hasPermissions(STEPS): $hasSteps');
+      } else {
+        // On iOS, hasPermissions returns null for READ, so trust requestAuthorization
+        granted = true;
+      }
+
+      if (granted) {
+        _authorized = true;
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('health_authorized', true);
+      } else {
+        lastError = 'auth_denied';
       }
       return _authorized;
+    } on UnsupportedError {
+      lastError = 'health_connect_not_installed';
+      if (kDebugMode) debugPrint('Health Connect not installed');
+      try { await Health().installHealthConnect(); } catch (_) {}
+      return false;
     } catch (e) {
       if (kDebugMode) debugPrint('Health auth error: $e');
+      lastError = e.toString();
       return false;
     }
   }
@@ -5052,7 +5343,6 @@ class HealthService {
       double? heartRate;
       double? bloodOxygen;
       double? weight;
-      double? sleepHours;
 
       final heartData = await health.getHealthDataFromTypes(
         types: [HealthDataType.HEART_RATE],
@@ -5084,51 +5374,47 @@ class HealthService {
         if (val is NumericHealthValue) weight = val.numericValue.toDouble();
       }
 
-      // Sleep (last night)
-      final sleepStart = midnight.subtract(const Duration(hours: 12));
-      final sleepTypes = [
-        HealthDataType.SLEEP_ASLEEP,
-        HealthDataType.SLEEP_DEEP,
-        HealthDataType.SLEEP_LIGHT,
-        HealthDataType.SLEEP_REM,
-      ];
-      final sleepData = await health.getHealthDataFromTypes(
-        types: sleepTypes,
-        startTime: sleepStart,
-        endTime: midnight,
-      );
-      if (sleepData.isNotEmpty) {
-        final deduped = Health().removeDuplicates(sleepData);
-        double totalMinutes = 0;
-        for (final dp in deduped) {
-          totalMinutes += dp.dateTo.difference(dp.dateFrom).inMinutes;
-        }
-        sleepHours = totalMinutes / 60;
-      }
-
-      // Workout minutes
-      double? workoutMinutes;
-      final workoutData = await health.getHealthDataFromTypes(
-        types: [HealthDataType.WORKOUT],
+      // Calories burned today
+      double? calories;
+      final caloriesData = await health.getHealthDataFromTypes(
+        types: [HealthDataType.TOTAL_CALORIES_BURNED],
         startTime: midnight,
         endTime: now,
       );
-      if (workoutData.isNotEmpty) {
-        final deduped = Health().removeDuplicates(workoutData);
-        double totalMin = 0;
+      if (caloriesData.isNotEmpty) {
+        final deduped = Health().removeDuplicates(caloriesData);
+        double totalCal = 0;
         for (final dp in deduped) {
-          totalMin += dp.dateTo.difference(dp.dateFrom).inMinutes;
+          final val = dp.value;
+          if (val is NumericHealthValue) totalCal += val.numericValue.toDouble();
         }
-        workoutMinutes = totalMin;
+        calories = totalCal;
+      }
+
+      // Water intake today (liters)
+      double? waterLiters;
+      final waterData = await health.getHealthDataFromTypes(
+        types: [HealthDataType.WATER],
+        startTime: midnight,
+        endTime: now,
+      );
+      if (waterData.isNotEmpty) {
+        final deduped = Health().removeDuplicates(waterData);
+        double totalLiters = 0;
+        for (final dp in deduped) {
+          final val = dp.value;
+          if (val is NumericHealthValue) totalLiters += val.numericValue.toDouble();
+        }
+        waterLiters = totalLiters;
       }
 
       final snapshot = HealthSnapshot(
         steps: steps,
         heartRate: heartRate,
-        sleepHours: sleepHours,
+        calories: calories,
         weight: weight,
         bloodOxygen: bloodOxygen,
-        workoutMinutes: workoutMinutes,
+        waterLiters: waterLiters,
         fetchedAt: now,
       );
 
@@ -5422,6 +5708,7 @@ class CalendarSettingsPage extends StatefulWidget {
 
 class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   late CalendarSettings _settings;
+  late TextEditingController _weatherCityController;
 
   static final _availableAlertMinutes = <int, String>{
     5: tr('5_min_before'),
@@ -5461,6 +5748,13 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   void initState() {
     super.initState();
     _settings = widget.settings;
+    _weatherCityController = TextEditingController(text: _settings.weatherCity ?? '');
+  }
+
+  @override
+  void dispose() {
+    _weatherCityController.dispose();
+    super.dispose();
   }
 
   void _updateSettings(CalendarSettings newSettings) {
@@ -5499,12 +5793,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ── SECTION: Google Calendar ──
-            _buildSectionHeader('Google Calendar', Icons.cloud_sync),
-            const SizedBox(height: 8),
-            _buildGoogleCalendarCard(),
-            const SizedBox(height: 24),
-
             // ── SECTION: Font Calendario ──
             _buildSectionHeader(tr('font'), Icons.text_fields),
             const SizedBox(height: 8),
@@ -5689,101 +5977,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     );
   }
 
-
-  Widget _buildGoogleCalendarCard() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isConnected = GoogleCalendarService.isSignedIn;
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  isConnected ? Icons.cloud_done : Icons.cloud_off,
-                  color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isConnected ? tr('connected') : tr('not_connected'),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: isConnected ? Colors.green : colorScheme.onSurface,
-                        ),
-                      ),
-                      if (isConnected && GoogleCalendarService.userEmail != null)
-                        Text(
-                          GoogleCalendarService.userEmail!,
-                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (!isConnected)
-              Text(
-                tr('google_cal_desc'),
-                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
-              ),
-            if (!isConnected) const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: isConnected
-                  ? OutlinedButton.icon(
-                      onPressed: () async {
-                        await GoogleCalendarService.signOut();
-                        setState(() {});
-                      },
-                      icon: const Icon(Icons.logout, size: 18),
-                      label: Text(tr('disconnect')),
-                      style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
-                    )
-                  : FilledButton.icon(
-                      onPressed: () async {
-                        final success = await GoogleCalendarService.signIn();
-                        if (success) {
-                          setState(() {});
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('${tr('google_calendar')} - ${tr('connected')}'),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            );
-                          }
-                        } else {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(tr('error')),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.login, size: 18),
-                      label: Text('${tr('connect')} Google Calendar'),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildFontCard() {
     return Card(
@@ -6204,7 +6397,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             if (_settings.showWeather) ...[
               const Divider(),
               TextField(
-                controller: TextEditingController(text: _settings.weatherCity ?? ''),
+                controller: _weatherCityController,
                 decoration: InputDecoration(
                   labelText: tr('weather_city'),
                   hintText: tr('city_hint'),
@@ -6213,8 +6406,14 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
                   prefixIcon: Icon(Icons.location_city, color: Color(_settings.calendarColorValue)),
                 ),
-                onChanged: (v) {
-                  _updateSettings(_settings.copyWith(weatherCity: v.isEmpty ? '' : v));
+                textInputAction: TextInputAction.done,
+                onSubmitted: (v) {
+                  _updateSettings(_settings.copyWith(weatherCity: v.trim().isEmpty ? '' : v.trim()));
+                },
+                onEditingComplete: () {
+                  final v = _weatherCityController.text;
+                  _updateSettings(_settings.copyWith(weatherCity: v.trim().isEmpty ? '' : v.trim()));
+                  FocusScope.of(context).unfocus();
                 },
               ),
             ],
@@ -6369,9 +6568,20 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                           final ok = await HealthService.requestAuthorization();
                           setState(() {});
                           if (mounted) {
+                            String msg;
+                            if (ok) {
+                              msg = '$platformName ${tr('connected_success')}';
+                            } else if (HealthService.lastError == 'health_connect_not_installed') {
+                              msg = tr('health_connect_not_installed');
+                            } else if (HealthService.lastError == 'auth_denied') {
+                              msg = tr('auth_denied_msg');
+                            } else {
+                              msg = tr('health_error_generic');
+                            }
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(ok ? '$platformName ${tr('connected_success')}' : tr('auth_failed')),
+                                content: Text(msg),
+                                duration: const Duration(seconds: 5),
                                 behavior: SnackBarBehavior.floating,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
@@ -6382,6 +6592,58 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                         label: Text('${tr('connect')} $platformName'),
                       ),
               ),
+            // Samsung Health guide (Android only)
+            if (HealthService.isSupported && defaultTargetPlatform == TargetPlatform.android) ...[
+              const Divider(height: 24),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                leading: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1428A0).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.phone_android, color: Color(0xFF1428A0), size: 20),
+                ),
+                title: Text(tr('samsung_health_guide'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: Text(tr('samsung_health_guide_desc'), style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  _buildGuideStep(Icons.open_in_new, tr('samsung_step_1'), const Color(0xFF1428A0)),
+                  _buildGuideStep(Icons.settings, tr('samsung_step_2'), const Color(0xFF1428A0)),
+                  _buildGuideStep(Icons.sync_alt, tr('samsung_step_3'), const Color(0xFF1428A0)),
+                  _buildGuideStep(Icons.toggle_on, tr('samsung_step_4'), const Color(0xFF1428A0)),
+                  _buildGuideStep(Icons.checklist, tr('samsung_step_5'), const Color(0xFF1428A0)),
+                  _buildGuideStep(Icons.arrow_back, tr('samsung_step_6'), Colors.green),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline, size: 16, color: Colors.amber),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(tr('samsung_note_install'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                              const SizedBox(height: 4),
+                              Text(tr('samsung_note_sync'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const Divider(height: 24),
             Row(
               children: [
@@ -6397,6 +6659,29 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildGuideStep(IconData icon, String text, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: const TextStyle(fontSize: 13, height: 1.4)),
+          ),
+        ],
       ),
     );
   }
@@ -7704,22 +7989,134 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 16),
 
-          // --- CARD 2: Integrazioni (ListTile tappabile → bottom sheet) ---
+          // --- CARD: Impostazioni (Integrazioni, Lingua, Backup) ---
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text(tr('settings_section'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+          ),
           Card(
             elevation: 0,
             color: colorScheme.surfaceContainerLowest,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: ListTile(
-              leading: Icon(Icons.extension, color: colorScheme.primary),
-              title: Text(tr('settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(_getIntegrationsSubtitle()),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _showIntegrationsSheet,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(Icons.extension, color: colorScheme.primary),
+                  title: Text(tr('integrations'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(_getIntegrationsSubtitle()),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const IntegrationsPage())).then((_) {
+                      setState(() {});
+                    });
+                  },
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.language, color: Colors.blue, size: 22),
+                          ),
+                          const SizedBox(width: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(tr('language'), style: const TextStyle(fontSize: 16)),
+                              Text(
+                                {'it': 'Italiano', 'en': 'English', 'fr': 'Français', 'es': 'Español'}[_appLocale] ?? 'Italiano',
+                                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(value: 'it', label: Text('Italiano', style: TextStyle(fontSize: 12))),
+                            ButtonSegment(value: 'en', label: Text('English', style: TextStyle(fontSize: 12))),
+                            ButtonSegment(value: 'fr', label: Text('Français', style: TextStyle(fontSize: 12))),
+                            ButtonSegment(value: 'es', label: Text('Español', style: TextStyle(fontSize: 12))),
+                          ],
+                          selected: {_appLocale},
+                          onSelectionChanged: (sel) => widget.onLocaleChanged(sel.first),
+                          showSelectedIcon: false,
+                          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.backup, color: Colors.teal, size: 22),
+                  ),
+                  title: Text(tr('backup')),
+                  subtitle: Text(_profile.backupMode == 'local' ? tr('local') : 'Google Drive'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        title: Text(tr('backup_mode')),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RadioListTile(
+                              title: Text(tr('local')),
+                              subtitle: Text(tr('save_on_device')),
+                              value: 'local',
+                              groupValue: _profile.backupMode,
+                              onChanged: (value) {
+                                setState(() => _profile.backupMode = value!);
+                                Navigator.pop(context);
+                              },
+                            ),
+                            RadioListTile(
+                              title: const Text('Google Drive') /* brand */,
+                              subtitle: Text(tr('sync_to_cloud')),
+                              value: 'drive',
+                              groupValue: _profile.backupMode,
+                              onChanged: (value) {
+                                setState(() => _profile.backupMode = value!);
+                                Navigator.pop(context);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // --- CARD 4: General Settings ---
+          // --- CARD: App (Tema, Deep Note, Calendario, Flash Notes) ---
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text(tr('app_section'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+          ),
           Card(
             elevation: 0,
             color: colorScheme.surfaceContainerLowest,
@@ -7745,31 +8142,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                     selected: {widget.themeMode},
                     onSelectionChanged: (sel) => widget.onThemeModeChanged(sel.first),
-                    showSelectedIcon: false,
-                    style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.language, color: Colors.blue, size: 22),
-                  ),
-                  title: Text(tr('language')),
-                  subtitle: Text({'it': 'Italiano', 'en': 'English', 'fr': 'Français', 'es': 'Español'}[_appLocale] ?? 'Italiano'),
-                  trailing: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'it', label: Text('IT', style: TextStyle(fontSize: 12))),
-                      ButtonSegment(value: 'en', label: Text('EN', style: TextStyle(fontSize: 12))),
-                      ButtonSegment(value: 'fr', label: Text('FR', style: TextStyle(fontSize: 12))),
-                      ButtonSegment(value: 'es', label: Text('ES', style: TextStyle(fontSize: 12))),
-                    ],
-                    selected: {_appLocale},
-                    onSelectionChanged: (sel) => widget.onLocaleChanged(sel.first),
                     showSelectedIcon: false,
                     style: const ButtonStyle(visualDensity: VisualDensity.compact),
                   ),
@@ -7832,7 +8204,22 @@ class _SettingsPageState extends State<SettingsPage> {
                     ));
                   },
                 ),
-                const Divider(height: 1),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // --- CARD: Altro (Ethos Aura, Cestino, Info) ---
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text(tr('other_section'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+          ),
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(6),
@@ -7865,53 +8252,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const TrashPage()));
                   },
                 ),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.teal.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.backup, color: Colors.teal, size: 22),
-                  ),
-                  title: Text(tr('backup')),
-                  subtitle: Text(_profile.backupMode == 'local' ? tr('local') : 'Google Drive'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                        title: Text(tr('backup_mode')),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            RadioListTile(
-                              title: Text(tr('local')),
-                              subtitle: Text(tr('save_on_device')),
-                              value: 'local',
-                              groupValue: _profile.backupMode,
-                              onChanged: (value) {
-                                setState(() => _profile.backupMode = value!);
-                                Navigator.pop(context);
-                              },
-                            ),
-                            RadioListTile(
-                              title: const Text('Google Drive') /* brand */,
-                              subtitle: Text(tr('sync_to_cloud')),
-                              value: 'drive',
-                              groupValue: _profile.backupMode,
-                              onChanged: (value) {
-                                setState(() => _profile.backupMode = value!);
-                                Navigator.pop(context);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                const Divider(height: 1),
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(6),
@@ -8135,192 +8476,364 @@ class _SettingsPageState extends State<SettingsPage> {
 
   String _getIntegrationsSubtitle() {
     final connected = <String>[];
-    if (_profile.googleDriveConnected) connected.add('Google Drive');
+    if (GoogleCalendarService.isSignedIn) {
+      connected.add('Google Calendar');
+      connected.add('Google Drive');
+    }
     if (_profile.geminiConnected) connected.add('Gemini AI');
     if (HealthService.isAuthorized) connected.add(tr('health'));
     return connected.isEmpty ? tr('no_active_integrations') : connected.join(', ');
   }
 
-  void _showIntegrationsSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+}
+
+// ─── Integrations Page ────────────────────────────────────────────
+
+class IntegrationsPage extends StatefulWidget {
+  const IntegrationsPage({super.key});
+
+  @override
+  State<IntegrationsPage> createState() => _IntegrationsPageState();
+}
+
+class _IntegrationsPageState extends State<IntegrationsPage> {
+  FlashNotesSettings _flashSettings = const FlashNotesSettings();
+  late TextEditingController _apiKeyController;
+  bool _isLoadingGoogle = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiKeyController = TextEditingController();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await FlashNotesSettings.load();
+    if (mounted) {
+      setState(() {
+        _flashSettings = settings;
+        _apiKeyController.text = settings.geminiApiKey;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _apiKeyController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(tr('integrations')),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
       ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final colorScheme = Theme.of(ctx).colorScheme;
-          return Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildGoogleSection(colorScheme),
+          const SizedBox(height: 16),
+          _buildGeminiSection(colorScheme),
+          const SizedBox(height: 16),
+          _buildHealthSection(colorScheme),
+        ],
+      ),
+    );
+  }
+
+  // ── Google (Calendar + Drive) ──
+  Widget _buildGoogleSection(ColorScheme colorScheme) {
+    final isConnected = GoogleCalendarService.isSignedIn;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
                 Container(
-                  width: 40, height: 4,
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
+                    color: Colors.blue.shade700.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.account_circle, color: Colors.blue.shade700, size: 28),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Google', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(
+                        isConnected
+                            ? (GoogleCalendarService.userEmail ?? tr('connected'))
+                            : tr('not_connected'),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text(tr('integrations'), style: Theme.of(ctx).textTheme.titleLarge),
-                const SizedBox(height: 16),
-                _buildIntegrationTile(
-                  'Google Drive', Icons.cloud, Colors.blue.shade700,
-                  _profile.googleDriveConnected,
-                  (value) {
-                    setState(() => _profile.googleDriveConnected = value);
-                    setSheetState(() {});
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildIntegrationTile(
-                  'Gemini AI', Icons.auto_awesome, Colors.purple.shade700,
-                  _profile.geminiConnected,
-                  (value) {
-                    setState(() => _profile.geminiConnected = value);
-                    setSheetState(() {});
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildIntegrationTile(
-                  'Google Calendar', Icons.calendar_month, Colors.blue.shade600,
-                  _profile.googleCalendarConnected,
-                  (value) {
-                    setState(() => _profile.googleCalendarConnected = value);
-                    setSheetState(() {});
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildHealthIntegrationTile(),
-                const SizedBox(height: 16),
+                if (_isLoadingGoogle)
+                  const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
               ],
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildHealthIntegrationTile() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final healthColor = Colors.red.shade600;
-    final isConnected = HealthService.isAuthorized;
-    final statusText = HealthService.isSupported
-        ? (isConnected
-            ? (defaultTargetPlatform == TargetPlatform.iOS
-                ? 'Apple Health ${tr('connected')}'
-                : 'Health Connect ${tr('connected')}')
-            : tr('not_connected'))
-        : tr('available_ios_android');
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: healthColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(Icons.monitor_heart, color: healthColor, size: 28),
-        ),
-        title: Text(tr('health'), style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(
-          statusText,
-          style: TextStyle(
-            color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
-            fontSize: 12,
-          ),
-        ),
-        trailing: Switch(
-          value: isConnected,
-          onChanged: (val) async {
-            if (!HealthService.isSupported) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(tr('health')),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              );
-              return;
-            }
-            if (val) {
-              final ok = await HealthService.requestAuthorization();
-              setState(() {});
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? tr('health_connected') : tr('auth_failed')),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-              }
-            } else {
-              await HealthService.disconnect();
-              setState(() {});
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('${tr('health')} - ${tr('disconnect')}'),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-              }
-            }
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIntegrationTile(
-    String title,
-    IconData icon,
-    Color color,
-    bool value,
-    Function(bool) onChanged,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: color, size: 28),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(
-          value ? tr('connected') : tr('not_connected'),
-          style: TextStyle(
-            color: value ? Colors.green : colorScheme.onSurfaceVariant,
-            fontSize: 12,
-          ),
-        ),
-        trailing: Switch(
-          value: value,
-          onChanged: (val) {
-            onChanged(val);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(val ? '$title ${tr('connected')}' : '$title ${tr('disconnected')}'),
+            const SizedBox(height: 16),
+            _buildSubService('Google Calendar', Icons.calendar_month, Colors.blue.shade600, isConnected),
+            const SizedBox(height: 8),
+            _buildSubService('Google Drive', Icons.cloud, Colors.blue.shade700, isConnected),
+            if (!isConnected) ...[
+              const SizedBox(height: 12),
+              Text(
+                tr('google_cal_desc'),
+                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
               ),
-            );
-          },
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: isConnected
+                  ? OutlinedButton.icon(
+                      onPressed: () async {
+                        await GoogleCalendarService.signOut();
+                        if (mounted) setState(() {});
+                      },
+                      icon: const Icon(Icons.logout, size: 18),
+                      label: Text(tr('disconnect')),
+                      style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
+                    )
+                  : FilledButton.icon(
+                      onPressed: () async {
+                        setState(() => _isLoadingGoogle = true);
+                        final success = await GoogleCalendarService.signIn();
+                        if (mounted) {
+                          setState(() => _isLoadingGoogle = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(success
+                                  ? 'Google ${tr('connected')}'
+                                  : tr('error')),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.login, size: 18),
+                      label: Text('${tr('connect')} Google'),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubService(String title, IconData icon, Color color, bool isActive) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: isActive ? color : Colors.grey),
+        const SizedBox(width: 8),
+        Expanded(child: Text(title, style: TextStyle(color: isActive ? null : Colors.grey))),
+        Icon(
+          isActive ? Icons.check_circle : Icons.radio_button_unchecked,
+          size: 18,
+          color: isActive ? Colors.green : Colors.grey,
+        ),
+      ],
+    );
+  }
+
+  // ── Gemini AI ──
+  Widget _buildGeminiSection(ColorScheme colorScheme) {
+    final isConnected = _flashSettings.geminiEnabled && _flashSettings.geminiApiKey.isNotEmpty;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.shade700.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.auto_awesome, color: Colors.purple.shade700, size: 28),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Gemini AI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(
+                        isConnected ? tr('connected') : tr('not_connected'),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _flashSettings.geminiEnabled,
+                  onChanged: (val) {
+                    setState(() {
+                      _flashSettings = _flashSettings.copyWith(geminiEnabled: val);
+                    });
+                    _flashSettings.save();
+                  },
+                ),
+              ],
+            ),
+            if (_flashSettings.geminiEnabled) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _apiKeyController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'API Key Gemini',
+                  hintText: tr('api_key'),
+                  prefixIcon: const Icon(Icons.key),
+                  suffixIcon: _flashSettings.geminiApiKey.isNotEmpty
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : null,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _flashSettings = _flashSettings.copyWith(geminiApiKey: value);
+                  });
+                  _flashSettings.save();
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                tr('api_key_privacy'),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Health (Samsung Health / Apple Health) ──
+  Widget _buildHealthSection(ColorScheme colorScheme) {
+    final isConnected = HealthService.isAuthorized;
+    final isSupported = HealthService.isSupported;
+
+    String statusText;
+    if (!isSupported) {
+      statusText = tr('available_ios_android');
+    } else if (isConnected) {
+      statusText = defaultTargetPlatform == TargetPlatform.iOS
+          ? 'Apple Health ${tr('connected')}'
+          : 'Health Connect ${tr('connected')}';
+    } else {
+      statusText = tr('not_connected');
+    }
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade600.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.monitor_heart, color: Colors.red.shade600, size: 28),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(tr('health'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    statusText,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: isConnected,
+              onChanged: !isSupported
+                  ? null
+                  : (val) async {
+                      if (val) {
+                        final ok = await HealthService.requestAuthorization();
+                        if (mounted) setState(() {});
+                        if (mounted) {
+                          String msg;
+                          if (ok) {
+                            msg = tr('health_connected');
+                          } else if (HealthService.lastError == 'health_connect_not_installed') {
+                            msg = tr('health_connect_not_installed');
+                          } else if (HealthService.lastError == 'auth_denied') {
+                            msg = tr('auth_denied_msg');
+                          } else {
+                            msg = tr('health_error_generic');
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(msg),
+                              duration: const Duration(seconds: 5),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          );
+                        }
+                      } else {
+                        await HealthService.disconnect();
+                        if (mounted) {
+                          setState(() {});
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${tr('health')} - ${tr('disconnect')}'),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          );
+                        }
+                      }
+                    },
+            ),
+          ],
         ),
       ),
     );
@@ -8585,17 +9098,20 @@ class FlashNote {
   final DateTime createdAt;
   final String? audioPath;
   final int? audioDurationMs;
+  final String? imageBase64;
 
-  FlashNote({this.id, required this.content, DateTime? createdAt, this.audioPath, this.audioDurationMs})
+  FlashNote({this.id, required this.content, DateTime? createdAt, this.audioPath, this.audioDurationMs, this.imageBase64})
     : createdAt = createdAt ?? DateTime.now();
 
   bool get isAudioNote => audioPath != null && audioPath!.isNotEmpty;
+  bool get isPhotoNote => imageBase64 != null && imageBase64!.isNotEmpty;
 
   Map<String, dynamic> toJson() => {
     'content': content,
     'createdAt': createdAt.toIso8601String(),
     if (audioPath != null) 'audioPath': audioPath,
     if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
+    if (imageBase64 != null) 'imageBase64': imageBase64,
   };
 
   factory FlashNote.fromJson(Map<String, dynamic> json) => FlashNote(
@@ -8603,6 +9119,7 @@ class FlashNote {
     createdAt: DateTime.parse(json['createdAt']),
     audioPath: json['audioPath'],
     audioDurationMs: json['audioDurationMs'],
+    imageBase64: json['imageBase64'],
   );
 
   Map<String, dynamic> toDbMap() => {
@@ -8610,6 +9127,7 @@ class FlashNote {
     'created_at': createdAt.millisecondsSinceEpoch,
     'audio_path': audioPath,
     'audio_duration_ms': audioDurationMs,
+    'image_base64': imageBase64,
   };
 
   factory FlashNote.fromDbMap(Map<String, dynamic> m) => FlashNote(
@@ -8618,6 +9136,7 @@ class FlashNote {
     createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
     audioPath: m['audio_path'] as String?,
     audioDurationMs: m['audio_duration_ms'] as int?,
+    imageBase64: m['image_base64'] as String?,
   );
 }
 
@@ -8778,80 +9297,39 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // SEZIONE A: Integrazione Gemini AI
+          // SEZIONE A: Gemini AI (gestito in Integrazioni)
           _buildSectionHeader(tr('gemini_ai'), Icons.auto_awesome, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr('enable_gemini'),
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(tr('gemini_ai')),
-                    value: _settings.geminiEnabled,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(geminiEnabled: value));
-                    },
-                  ),
-                  if (_settings.geminiEnabled) ...[
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _apiKeyController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: 'API Key Gemini',
-                        hintText: tr('api_key'),
-                        prefixIcon: const Icon(Icons.key),
-                      ),
-                      onChanged: (value) {
-                        _updateSettings(_settings.copyWith(geminiApiKey: value));
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(
-                          _settings.geminiApiKey.isNotEmpty
-                              ? Icons.check_circle
-                              : Icons.cancel,
-                          color: _settings.geminiApiKey.isNotEmpty
-                              ? Colors.green
-                              : Colors.red,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _settings.geminiApiKey.isNotEmpty
-                              ? tr('connected')
-                              : tr('not_connected'),
-                          style: TextStyle(
-                            color: _settings.geminiApiKey.isNotEmpty
-                                ? Colors.green
-                                : Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      tr('api_key_privacy'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ],
+            child: ListTile(
+              leading: Icon(
+                _settings.geminiEnabled && _settings.geminiApiKey.isNotEmpty
+                    ? Icons.check_circle
+                    : Icons.radio_button_unchecked,
+                color: _settings.geminiEnabled && _settings.geminiApiKey.isNotEmpty
+                    ? Colors.green
+                    : colorScheme.onSurfaceVariant,
               ),
+              title: Text(
+                _settings.geminiEnabled && _settings.geminiApiKey.isNotEmpty
+                    ? tr('connected')
+                    : tr('not_connected'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(tr('configure_gemini')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const IntegrationsPage())).then((_) async {
+                  final updated = await FlashNotesSettings.load();
+                  setState(() {
+                    _settings = updated;
+                    _apiKeyController.text = updated.geminiApiKey;
+                  });
+                });
+              },
             ),
           ),
 
@@ -9552,16 +10030,16 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                       controller: _pinController,
                       obscureText: true,
                       keyboardType: TextInputType.number,
-                      maxLength: 6,
+                      maxLength: 4,
                       decoration: InputDecoration(
                         labelText: tr('security_pin'),
-                        hintText: tr('enter_pin'),
+                        hintText: tr('pin_exactly_4'),
                         prefixIcon: const Icon(Icons.pin),
                         counterText: '',
                       ),
                       onChanged: (value) {
                         if (value.isEmpty) {
-                          _updateSettings(_settings.copyWith(clearPin: true));
+                          _updateSettings(_settings.copyWith(clearPin: true, biometricEnabled: false));
                         } else {
                           _updateSettings(_settings.copyWith(securityPin: value));
                         }
@@ -9569,13 +10047,51 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      tr('pin_security'),
+                      tr('pin_exactly_4'),
                       style: TextStyle(
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
+                    if (_settings.securityPin != null && _settings.securityPin!.isNotEmpty && _settings.securityPin!.length != 4) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        tr('pin_must_be_4'),
+                        style: TextStyle(fontSize: 12, color: colorScheme.error),
+                      ),
+                    ],
+                    if (_settings.securityPin != null && _settings.securityPin!.length == 4) ...[
+                      const SizedBox(height: 12),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr('biometric_auth'),
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text(tr('biometric_desc')),
+                        secondary: const Icon(Icons.fingerprint),
+                        value: _settings.biometricEnabled,
+                        onChanged: (value) async {
+                          if (value) {
+                            final localAuth = LocalAuthentication();
+                            final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
+                            if (!canAuth) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(tr('biometric_not_available')),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              );
+                              return;
+                            }
+                          }
+                          final newSettings = _settings.copyWith(biometricEnabled: value);
+                          setState(() => _settings = newSettings);
+                          newSettings.save();
+                        },
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -10427,6 +10943,137 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     }
   }
 
+  Future<void> _addPhotoNote() async {
+    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 20),
+              Text(tr('photo'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library),
+                      label: Text(tr('gallery')),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.pop(ctx, ImageSource.camera),
+                      icon: const Icon(Icons.camera_alt),
+                      label: Text(tr('camera')),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accentColor,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (image == null) return;
+      final bytes = await image.readAsBytes();
+      final base64Str = base64Encode(bytes);
+
+      // Show caption sheet
+      if (!mounted) return;
+      final captionCtrl = TextEditingController();
+      final saved = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (ctx) => Padding(
+          padding: EdgeInsets.only(
+            left: 20, right: 20, top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(bytes, height: 180, width: double.infinity, fit: BoxFit.cover),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: captionCtrl,
+                maxLines: 2,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: tr('add_caption'),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: Text(tr('save')),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (saved == true) {
+        final caption = captionCtrl.text.isNotEmpty ? captionCtrl.text : '📷 ${tr('photo')}';
+        final note = FlashNote(content: caption, imageBase64: base64Str);
+        await DatabaseHelper().insertFlashNote(note);
+        await _loadNotes();
+      }
+      captionCtrl.dispose();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr('error')}: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _createEventFromFlashNote(FlashNote note) async {
     final parsed = parseFlashNote(note.content);
     final titleCtrl = TextEditingController(text: parsed.title);
@@ -10825,7 +11472,26 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           title = tr('ai_transcription');
           break;
         case 'correggi':
-          prompt = 'Correggi errori grammaticali e migliora la formattazione del seguente testo in italiano:\n\n$text';
+          // Use custom instructions if formattingPreset is 'custom'
+          if (settings.formattingPreset == 'custom' && settings.customFormatInstructions.isNotEmpty) {
+            prompt = 'Applica le seguenti istruzioni al testo: ${settings.customFormatInstructions}\n\nTesto:\n$text';
+          } else {
+            // Dynamic prompt based on aiCorrectionLevel
+            final level = settings.aiCorrectionLevel;
+            final String correctionInstruction;
+            if (level <= 0.0) {
+              correctionInstruction = 'Correggi solo gli errori ortografici nel seguente testo, senza modificare nient\'altro';
+            } else if (level <= 0.25) {
+              correctionInstruction = 'Correggi errori ortografici e di punteggiatura nel seguente testo';
+            } else if (level <= 0.5) {
+              correctionInstruction = 'Correggi errori e migliora leggermente la leggibilità del seguente testo';
+            } else if (level <= 0.75) {
+              correctionInstruction = 'Riformula il seguente testo migliorando stile e chiarezza, mantenendo il significato';
+            } else {
+              correctionInstruction = 'Riscrivi completamente il seguente testo in modo professionale e chiaro';
+            }
+            prompt = '$correctionInstruction:\n\n$text';
+          }
           title = tr('ai_correction');
           break;
         default:
@@ -10938,6 +11604,10 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       _showAudioNoteViewer(note, originalIndex);
       return;
     }
+    if (note.isPhotoNote) {
+      _showPhotoNoteViewer(note);
+      return;
+    }
     final heroTag = 'flash_note_${note.createdAt.millisecondsSinceEpoch}';
     Navigator.push(
       context,
@@ -10951,6 +11621,37 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
             });
             _saveNotes();
           },
+        ),
+      ),
+    );
+  }
+
+  void _showPhotoNoteViewer(FlashNote note) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.memory(
+                base64Decode(note.imageBase64!),
+                fit: BoxFit.contain,
+              ),
+            ),
+            if (note.content.isNotEmpty && !note.content.startsWith('📷'))
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  note.content,
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -11483,16 +12184,26 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                             ),
                                           ],
                                         )
-                                      : Text(
-                                          note.content,
-                                          maxLines: 5,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            height: 1.4,
-                                            color: colorScheme.onSurface,
+                                      : note.isPhotoNote
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Image.memory(
+                                              base64Decode(note.imageBase64!),
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                              height: double.infinity,
+                                            ),
+                                          )
+                                        : Text(
+                                            note.content,
+                                            maxLines: 5,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              height: 1.4,
+                                              color: colorScheme.onSurface,
+                                            ),
                                           ),
-                                        ),
                                   ),
                                   const SizedBox(height: 4),
                                   Row(
@@ -11599,6 +12310,16 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                           ),
                                         ),
                                       )
+                                    else if (note.isPhotoNote)
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.memory(
+                                          base64Decode(note.imageBase64!),
+                                          width: 44,
+                                          height: 44,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      )
                                     else
                                       CircleAvatar(
                                         backgroundColor: accentColor.withValues(alpha: 0.12),
@@ -11689,16 +12410,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton.filled(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(tr('insert_image')),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      },
+                      onPressed: _addPhotoNote,
                       icon: const Icon(Icons.camera_alt, size: 22),
                       style: IconButton.styleFrom(backgroundColor: accentColor.withValues(alpha: 0.12), foregroundColor: accentColor),
                     ),
@@ -12226,14 +12938,16 @@ class FolderStyle {
   final Color color;
   final bool isCustom;
   final bool isShared;
+  final bool isPrivate;
   final List<String> sharedEmails;
-  const FolderStyle(this.icon, this.color, {this.isCustom = false, this.isShared = false, this.sharedEmails = const []});
+  const FolderStyle(this.icon, this.color, {this.isCustom = false, this.isShared = false, this.isPrivate = false, this.sharedEmails = const []});
 
   Map<String, dynamic> toJson() => {
     'iconCode': icon.codePoint,
     'colorValue': color.value,
     'isCustom': isCustom,
     'isShared': isShared,
+    'isPrivate': isPrivate,
     'sharedEmails': sharedEmails,
   };
 
@@ -12242,6 +12956,7 @@ class FolderStyle {
     Color(json['colorValue']),
     isCustom: json['isCustom'] ?? false,
     isShared: json['isShared'] ?? false,
+    isPrivate: json['isPrivate'] ?? false,
     sharedEmails: (json['sharedEmails'] as List?)?.cast<String>() ?? [],
   );
 
@@ -12251,6 +12966,7 @@ class FolderStyle {
     'color_value': color.value,
     'is_custom': isCustom ? 1 : 0,
     'is_shared': isShared ? 1 : 0,
+    'is_private': isPrivate ? 1 : 0,
     'shared_emails': sharedEmails.isNotEmpty ? json.encode(sharedEmails) : null,
   };
 
@@ -12259,6 +12975,7 @@ class FolderStyle {
     Color(m['color_value'] as int),
     isCustom: (m['is_custom'] as int?) == 1,
     isShared: (m['is_shared'] as int?) == 1,
+    isPrivate: (m['is_private'] as int?) == 1,
     sharedEmails: m['shared_emails'] != null ? (json.decode(m['shared_emails'] as String) as List).cast<String>() : [],
   );
 }
@@ -12353,6 +13070,7 @@ class BusinessTemplate {
 class NoteProSettings {
   final String? securityPin;
   final bool showPrivateFolder;
+  final bool biometricEnabled;
   final String pdfSaveMode; // 'local' or 'google_drive'
   final List<Map<String, dynamic>> customTemplates;
   final List<String> downloadedFonts;
@@ -12362,6 +13080,7 @@ class NoteProSettings {
   const NoteProSettings({
     this.securityPin,
     this.showPrivateFolder = false,
+    this.biometricEnabled = false,
     this.pdfSaveMode = 'local',
     this.customTemplates = const [],
     this.downloadedFonts = const [],
@@ -12373,6 +13092,7 @@ class NoteProSettings {
     String? securityPin,
     bool? clearPin,
     bool? showPrivateFolder,
+    bool? biometricEnabled,
     String? pdfSaveMode,
     List<Map<String, dynamic>>? customTemplates,
     List<String>? downloadedFonts,
@@ -12382,6 +13102,7 @@ class NoteProSettings {
     return NoteProSettings(
       securityPin: clearPin == true ? null : (securityPin ?? this.securityPin),
       showPrivateFolder: showPrivateFolder ?? this.showPrivateFolder,
+      biometricEnabled: biometricEnabled ?? this.biometricEnabled,
       pdfSaveMode: pdfSaveMode ?? this.pdfSaveMode,
       customTemplates: customTemplates ?? this.customTemplates,
       downloadedFonts: downloadedFonts ?? this.downloadedFonts,
@@ -12393,6 +13114,7 @@ class NoteProSettings {
   Map<String, dynamic> toJson() => {
     'securityPin': securityPin,
     'showPrivateFolder': showPrivateFolder,
+    'biometricEnabled': biometricEnabled,
     'pdfSaveMode': pdfSaveMode,
     'customTemplates': customTemplates,
     'downloadedFonts': downloadedFonts,
@@ -12403,6 +13125,7 @@ class NoteProSettings {
   factory NoteProSettings.fromJson(Map<String, dynamic> json) => NoteProSettings(
     securityPin: json['securityPin'],
     showPrivateFolder: json['showPrivateFolder'] ?? false,
+    biometricEnabled: json['biometricEnabled'] ?? false,
     pdfSaveMode: json['pdfSaveMode'] ?? 'local',
     customTemplates: (json['customTemplates'] as List?)?.cast<Map<String, dynamic>>() ?? [],
     downloadedFonts: (json['downloadedFonts'] as List?)?.cast<String>() ?? [],
@@ -12628,8 +13351,13 @@ class _NotesProPageState extends State<NotesProPage> {
   List<ProNote> get _filteredNotes {
     List<ProNote> notes;
     if (_selectedFolder == tr('all_items')) {
-      notes = _proNotes.where((n) => n.folder != tr('private_folder')).toList();
-    } else if (_selectedFolder == tr('private_folder') && !_privateUnlocked) {
+      notes = _proNotes.where((n) {
+        if (n.folder == tr('private_folder')) return false;
+        final fs = _folders[n.folder];
+        if (fs != null && fs.isPrivate) return false;
+        return true;
+      }).toList();
+    } else if ((_selectedFolder == tr('private_folder') || (_folders[_selectedFolder]?.isPrivate ?? false)) && !_privateUnlocked) {
       notes = [];
     } else {
       notes = _proNotes.where((note) => note.folder == _selectedFolder).toList();
@@ -12652,20 +13380,34 @@ class _NotesProPageState extends State<NotesProPage> {
     return visible;
   }
 
-  void _onFolderTap(String folder) {
-    if (folder == tr('private_folder')) {
+  Future<void> _onFolderTap(String folder) async {
+    final folderStyle = _folders[folder];
+    final isPrivateFolder = folder == tr('private_folder') || (folderStyle?.isPrivate ?? false);
+
+    if (isPrivateFolder) {
+      // Reload settings from DB to pick up any biometric changes
+      final freshSettings = await NoteProSettings.load();
+      setState(() => _settings = freshSettings);
+
       if (_settings.securityPin == null) {
         _showCreatePinDialog(onSuccess: () {
           setState(() {
             _privateUnlocked = true;
-            _selectedFolder = tr('private_folder');
+            _selectedFolder = folder;
+          });
+        });
+      } else if (_settings.biometricEnabled) {
+        _authenticateWithBiometric(onSuccess: () {
+          setState(() {
+            _privateUnlocked = true;
+            _selectedFolder = folder;
           });
         });
       } else {
         _showEnterPinDialog(onSuccess: () {
           setState(() {
             _privateUnlocked = true;
-            _selectedFolder = tr('private_folder');
+            _selectedFolder = folder;
           });
         });
       }
@@ -12674,6 +13416,28 @@ class _NotesProPageState extends State<NotesProPage> {
         _selectedFolder = folder;
         _privateUnlocked = false;
       });
+    }
+  }
+
+  Future<void> _authenticateWithBiometric({required VoidCallback onSuccess}) async {
+    final localAuth = LocalAuthentication();
+    try {
+      final didAuthenticate = await localAuth.authenticate(
+        localizedReason: tr('biometric_reason'),
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: false,
+        ),
+      );
+      if (didAuthenticate) {
+        onSuccess();
+      } else {
+        // Biometric cancelled/failed → fallback to PIN
+        _showEnterPinDialog(onSuccess: onSuccess);
+      }
+    } catch (_) {
+      // Biometric error → fallback to PIN
+      _showEnterPinDialog(onSuccess: onSuccess);
     }
   }
 
@@ -12688,8 +13452,8 @@ class _NotesProPageState extends State<NotesProPage> {
           controller: controller,
           obscureText: true,
           keyboardType: TextInputType.number,
-          maxLength: 6,
-          decoration: const InputDecoration(hintText: 'PIN di sicurezza'),
+          maxLength: 4,
+          decoration: InputDecoration(hintText: tr('pin_exactly_4')),
           autofocus: true,
         ),
         actions: [
@@ -12727,11 +13491,16 @@ class _NotesProPageState extends State<NotesProPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Text(tr('pin_exactly_4'), style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+            )),
+            const SizedBox(height: 12),
             TextField(
               controller: pinController,
               obscureText: true,
               keyboardType: TextInputType.number,
-              maxLength: 6,
+              maxLength: 4,
               decoration: const InputDecoration(labelText: 'PIN'),
             ),
             const SizedBox(height: 8),
@@ -12739,7 +13508,7 @@ class _NotesProPageState extends State<NotesProPage> {
               controller: confirmController,
               obscureText: true,
               keyboardType: TextInputType.number,
-              maxLength: 6,
+              maxLength: 4,
               decoration: InputDecoration(labelText: tr('confirm')),
             ),
           ],
@@ -12748,16 +13517,19 @@ class _NotesProPageState extends State<NotesProPage> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
           FilledButton(
             onPressed: () {
-              if (pinController.text.length >= 4 && pinController.text == confirmController.text) {
+              if (pinController.text.length == 4 && pinController.text == confirmController.text) {
                 final newSettings = _settings.copyWith(securityPin: pinController.text);
                 newSettings.save();
                 setState(() => _settings = newSettings);
                 Navigator.pop(ctx);
+                _proposeEnableBiometric();
                 onSuccess();
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(tr('wrong_pin')),
+                    content: Text(pinController.text.length != 4
+                        ? tr('pin_exactly_4')
+                        : tr('wrong_pin')),
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -12771,7 +13543,42 @@ class _NotesProPageState extends State<NotesProPage> {
     );
   }
 
-  void _moveToPrivate(int noteIndex) {
+  Future<void> _proposeEnableBiometric() async {
+    final localAuth = LocalAuthentication();
+    final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
+    if (!canAuth || !mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        icon: const Icon(Icons.fingerprint, size: 48),
+        title: Text(tr('enable_biometric')),
+        content: Text(tr('biometric_desc')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(tr('no_thanks')),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newSettings = _settings.copyWith(biometricEnabled: true);
+              newSettings.save();
+              setState(() => _settings = newSettings);
+              Navigator.pop(ctx);
+            },
+            child: Text(tr('enable')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _moveToPrivate(int noteIndex) async {
+    // Reload settings from DB to pick up any biometric changes
+    final freshSettings = await NoteProSettings.load();
+    setState(() => _settings = freshSettings);
+
     void doMove() {
       setState(() {
         final note = _proNotes[noteIndex];
@@ -12799,9 +13606,262 @@ class _NotesProPageState extends State<NotesProPage> {
 
     if (_settings.securityPin == null) {
       _showCreatePinDialog(onSuccess: doMove);
+    } else if (_settings.biometricEnabled) {
+      _authenticateWithBiometric(onSuccess: doMove);
     } else {
       _showEnterPinDialog(onSuccess: doMove);
     }
+  }
+
+  void _showFolderOptionsSheet(String folderName) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final style = _folders[folderName];
+    final isBuiltIn = style != null && !style.isCustom;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 20),
+              Text(tr('folder_options'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(folderName, style: TextStyle(color: colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _showEditFolderDialog(folderName);
+                  },
+                  icon: const Icon(Icons.edit),
+                  label: Text(tr('edit_folder')),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: isBuiltIn
+                      ? null
+                      : () {
+                          Navigator.pop(ctx);
+                          _showDeleteFolderDialog(folderName);
+                        },
+                  icon: Icon(isBuiltIn ? Icons.block : Icons.delete_outline),
+                  label: Text(isBuiltIn ? tr('cannot_delete_builtin') : tr('delete')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isBuiltIn ? null : colorScheme.error,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditFolderDialog(String folderName) async {
+    final style = _folders[folderName];
+    if (style == null) return;
+    final isBuiltInName = !style.isCustom && folderName != tr('private_folder');
+    final nameController = TextEditingController(text: folderName);
+    IconData selectedIcon = style.icon;
+    Color selectedColor = style.color;
+    bool isPrivate = style.isPrivate || folderName == tr('private_folder');
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('edit_folder')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  enabled: !isBuiltInName,
+                  decoration: InputDecoration(
+                    labelText: tr('folder_name'),
+                    hintText: tr('folder_name'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(tr('image'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _availableIcons.map((icon) {
+                    final isSelected = selectedIcon == icon;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedIcon = icon),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isSelected ? selectedColor.withValues(alpha: 0.2) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected ? selectedColor : Colors.grey.withValues(alpha: 0.3),
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Icon(icon, size: 22, color: isSelected ? selectedColor : Colors.grey),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                Text(tr('color'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ..._availableColors.map((color) {
+                      final isSelected = selectedColor == color;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => selectedColor = color),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? Colors.white : Colors.transparent,
+                              width: 3,
+                            ),
+                            boxShadow: isSelected
+                                ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 8)]
+                                : null,
+                          ),
+                          child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
+                        ),
+                      );
+                    }),
+                    GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: ctx,
+                          builder: (_) => _ColorPickerDialog(
+                            isBackground: false,
+                            quickColors: const [],
+                            colorScheme: Theme.of(ctx).colorScheme,
+                            onColorSelected: (color) {
+                              setDialogState(() => selectedColor = color);
+                              Navigator.pop(ctx);
+                            },
+                            onReset: () => Navigator.pop(ctx),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const SweepGradient(
+                            colors: [Colors.red, Colors.yellow, Colors.green, Colors.cyan, Colors.blue, Colors.purple, Colors.red],
+                          ),
+                          border: Border.all(
+                            color: !_availableColors.contains(selectedColor) ? Colors.white : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                        child: !_availableColors.contains(selectedColor)
+                            ? const Icon(Icons.check, color: Colors.white, size: 18)
+                            : const Icon(Icons.colorize, color: Colors.white, size: 16),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (folderName != tr('private_folder'))
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr('make_private')),
+                    subtitle: Text(tr('folder_is_private')),
+                    secondary: const Icon(Icons.lock_outline),
+                    value: isPrivate,
+                    onChanged: (v) => setDialogState(() => isPrivate = v),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+            FilledButton(
+              onPressed: () async {
+                final newName = nameController.text.trim();
+                if (newName.isEmpty) return;
+                Navigator.pop(ctx);
+
+                final oldName = folderName;
+                final newStyle = FolderStyle(
+                  selectedIcon,
+                  selectedColor,
+                  isCustom: true,
+                  isShared: style.isShared,
+                  isPrivate: isPrivate,
+                  sharedEmails: style.sharedEmails,
+                );
+
+                // If name changed, rename folder and move notes
+                if (newName != oldName) {
+                  for (int i = 0; i < _proNotes.length; i++) {
+                    if (_proNotes[i].folder == oldName) {
+                      _proNotes[i] = ProNote(
+                        id: _proNotes[i].id,
+                        title: _proNotes[i].title,
+                        content: _proNotes[i].content,
+                        contentDelta: _proNotes[i].contentDelta,
+                        headerText: _proNotes[i].headerText,
+                        footerText: _proNotes[i].footerText,
+                        templatePreset: _proNotes[i].templatePreset,
+                        createdAt: _proNotes[i].createdAt,
+                        folder: newName,
+                        linkedDate: _proNotes[i].linkedDate,
+                      );
+                    }
+                  }
+                  await _saveNotes();
+                  setState(() {
+                    _folders.remove(oldName);
+                    _folders[newName] = newStyle;
+                    if (_selectedFolder == oldName) _selectedFolder = newName;
+                  });
+                  await DatabaseHelper().deleteFolder(oldName);
+                } else {
+                  setState(() {
+                    _folders[folderName] = newStyle;
+                  });
+                }
+                await _saveCustomFolders();
+              },
+              child: Text(tr('save')),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showDeleteFolderDialog(String folderName) {
@@ -13452,7 +14512,13 @@ class _NotesProPageState extends State<NotesProPage> {
                                 dense: true,
                                 leading: Icon(entry.value.icon, size: 20, color: isSelected ? entry.value.color : colorScheme.onSurfaceVariant),
                                 title: Text(entry.key, style: TextStyle(fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal, color: isSelected ? entry.value.color : null)),
-                                trailing: Text('$count', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                                trailing: (entry.value.isPrivate || entry.key == tr('private_folder'))
+                                    ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                        Icon(Icons.lock, size: 14, color: colorScheme.onSurfaceVariant),
+                                        const SizedBox(width: 4),
+                                        Text('$count', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                                      ])
+                                    : Text('$count', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                                 selected: isSelected,
                                 selectedTileColor: entry.value.color.withValues(alpha: 0.08),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -13460,7 +14526,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                   _onFolderTap(entry.key);
                                   setState(() => _showFolderSidebar = false);
                                 },
-                                onLongPress: entry.value.isCustom ? () => _showDeleteFolderDialog(entry.key) : null,
+                                onLongPress: () => _showFolderOptionsSheet(entry.key),
                               );
                             }).toList(),
                           ),
@@ -13710,7 +14776,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
                   autoFocus: false,
                   padding: EdgeInsets.zero,
                   customStyleBuilder: _customStyleBuilder,
-                  embedBuilders: [_DividerEmbedBuilder()],
+                  embedBuilders: [_DividerEmbedBuilder(), _ImageEmbedBuilder()],
                   onLaunchUrl: (url) async {
                     final uri = Uri.parse(url);
                     if (await canLaunchUrl(uri)) {
@@ -14102,6 +15168,139 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     }
   }
 
+  Future<Uint8List> _generateNotePdf() async {
+    final doc = pw.Document();
+    final title = _titleController.text;
+    final headerText = _showHeader ? _headerController.text : null;
+    final footerText = _showFooter ? _footerController.text : null;
+
+    pw.Font regularFont;
+    pw.Font boldFont;
+    try {
+      regularFont = await PdfGoogleFonts.nunitoRegular();
+      boldFont = await PdfGoogleFonts.nunitoBold();
+    } catch (_) {
+      regularFont = pw.Font.helvetica();
+      boldFont = pw.Font.helveticaBold();
+    }
+
+    final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
+    final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22);
+    final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
+
+    // Walk Delta operations to build PDF widgets
+    final delta = _quillController.document.toDelta();
+    final List<pw.Widget> bodyWidgets = [];
+
+    for (final op in delta.toList()) {
+      if (op.data is String) {
+        final text = op.data as String;
+        if (text.isEmpty) continue;
+        // Check for bold/italic attributes
+        final attrs = op.attributes;
+        pw.TextStyle style = baseStyle;
+        if (attrs != null) {
+          pw.FontWeight? fw;
+          pw.FontStyle? fs;
+          if (attrs['bold'] == true) fw = pw.FontWeight.bold;
+          if (attrs['italic'] == true) fs = pw.FontStyle.italic;
+          style = baseStyle.copyWith(
+            font: (fw == pw.FontWeight.bold) ? boldFont : null,
+            fontWeight: fw,
+            fontStyle: fs,
+          );
+        }
+        bodyWidgets.add(pw.Text(text, style: style));
+      } else if (op.data is Map) {
+        final map = op.data as Map;
+        if (map.containsKey('image')) {
+          final imgStr = map['image'] as String;
+          if (imgStr.startsWith('data:image/')) {
+            try {
+              final b64 = imgStr.split(',').last;
+              final bytes = base64Decode(b64);
+              final image = pw.MemoryImage(bytes);
+              bodyWidgets.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                  child: pw.Image(image, width: 300),
+                ),
+              );
+            } catch (_) {
+              // skip broken images
+            }
+          }
+        }
+      }
+    }
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
+        header: headerText != null && headerText.isNotEmpty
+            ? (_) => pw.Text(headerText, style: headerStyle)
+            : null,
+        footer: footerText != null && footerText.isNotEmpty
+            ? (_) => pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(footerText, style: headerStyle))
+            : null,
+        build: (context) => [
+          pw.Text(title, style: titleStyle),
+          pw.SizedBox(height: 16),
+          ...bodyWidgets,
+        ],
+      ),
+    );
+
+    return doc.save();
+  }
+
+  Future<void> _exportAsPdf() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(tr('exporting_pdf')),
+            ],
+          ),
+        ),
+      )),
+    );
+
+    try {
+      final pdfBytes = await _generateNotePdf();
+      if (!mounted) return;
+      Navigator.pop(context); // dismiss loading
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _PdfViewerPage(
+            pdfBytes: pdfBytes,
+            title: '${_titleController.text}.pdf',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // dismiss loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr('error')}: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
   void _pickLinkedDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -14252,176 +15451,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
   }
 
-  Future<void> _exportPdf() async {
-    final doc = pw.Document();
-    final delta = _quillController.document.toDelta();
-    final headerText = _showHeader ? _headerController.text : null;
-    final footerText = _showFooter ? _footerController.text : null;
-
-    doc.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40),
-        header: headerText != null && headerText.isNotEmpty
-            ? (context) => pw.Container(
-                  padding: const pw.EdgeInsets.only(bottom: 10),
-                  decoration: const pw.BoxDecoration(
-                    border: pw.Border(bottom: pw.BorderSide(width: 0.5)),
-                  ),
-                  child: pw.Text(
-                    headerText,
-                    style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
-                  ),
-                )
-            : null,
-        footer: footerText != null && footerText.isNotEmpty
-            ? (context) => pw.Container(
-                  padding: const pw.EdgeInsets.only(top: 10),
-                  decoration: const pw.BoxDecoration(
-                    border: pw.Border(top: pw.BorderSide(width: 0.5)),
-                  ),
-                  child: pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text(
-                        footerText,
-                        style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
-                      ),
-                      pw.Text(
-                        'Pag. ${context.pageNumber}/${context.pagesCount}',
-                        style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
-                      ),
-                    ],
-                  ),
-                )
-            : null,
-        build: (context) => _deltaToWidgets(delta),
-      ),
-    );
-
-    await Printing.layoutPdf(onLayout: (format) => doc.save());
-  }
-
-  List<pw.Widget> _deltaToWidgets(quill_delta.Delta delta) {
-    final widgets = <pw.Widget>[];
-    final buffer = <pw.InlineSpan>[];
-    bool isBulletList = false;
-    bool isNumberedList = false;
-    int listCounter = 0;
-
-    void flushBuffer({String? listType}) {
-      if (buffer.isEmpty) return;
-      final richText = pw.RichText(text: pw.TextSpan(children: List.from(buffer)));
-      if (listType == 'bullet') {
-        widgets.add(pw.Padding(
-          padding: const pw.EdgeInsets.only(left: 20, bottom: 2),
-          child: pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text('• ', style: const pw.TextStyle(fontSize: 14)),
-              pw.Expanded(child: richText),
-            ],
-          ),
-        ));
-      } else if (listType == 'ordered') {
-        listCounter++;
-        widgets.add(pw.Padding(
-          padding: const pw.EdgeInsets.only(left: 20, bottom: 2),
-          child: pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text('$listCounter. ', style: const pw.TextStyle(fontSize: 14)),
-              pw.Expanded(child: richText),
-            ],
-          ),
-        ));
-      } else {
-        widgets.add(pw.Padding(
-          padding: const pw.EdgeInsets.only(bottom: 4),
-          child: richText,
-        ));
-      }
-      buffer.clear();
-    }
-
-    for (final op in delta.toList()) {
-      if (op.data is! String) continue;
-      final text = op.data as String;
-      final attrs = op.attributes;
-
-      pw.FontWeight fontWeight = pw.FontWeight.normal;
-      pw.FontStyle fontStyle = pw.FontStyle.normal;
-      pw.TextDecoration? textDecoration;
-      double fontSize = 14;
-      PdfColor color = PdfColors.black;
-      PdfColor? linkColor;
-
-      if (attrs != null) {
-        if (attrs['bold'] == true) fontWeight = pw.FontWeight.bold;
-        if (attrs['italic'] == true) fontStyle = pw.FontStyle.italic;
-        if (attrs['underline'] == true) {
-          textDecoration = pw.TextDecoration.underline;
-        }
-        if (attrs['link'] != null) {
-          linkColor = PdfColors.blue;
-          textDecoration = pw.TextDecoration.underline;
-        }
-        if (attrs['size'] != null) {
-          final sizeStr = attrs['size'].toString();
-          fontSize = double.tryParse(sizeStr) ?? 14;
-        }
-        if (attrs['header'] != null) {
-          final level = attrs['header'] as int;
-          fontSize = level == 1 ? 28 : level == 2 ? 22 : 18;
-          fontWeight = pw.FontWeight.bold;
-        }
-      }
-
-      final lines = text.split('\n');
-      for (int i = 0; i < lines.length; i++) {
-        if (i > 0) {
-          // Check block-level attributes for list
-          String? listType;
-          if (attrs != null) {
-            if (attrs['list'] == 'bullet') {
-              listType = 'bullet';
-              isBulletList = true;
-              isNumberedList = false;
-            } else if (attrs['list'] == 'ordered') {
-              listType = 'ordered';
-              isNumberedList = true;
-              isBulletList = false;
-            } else {
-              if (!isBulletList && !isNumberedList) listType = null;
-              isBulletList = false;
-              isNumberedList = false;
-              listCounter = 0;
-            }
-          } else {
-            isBulletList = false;
-            isNumberedList = false;
-            listCounter = 0;
-          }
-          flushBuffer(listType: listType);
-        }
-        if (lines[i].isNotEmpty) {
-          buffer.add(pw.TextSpan(
-            text: lines[i],
-            style: pw.TextStyle(
-              fontSize: fontSize,
-              fontWeight: fontWeight,
-              fontStyle: fontStyle,
-              decoration: textDecoration,
-              color: linkColor ?? color,
-            ),
-          ));
-        }
-      }
-    }
-    flushBuffer();
-    return widgets;
-  }
-
   void _insertHorizontalRule() {
     final index = _quillController.selection.baseOffset;
     _quillController.document.insert(index, quill.BlockEmbed('divider', 'hr'));
@@ -14431,6 +15460,100 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
   }
 
+  void _insertImage() async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 20),
+              Text(tr('insert_image'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(ctx, ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt),
+                  label: Text(tr('camera')),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library),
+                  label: Text(tr('gallery')),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null || !mounted) return;
+
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (picked == null) return;
+
+      final bytes = await picked.readAsBytes();
+      if (bytes.length > 2 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(tr('image_too_large')),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        return;
+      }
+
+      final ext = picked.name.split('.').last.toLowerCase();
+      final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+      final b64 = base64Encode(bytes);
+      final dataUri = 'data:$mime;base64,$b64';
+
+      final index = _quillController.selection.baseOffset;
+      _quillController.document.insert(index, quill.BlockEmbed.image(dataUri));
+      _quillController.updateSelection(
+        TextSelection.collapsed(offset: index + 1),
+        quill.ChangeSource.local,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr('error')}: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
 
   void _applyColor(Color color, {required bool isBackground}) {
     final hex = '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
@@ -14498,9 +15621,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         ),
       );
     }
-    Widget hDivider() => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Container(width: 24, height: 1, color: colorScheme.outlineVariant),
+    Widget vDivider() => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Container(width: 1, height: 24, color: colorScheme.outlineVariant),
     );
 
     return Material(
@@ -14512,9 +15635,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.outlineVariant),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: SingleChildScrollView(
-          child: Column(
+          scrollDirection: Axis.horizontal,
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               // H1, H2
@@ -14528,7 +15652,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 tooltip: tr('title'),
                 onPressed: () => _quillController.formatSelection(quill.Attribute.h2),
               ),
-              hDivider(),
+              vDivider(),
               // Bold
               toolBtn(
                 icon: Icon(Icons.format_bold, size: 18, color: colorScheme.onSurface),
@@ -14551,7 +15675,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 tooltip: 'Checkbox',
                 onPressed: () => _quillController.formatSelection(quill.Attribute.unchecked),
               ),
-              hDivider(),
+              vDivider(),
               // Link
               toolBtn(
                 icon: Icon(Icons.link, size: 18, color: colorScheme.onSurface),
@@ -14564,7 +15688,12 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 tooltip: tr('indent'),
                 onPressed: _insertHorizontalRule,
               ),
-              hDivider(),
+              toolBtn(
+                icon: Icon(Icons.image, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('insert_image'),
+                onPressed: _insertImage,
+              ),
+              vDivider(),
               // UL
               toolBtn(
                 icon: Icon(Icons.format_list_bulleted, size: 18, color: colorScheme.onSurface),
@@ -14577,7 +15706,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 tooltip: tr('numbered_list'),
                 onPressed: () => _quillController.formatSelection(quill.Attribute.ol),
               ),
-              hDivider(),
+              vDivider(),
               // Font
               toolBtn(
                 icon: Icon(Icons.font_download, size: 18, color: colorScheme.onSurface),
@@ -14601,7 +15730,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 tooltip: tr('background_color'),
                 onPressed: () => _showColorPickerPopup(isBackground: true),
               ),
-              hDivider(),
+              vDivider(),
               // AI
               _isAiLoading
                   ? const Padding(
@@ -14619,6 +15748,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                       ],
                       onSelected: _callGeminiAI,
                     ),
+              vDivider(),
               // Header/Footer
               toolBtn(
                 icon: Icon(
@@ -14771,9 +15901,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         backgroundColor: Colors.transparent,
         actions: [
           IconButton(
-            onPressed: _exportPdf,
+            onPressed: _exportAsPdf,
             icon: const Icon(Icons.picture_as_pdf, size: 22),
-            tooltip: tr('export_pdf'),
+            tooltip: tr('export_as_pdf'),
           ),
           FilledButton.icon(
             onPressed: _saveNote,
@@ -14840,7 +15970,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                           placeholder: 'Scrivi qui la tua nota...',
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
                           customStyleBuilder: _customStyleBuilder,
-                          embedBuilders: [_DividerEmbedBuilder()],
+                          embedBuilders: [_DividerEmbedBuilder(), _ImageEmbedBuilder()],
                           characterShortcutEvents: quill.standardCharactersShortcutEvents,
                           spaceShortcutEvents: [
                             ...quill.standardSpaceShorcutEvents,
@@ -14893,23 +16023,19 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               ],
             ),
           ),
-          // S-Pen toolbar panel (animated)
+          // Formatting toolbar panel (animated, horizontal at bottom)
           Positioned(
-            left: 12,
-            bottom: 80,
+            left: 56,
+            right: 12,
+            bottom: 24,
             child: AnimatedSlide(
-              offset: _showToolPanel ? Offset.zero : const Offset(-1.5, 0),
+              offset: _showToolPanel ? Offset.zero : const Offset(0, 1.5),
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOutCubic,
               child: AnimatedOpacity(
                 opacity: _showToolPanel ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 250),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.6,
-                  ),
-                  child: _buildSPenToolbar(),
-                ),
+                child: _buildSPenToolbar(),
               ),
             ),
           ),
@@ -14947,6 +16073,36 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   }
 }
 
+// ── PDF Viewer Page ──
+
+class _PdfViewerPage extends StatelessWidget {
+  final Uint8List pdfBytes;
+  final String title;
+
+  const _PdfViewerPage({required this.pdfBytes, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
+      ),
+      body: PdfPreview(
+        build: (_) async => pdfBytes,
+        canChangeOrientation: false,
+        canChangePageFormat: false,
+        canDebug: false,
+        allowPrinting: false,
+        allowSharing: true,
+        pdfFileName: title,
+      ),
+    );
+  }
+}
+
 // ── Divider Embed Builder ──
 
 class _DividerEmbedBuilder extends quill.EmbedBuilder {
@@ -14959,6 +16115,45 @@ class _DividerEmbedBuilder extends quill.EmbedBuilder {
       color: Theme.of(context).colorScheme.outlineVariant,
       height: 24,
       thickness: 1,
+    );
+  }
+}
+
+class _ImageEmbedBuilder extends quill.EmbedBuilder {
+  @override
+  String get key => 'image';
+
+  @override
+  Widget build(BuildContext context, quill.EmbedContext embedContext) {
+    final imageUrl = embedContext.node.value.data as String;
+    Widget imageWidget;
+
+    if (imageUrl.startsWith('data:image/')) {
+      try {
+        final b64 = imageUrl.split(',').last;
+        final bytes = base64Decode(b64);
+        imageWidget = Image.memory(
+          Uint8List.fromList(bytes),
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 48),
+        );
+      } catch (_) {
+        imageWidget = const Icon(Icons.broken_image, size: 48);
+      }
+    } else {
+      imageWidget = Image.network(
+        imageUrl,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 48),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: imageWidget,
+      ),
     );
   }
 }
