@@ -177,7 +177,7 @@ const _translations = <String, Map<String, String>>{
   'edit_profile': {'it': 'Modifica Profilo', 'en': 'Edit Profile', 'fr': 'Modifier le profil', 'es': 'Editar perfil'},
   'years_old': {'it': 'anni', 'en': 'years old', 'fr': 'ans', 'es': 'años'},
   'guest': {'it': 'Ospite', 'en': 'Guest', 'fr': 'Invité', 'es': 'Invitado'},
-  'account_security': {'it': 'Account e Sicurezza', 'en': 'Account & Security', 'fr': 'Compte et sécurité', 'es': 'Cuenta y seguridad'},
+  'account_security': {'it': 'Cartelle Private', 'en': 'Private Folders', 'fr': 'Dossiers privés', 'es': 'Carpetas privadas'},
   'social_links': {'it': 'Link Social', 'en': 'Social Links', 'fr': 'Liens sociaux', 'es': 'Enlaces sociales'},
   'friends': {'it': 'Amici', 'en': 'Friends', 'fr': 'Amis', 'es': 'Amigos'},
   'photo_history': {'it': 'Cronologia Foto', 'en': 'Photo History', 'fr': 'Historique des photos', 'es': 'Historial de fotos'},
@@ -393,6 +393,8 @@ const _translations = <String, Map<String, String>>{
   'link': {'it': 'Link', 'en': 'Link', 'fr': 'Lien', 'es': 'Enlace'},
   'text': {'it': 'Testo', 'en': 'Text', 'fr': 'Texte', 'es': 'Texto'},
   'bold': {'it': 'Grassetto', 'en': 'Bold', 'fr': 'Gras', 'es': 'Negrita'},
+  'subtitle': {'it': 'Sottotitolo', 'en': 'Subtitle', 'fr': 'Sous-titre', 'es': 'Subtítulo'},
+  'highlight': {'it': 'Evidenzia', 'en': 'Highlight', 'fr': 'Surligner', 'es': 'Resaltar'},
   'italic': {'it': 'Corsivo', 'en': 'Italic', 'fr': 'Italique', 'es': 'Cursiva'},
   'underline': {'it': 'Sottolineato', 'en': 'Underline', 'fr': 'Souligné', 'es': 'Subrayado'},
   'strikethrough': {'it': 'Barrato', 'en': 'Strikethrough', 'fr': 'Barré', 'es': 'Tachado'},
@@ -1064,6 +1066,26 @@ const _translations = <String, Map<String, String>>{
     'fr': 'Pour toujours',
     'es': 'Para siempre',
   },
+  'general_settings': {'it': 'Impostazioni Generali', 'en': 'General Settings', 'fr': 'Paramètres généraux', 'es': 'Ajustes generales'},
+  'biometric_lock': {'it': 'Blocco Biometrico', 'en': 'Biometric Lock', 'fr': 'Verrouillage biométrique', 'es': 'Bloqueo biométrico'},
+  'lock_deep_note': {'it': 'Blocca Deep Note', 'en': 'Lock Deep Note', 'fr': 'Verrouiller Deep Note', 'es': 'Bloquear Deep Note'},
+  'lock_deep_note_desc': {'it': 'Richiedi autenticazione biometrica per accedere a Deep Note', 'en': 'Require biometric authentication to access Deep Note', 'fr': 'Exiger une authentification biométrique pour accéder à Deep Note', 'es': 'Requerir autenticación biométrica para acceder a Deep Note'},
+  'lock_flash_notes': {'it': 'Blocca Flash Notes', 'en': 'Lock Flash Notes', 'fr': 'Verrouiller Flash Notes', 'es': 'Bloquear Flash Notes'},
+  'lock_flash_notes_desc': {'it': 'Richiedi autenticazione biometrica per accedere a Flash Notes', 'en': 'Require biometric authentication to access Flash Notes', 'fr': 'Exiger une authentification biométrique pour accéder à Flash Notes', 'es': 'Requerir autenticación biométrica para acceder a Flash Notes'},
+  'save_flash_to_deep': {'it': 'Salvataggio flash note su Deep Note', 'en': 'Save flash notes to Deep Note', 'fr': 'Sauvegarder les flash notes dans Deep Note', 'es': 'Guardar flash notes en Deep Note'},
+  'ai_formatting': {'it': 'Formattazione AI', 'en': 'AI Formatting', 'fr': 'Formatage IA', 'es': 'Formato IA'},
+  'simple_formatting': {'it': 'Semplice', 'en': 'Simple', 'fr': 'Simple', 'es': 'Simple'},
+  'advanced_formatting': {'it': 'Avanzata', 'en': 'Advanced', 'fr': 'Avancé', 'es': 'Avanzado'},
+  'simple_formatting_desc': {'it': 'Corregge ortografia e punteggiatura', 'en': 'Corrects spelling and punctuation', 'fr': 'Corrige l\'orthographe et la ponctuation', 'es': 'Corrige ortografía y puntuación'},
+  'advanced_formatting_desc': {'it': 'Formattazione completa con titolo, paragrafi ed elenchi', 'en': 'Full formatting with title, paragraphs and lists', 'fr': 'Formatage complet avec titre, paragraphes et listes', 'es': 'Formato completo con título, párrafos y listas'},
+  'current_pin': {'it': 'PIN attuale', 'en': 'Current PIN', 'fr': 'PIN actuel', 'es': 'PIN actual'},
+  'new_pin': {'it': 'Nuovo PIN', 'en': 'New PIN', 'fr': 'Nouveau PIN', 'es': 'Nuevo PIN'},
+  'confirm_pin': {'it': 'Conferma PIN', 'en': 'Confirm PIN', 'fr': 'Confirmer le PIN', 'es': 'Confirmar PIN'},
+  'pins_dont_match': {'it': 'I PIN non corrispondono', 'en': 'PINs don\'t match', 'fr': 'Les PIN ne correspondent pas', 'es': 'Los PIN no coinciden'},
+  'import_template': {'it': 'Importa Template', 'en': 'Import Template', 'fr': 'Importer un modèle', 'es': 'Importar plantilla'},
+  'create_template': {'it': 'Crea Template', 'en': 'Create Template', 'fr': 'Créer un modèle', 'es': 'Crear plantilla'},
+  'auth_required': {'it': 'Autenticazione richiesta', 'en': 'Authentication required', 'fr': 'Authentification requise', 'es': 'Autenticación requerida'},
+  'auth_to_access': {'it': 'Autenticati per accedere', 'en': 'Authenticate to access', 'fr': 'Authentifiez-vous pour accéder', 'es': 'Autentíquese para acceder'},
 };
 
 // ─── SQLite Database Helper ──────────────────────────────────────────────────
@@ -2561,6 +2583,8 @@ class UserProfile {
   List<Map<String, String>> accounts;
   int activeAccountIndex;
   String? nickname;
+  bool lockDeepNote;
+  bool lockFlashNotes;
 
   UserProfile({
     this.nome,
@@ -2583,6 +2607,8 @@ class UserProfile {
     List<Map<String, String>>? accounts,
     this.activeAccountIndex = 0,
     this.nickname,
+    this.lockDeepNote = false,
+    this.lockFlashNotes = false,
   })  : socialLinks = socialLinks ?? [],
         friends = friends ?? [],
         oldPhotos = oldPhotos ?? [],
@@ -2621,6 +2647,8 @@ class UserProfile {
       'accounts': accounts,
       'activeAccountIndex': activeAccountIndex,
       'nickname': nickname,
+      'lockDeepNote': lockDeepNote,
+      'lockFlashNotes': lockFlashNotes,
     };
   }
 
@@ -2650,6 +2678,8 @@ class UserProfile {
           .toList() ?? [],
       activeAccountIndex: json['activeAccountIndex'] ?? 0,
       nickname: json['nickname'],
+      lockDeepNote: json['lockDeepNote'] ?? false,
+      lockFlashNotes: json['lockFlashNotes'] ?? false,
     );
   }
 
@@ -2695,6 +2725,8 @@ class UserProfile {
     'accounts': json.encode(accounts),
     'active_account_index': activeAccountIndex,
     'nickname': nickname,
+    'lock_deep_note': lockDeepNote ? 1 : 0,
+    'lock_flash_notes': lockFlashNotes ? 1 : 0,
   };
 
   factory UserProfile.fromDbMap(Map<String, dynamic> m) => UserProfile(
@@ -2718,6 +2750,8 @@ class UserProfile {
     accounts: m['accounts'] != null ? (json.decode(m['accounts'] as String) as List).map((e) => Map<String, String>.from(e as Map)).toList() : [],
     activeAccountIndex: (m['active_account_index'] as int?) ?? 0,
     nickname: m['nickname'] as String?,
+    lockDeepNote: (m['lock_deep_note'] as int?) == 1,
+    lockFlashNotes: (m['lock_flash_notes'] as int?) == 1,
   );
 }
 
@@ -3464,7 +3498,31 @@ class _HomePageState extends State<HomePage> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
+        onDestinationSelected: (index) async {
+          // Check biometric lock for Deep Note (index 0) or Flash Notes (index 2)
+          if ((index == 0 && _userProfile.lockDeepNote) || (index == 2 && _userProfile.lockFlashNotes)) {
+            final localAuth = LocalAuthentication();
+            try {
+              final authenticated = await localAuth.authenticate(
+                localizedReason: tr('auth_to_access'),
+                options: const AuthenticationOptions(biometricOnly: false),
+              );
+              if (!authenticated) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(tr('auth_failed')),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  );
+                }
+                return;
+              }
+            } catch (_) {
+              return;
+            }
+          }
           setState(() {
             _selectedIndex = index;
           });
@@ -4029,10 +4087,9 @@ class _CalendarPageState extends State<CalendarPage> {
   Widget _buildProgressBar(DateTime day) {
     final events = _getEventsForDay(day);
     if (events.isEmpty) return const SizedBox.shrink();
-    final now = DateTime.now();
     int completed = 0;
     for (final e in events) {
-      if (e.isCompleted || e.endTime.isBefore(now)) {
+      if (e.isCompleted) {
         completed++;
       }
     }
@@ -6300,14 +6357,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ── SECTION: Font Calendario ──
-            _buildSectionHeader(tr('font'), Icons.text_fields),
-            const SizedBox(height: 8),
-            _buildFontCard(),
-            const SizedBox(height: 8),
-            _buildFontSizeCard(),
-            const SizedBox(height: 24),
-
             // ── SECTION: Segni Zodiacali e Oroscopo (merged) ──
             _buildSectionHeader('${tr('show_zodiac')} & ${tr('horoscope')}', Icons.auto_awesome),
             const SizedBox(height: 8),
@@ -6344,11 +6393,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             _buildCycleTrackingSettingsCard(),
             const SizedBox(height: 24),
 
-            // ── SECTION: Salute ──
-            _buildSectionHeader(tr('health'), Icons.monitor_heart),
             const SizedBox(height: 8),
-            _buildHealthSettingsCard(),
-            const SizedBox(height: 32),
 
             // Save button
             SizedBox(
@@ -7822,6 +7867,8 @@ class _SettingsPageState extends State<SettingsPage> {
       accounts: widget.userProfile.accounts.map((e) => Map<String, String>.from(e)).toList(),
       activeAccountIndex: widget.userProfile.activeAccountIndex,
       nickname: widget.userProfile.nickname,
+      lockDeepNote: widget.userProfile.lockDeepNote,
+      lockFlashNotes: widget.userProfile.lockFlashNotes,
     );
   }
 
@@ -8638,7 +8685,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 16),
 
-          // --- CARD: Impostazioni (Integrazioni, Lingua, Backup) ---
+          // --- CARD: Impostazioni Generali ---
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 6),
             child: Text(tr('settings_section'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
@@ -8647,116 +8694,30 @@ class _SettingsPageState extends State<SettingsPage> {
             elevation: 0,
             color: colorScheme.surfaceContainerLowest,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Icon(Icons.extension, color: colorScheme.primary),
-                  title: Text(tr('integrations'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(_getIntegrationsSubtitle()),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const IntegrationsPage())).then((_) {
-                      setState(() {});
-                    });
-                  },
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.language, color: Colors.blue, size: 22),
-                          ),
-                          const SizedBox(width: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(tr('language'), style: const TextStyle(fontSize: 16)),
-                              Text(
-                                {'it': 'Italiano', 'en': 'English', 'fr': 'Français', 'es': 'Español'}[_appLocale] ?? 'Italiano',
-                                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(value: 'it', label: Text('Italiano', style: TextStyle(fontSize: 12))),
-                            ButtonSegment(value: 'en', label: Text('English', style: TextStyle(fontSize: 12))),
-                            ButtonSegment(value: 'fr', label: Text('Français', style: TextStyle(fontSize: 12))),
-                            ButtonSegment(value: 'es', label: Text('Español', style: TextStyle(fontSize: 12))),
-                          ],
-                          selected: {_appLocale},
-                          onSelectionChanged: (sel) => widget.onLocaleChanged(sel.first),
-                          showSelectedIcon: false,
-                          style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                        ),
-                      ),
-                    ],
+                child: Icon(Icons.settings, color: colorScheme.primary, size: 22),
+              ),
+              title: Text(tr('general_settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => GeneralSettingsPage(
+                    profile: _profile,
+                    themeMode: widget.themeMode,
+                    onLocaleChanged: widget.onLocaleChanged,
+                    onProfileChanged: (p) {
+                      setState(() => _profile = p);
+                      widget.onSave(p);
+                    },
                   ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.teal.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.backup, color: Colors.teal, size: 22),
-                  ),
-                  title: Text(tr('backup')),
-                  subtitle: Text(_profile.backupMode == 'local' ? tr('local') : 'Google Drive'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                        title: Text(tr('backup_mode')),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            RadioListTile(
-                              title: Text(tr('local')),
-                              subtitle: Text(tr('save_on_device')),
-                              value: 'local',
-                              groupValue: _profile.backupMode,
-                              onChanged: (value) {
-                                setState(() => _profile.backupMode = value!);
-                                Navigator.pop(context);
-                              },
-                            ),
-                            RadioListTile(
-                              title: const Text('Google Drive') /* brand */,
-                              subtitle: Text(tr('sync_to_cloud')),
-                              value: 'drive',
-                              groupValue: _profile.backupMode,
-                              onChanged: (value) {
-                                setState(() => _profile.backupMode = value!);
-                                Navigator.pop(context);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
+                )).then((_) => setState(() {}));
+              },
             ),
           ),
           const SizedBox(height: 16),
@@ -9134,6 +9095,247 @@ class _SettingsPageState extends State<SettingsPage> {
     return connected.isEmpty ? tr('no_active_integrations') : connected.join(', ');
   }
 
+}
+
+// ─── General Settings Page ────────────────────────────────────────
+
+class GeneralSettingsPage extends StatefulWidget {
+  final UserProfile profile;
+  final String themeMode;
+  final Function(String) onLocaleChanged;
+  final Function(UserProfile) onProfileChanged;
+
+  const GeneralSettingsPage({
+    super.key,
+    required this.profile,
+    required this.themeMode,
+    required this.onLocaleChanged,
+    required this.onProfileChanged,
+  });
+
+  @override
+  State<GeneralSettingsPage> createState() => _GeneralSettingsPageState();
+}
+
+class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
+  late UserProfile _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    _profile = widget.profile;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(tr('general_settings')),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // ── Integrazioni ──
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: ListTile(
+              leading: Icon(Icons.extension, color: colorScheme.primary),
+              title: Text(tr('integrations'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const IntegrationsPage())).then((_) {
+                  setState(() {});
+                });
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Lingua ──
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.language, color: Colors.blue, size: 22),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(tr('language'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'it', label: Text('Italiano', style: TextStyle(fontSize: 12))),
+                        ButtonSegment(value: 'en', label: Text('English', style: TextStyle(fontSize: 12))),
+                        ButtonSegment(value: 'fr', label: Text('Français', style: TextStyle(fontSize: 12))),
+                        ButtonSegment(value: 'es', label: Text('Español', style: TextStyle(fontSize: 12))),
+                      ],
+                      selected: {_appLocale},
+                      onSelectionChanged: (sel) => widget.onLocaleChanged(sel.first),
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Backup ──
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.backup, color: Colors.teal, size: 22),
+              ),
+              title: Text(tr('backup')),
+              subtitle: Text(_profile.backupMode == 'local' ? tr('local') : 'Google Drive'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    title: Text(tr('backup_mode')),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        RadioListTile(
+                          title: Text(tr('local')),
+                          subtitle: Text(tr('save_on_device')),
+                          value: 'local',
+                          groupValue: _profile.backupMode,
+                          onChanged: (value) {
+                            setState(() => _profile.backupMode = value!);
+                            widget.onProfileChanged(_profile);
+                            Navigator.pop(context);
+                          },
+                        ),
+                        RadioListTile(
+                          title: const Text('Google Drive'),
+                          subtitle: Text(tr('sync_to_cloud')),
+                          value: 'drive',
+                          groupValue: _profile.backupMode,
+                          onChanged: (value) {
+                            setState(() => _profile.backupMode = value!);
+                            widget.onProfileChanged(_profile);
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── Blocco Biometrico ──
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Row(
+              children: [
+                Icon(Icons.fingerprint, color: colorScheme.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(tr('biometric_lock'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.primary)),
+              ],
+            ),
+          ),
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.note),
+                  title: Text(tr('lock_deep_note'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(tr('lock_deep_note_desc')),
+                  value: _profile.lockDeepNote,
+                  onChanged: (value) async {
+                    if (value) {
+                      final localAuth = LocalAuthentication();
+                      final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
+                      if (!canAuth) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(tr('biometric_not_available')),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        );
+                        return;
+                      }
+                    }
+                    setState(() => _profile.lockDeepNote = value);
+                    widget.onProfileChanged(_profile);
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.flash_on),
+                  title: Text(tr('lock_flash_notes'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(tr('lock_flash_notes_desc')),
+                  value: _profile.lockFlashNotes,
+                  onChanged: (value) async {
+                    if (value) {
+                      final localAuth = LocalAuthentication();
+                      final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
+                      if (!canAuth) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(tr('biometric_not_available')),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        );
+                        return;
+                      }
+                    }
+                    setState(() => _profile.lockFlashNotes = value);
+                    widget.onProfileChanged(_profile);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Integrations Page ────────────────────────────────────────────
@@ -9891,23 +10093,17 @@ class FlashNotesSettingsPage extends StatefulWidget {
 class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
   late FlashNotesSettings _settings;
   late TextEditingController _apiKeyController;
-  late TextEditingController _customDaysController;
-  late TextEditingController _customInstructionsController;
 
   @override
   void initState() {
     super.initState();
     _settings = widget.settings;
     _apiKeyController = TextEditingController(text: _settings.geminiApiKey);
-    _customDaysController = TextEditingController(text: _settings.customAutoSaveDays.toString());
-    _customInstructionsController = TextEditingController(text: _settings.customFormatInstructions);
   }
 
   @override
   void dispose() {
     _apiKeyController.dispose();
-    _customDaysController.dispose();
-    _customInstructionsController.dispose();
     super.dispose();
   }
 
@@ -9984,78 +10180,31 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
 
           const SizedBox(height: 24),
 
-          // SEZIONE B: Salvataggio Automatico
-          _buildSectionHeader(tr('auto_save'), Icons.save_alt, sectionColor),
+          // SEZIONE B: Salvataggio flash note su Deep Note
+          _buildSectionHeader(tr('save_flash_to_deep'), Icons.save_alt, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             color: colorScheme.surfaceContainerLowest,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                children: [
-                  RadioListTile<String>(
-                    title: Text(tr('auto_save_never')),
-                    subtitle: Text(tr('no_auto_save')),
-                    value: 'never',
-                    groupValue: _settings.autoSaveMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(autoSaveMode: value));
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: Text(tr('daily')),
-                    value: 'daily',
-                    groupValue: _settings.autoSaveMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(autoSaveMode: value));
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: Text(tr('weekly')),
-                    value: 'weekly',
-                    groupValue: _settings.autoSaveMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(autoSaveMode: value));
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: Text(tr('monthly')),
-                    value: 'monthly',
-                    groupValue: _settings.autoSaveMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(autoSaveMode: value));
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: Text(tr('default_alert')),
-                    value: 'custom',
-                    groupValue: _settings.autoSaveMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(autoSaveMode: value));
-                    },
-                  ),
-                  if (_settings.autoSaveMode == 'custom')
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: TextField(
-                        controller: _customDaysController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: tr('n_days').replaceAll('{n}', '?'),
-                          suffixText: tr('n_days').replaceAll('{n}', ''),
-                          prefixIcon: const Icon(Icons.schedule),
-                        ),
-                        onChanged: (value) {
-                          final days = int.tryParse(value);
-                          if (days != null && days > 0) {
-                            _updateSettings(_settings.copyWith(customAutoSaveDays: days));
-                          }
-                        },
-                      ),
-                    ),
-                ],
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<String>(
+                  segments: [
+                    ButtonSegment(value: 'never', label: Text(tr('auto_save_never'), style: const TextStyle(fontSize: 11))),
+                    ButtonSegment(value: 'daily', label: Text(tr('daily'), style: const TextStyle(fontSize: 11))),
+                    ButtonSegment(value: 'weekly', label: Text(tr('weekly'), style: const TextStyle(fontSize: 11))),
+                    ButtonSegment(value: 'monthly', label: Text(tr('monthly'), style: const TextStyle(fontSize: 11))),
+                  ],
+                  selected: {_settings.autoSaveMode == 'custom' ? 'never' : _settings.autoSaveMode},
+                  onSelectionChanged: (sel) {
+                    _updateSettings(_settings.copyWith(autoSaveMode: sel.first));
+                  },
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                ),
               ),
             ),
           ),
@@ -10082,168 +10231,77 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             color: colorScheme.surfaceContainerLowest,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                children: [
-                  RadioListTile<String>(
-                    title: Text(tr('daily')),
-                    subtitle: Text(tr('daily')),
-                    value: 'daily',
-                    groupValue: _settings.groupingMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(groupingMode: value));
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: Text(tr('weekly')),
-                    subtitle: Text(tr('weekly')),
-                    value: 'weekly',
-                    groupValue: _settings.groupingMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(groupingMode: value));
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: Text(tr('monthly')),
-                    subtitle: Text(tr('monthly')),
-                    value: 'monthly',
-                    groupValue: _settings.groupingMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(groupingMode: value));
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: Text(tr('monthly')),
-                    subtitle: Text(tr('monthly')),
-                    value: 'yearly',
-                    groupValue: _settings.groupingMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(groupingMode: value));
-                    },
-                  ),
-                ],
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<String>(
+                  segments: [
+                    ButtonSegment(value: 'daily', label: Text(tr('daily'), style: const TextStyle(fontSize: 12))),
+                    ButtonSegment(value: 'weekly', label: Text(tr('weekly'), style: const TextStyle(fontSize: 12))),
+                    ButtonSegment(value: 'monthly', label: Text(tr('monthly'), style: const TextStyle(fontSize: 12))),
+                    ButtonSegment(value: 'yearly', label: Text(tr('yearly'), style: const TextStyle(fontSize: 12))),
+                  ],
+                  selected: {_settings.groupingMode},
+                  onSelectionChanged: (sel) {
+                    _updateSettings(_settings.copyWith(groupingMode: sel.first));
+                  },
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                ),
               ),
             ),
           ),
 
           const SizedBox(height: 24),
 
-          // SEZIONE C: Formattazione Automatica
-          _buildSectionHeader(tr('formatting_preset'), Icons.auto_fix_high, sectionColor),
+          // SEZIONE C: Formattazione AI
+          _buildSectionHeader(tr('ai_formatting'), Icons.auto_fix_high, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             color: colorScheme.surfaceContainerLowest,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  RadioListTile<String>(
-                    title: Text(tr('simple')),
-                    subtitle: Text(tr('formatting_preset')),
-                    value: 'simple',
-                    groupValue: _settings.formattingPreset,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(formattingPreset: value));
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: Text(tr('formatting_preset')),
-                    subtitle: Text(
-                      _settings.geminiEnabled
-                          ? tr('ai_formatting_desc')
-                          : tr('requires_gemini'),
-                      style: TextStyle(
-                        color: _settings.geminiEnabled
-                            ? null
-                            : colorScheme.error,
-                      ),
-                    ),
-                    value: 'ai',
-                    groupValue: _settings.formattingPreset,
-                    onChanged: _settings.geminiEnabled
-                        ? (value) {
-                            _updateSettings(_settings.copyWith(formattingPreset: value));
-                          }
-                        : null,
-                  ),
-                  RadioListTile<String>(
-                    title: Text(tr('formatting_preset')),
-                    subtitle: Text(
-                      _settings.geminiEnabled
-                          ? tr('custom_ai_instructions')
-                          : tr('requires_gemini'),
-                      style: TextStyle(
-                        color: _settings.geminiEnabled
-                            ? null
-                            : colorScheme.error,
-                      ),
-                    ),
-                    value: 'custom',
-                    groupValue: _settings.formattingPreset,
-                    onChanged: _settings.geminiEnabled
-                        ? (value) {
-                            _updateSettings(_settings.copyWith(formattingPreset: value));
-                          }
-                        : null,
-                  ),
-                  if (_settings.formattingPreset == 'custom' && _settings.geminiEnabled) ...[
+                  if (!_settings.geminiEnabled)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                      child: TextField(
-                        controller: _customInstructionsController,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          labelText: tr('formatting_preset'),
-                          hintText: tr('formatting_preset'),
-                          prefixIcon: const Icon(Icons.edit_note),
-                          alignLabelWithHint: true,
-                        ),
-                        onChanged: (value) {
-                          _updateSettings(_settings.copyWith(customFormatInstructions: value));
-                        },
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        tr('requires_gemini'),
+                        style: TextStyle(fontSize: 12, color: colorScheme.error),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tr('ai_correction_level'),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Slider(
-                            value: _settings.aiCorrectionLevel,
-                            min: 0.0,
-                            max: 1.0,
-                            divisions: 4,
-                            label: _getCorrectionLabel(_settings.aiCorrectionLevel),
-                            onChanged: (value) {
-                              _updateSettings(_settings.copyWith(aiCorrectionLevel: value));
-                            },
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(tr('simple'),
-                                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
-                              Text(tr('summary_label'),
-                                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
-                              Text(tr('rewrite_label'),
-                                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
-                            ],
-                          ),
-                        ],
-                      ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<String>(
+                      segments: [
+                        ButtonSegment(value: 'simple', label: Text(tr('simple_formatting'), style: const TextStyle(fontSize: 12))),
+                        ButtonSegment(value: 'ai', label: Text(tr('advanced_formatting'), style: const TextStyle(fontSize: 12))),
+                      ],
+                      selected: {_settings.formattingPreset == 'custom' ? 'ai' : _settings.formattingPreset},
+                      onSelectionChanged: _settings.geminiEnabled
+                          ? (sel) {
+                              _updateSettings(_settings.copyWith(formattingPreset: sel.first));
+                            }
+                          : null,
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(visualDensity: VisualDensity.compact),
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    (_settings.formattingPreset == 'simple')
+                        ? tr('simple_formatting_desc')
+                        : tr('advanced_formatting_desc'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -10626,6 +10684,193 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
     );
   }
 
+  void _showChangePinDialog() {
+    final oldPinController = TextEditingController();
+    final newPinController = TextEditingController();
+    final confirmPinController = TextEditingController();
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('change_pin')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: oldPinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                decoration: InputDecoration(
+                  labelText: tr('current_pin'),
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: newPinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                decoration: InputDecoration(
+                  labelText: tr('new_pin'),
+                  prefixIcon: const Icon(Icons.pin),
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmPinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                decoration: InputDecoration(
+                  labelText: tr('confirm_pin'),
+                  prefixIcon: const Icon(Icons.pin),
+                  counterText: '',
+                ),
+              ),
+              if (errorText != null) ...[
+                const SizedBox(height: 8),
+                Text(errorText!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
+            FilledButton(
+              onPressed: () {
+                if (oldPinController.text != _settings.securityPin) {
+                  setDialogState(() => errorText = tr('wrong_pin'));
+                  return;
+                }
+                if (newPinController.text.length != 4) {
+                  setDialogState(() => errorText = tr('pin_must_be_4'));
+                  return;
+                }
+                if (newPinController.text != confirmPinController.text) {
+                  setDialogState(() => errorText = tr('pins_dont_match'));
+                  return;
+                }
+                _updateSettings(_settings.copyWith(securityPin: newPinController.text));
+                _pinController.text = newPinController.text;
+                Navigator.pop(context);
+              },
+              child: Text(tr('confirm')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _importTemplate() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['txt', 'md'],
+      );
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      String text = '';
+      if (file.bytes != null) {
+        text = utf8.decode(file.bytes!, allowMalformed: true);
+      } else if (file.path != null) {
+        text = await File(file.path!).readAsString();
+      }
+      if (text.isEmpty) return;
+
+      final nameController = TextEditingController(text: file.name.replaceAll(RegExp(r'\.(txt|md)$'), ''));
+      if (!mounted) return;
+      final name = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('template_name')),
+          content: TextField(
+            controller: nameController,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: tr('template_name'),
+              prefixIcon: const Icon(Icons.title),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, nameController.text),
+              child: Text(tr('confirm')),
+            ),
+          ],
+        ),
+      );
+      if (name == null || name.isEmpty) return;
+
+      final delta = [{'insert': '$text\n'}];
+      final updated = List<Map<String, dynamic>>.from(_settings.customTemplates)
+        ..add({'name': name, 'delta': json.encode(delta)});
+      _updateSettings(_settings.copyWith(customTemplates: updated));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  Future<void> _createTemplate() async {
+    final nameController = TextEditingController();
+    if (!mounted) return;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('template_name')),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: tr('template_name'),
+            prefixIcon: const Icon(Icons.title),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, nameController.text),
+            child: Text(tr('confirm')),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NoteEditorPage(
+          folders: const {},
+          onSave: (note) {
+            final updated = List<Map<String, dynamic>>.from(_settings.customTemplates)
+              ..add({'name': name, 'delta': note.contentDelta});
+            _updateSettings(_settings.copyWith(customTemplates: updated));
+          },
+          existingNote: ProNote(
+            title: name,
+            content: '',
+            contentDelta: json.encode([{'insert': '\n'}]),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -10675,40 +10920,52 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                   ),
                   if (_settings.showPrivateFolder) ...[
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: _pinController,
-                      obscureText: true,
-                      keyboardType: TextInputType.number,
-                      maxLength: 4,
-                      decoration: InputDecoration(
-                        labelText: tr('security_pin'),
-                        hintText: tr('pin_exactly_4'),
-                        prefixIcon: const Icon(Icons.pin),
-                        counterText: '',
+                    if (_settings.securityPin != null && _settings.securityPin!.length == 4) ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.pin),
+                        title: Text('${tr('pin_set')} ****', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        trailing: OutlinedButton(
+                          onPressed: () => _showChangePinDialog(),
+                          child: Text(tr('change_pin')),
+                        ),
                       ),
-                      onChanged: (value) {
-                        if (value.isEmpty) {
-                          _updateSettings(_settings.copyWith(clearPin: true, biometricEnabled: false));
-                        } else {
-                          _updateSettings(_settings.copyWith(securityPin: value));
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      tr('pin_exactly_4'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                        color: colorScheme.onSurfaceVariant,
+                    ] else ...[
+                      TextField(
+                        controller: _pinController,
+                        obscureText: true,
+                        keyboardType: TextInputType.number,
+                        maxLength: 4,
+                        decoration: InputDecoration(
+                          labelText: tr('security_pin'),
+                          hintText: tr('pin_exactly_4'),
+                          prefixIcon: const Icon(Icons.pin),
+                          counterText: '',
+                        ),
+                        onChanged: (value) {
+                          if (value.isEmpty) {
+                            _updateSettings(_settings.copyWith(clearPin: true, biometricEnabled: false));
+                          } else {
+                            _updateSettings(_settings.copyWith(securityPin: value));
+                          }
+                        },
                       ),
-                    ),
-                    if (_settings.securityPin != null && _settings.securityPin!.isNotEmpty && _settings.securityPin!.length != 4) ...[
                       const SizedBox(height: 4),
                       Text(
-                        tr('pin_must_be_4'),
-                        style: TextStyle(fontSize: 12, color: colorScheme.error),
+                        tr('pin_exactly_4'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
+                      if (_settings.securityPin != null && _settings.securityPin!.isNotEmpty && _settings.securityPin!.length != 4) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          tr('pin_must_be_4'),
+                          style: TextStyle(fontSize: 12, color: colorScheme.error),
+                        ),
+                      ],
                     ],
                     if (_settings.securityPin != null && _settings.securityPin!.length == 4) ...[
                       const SizedBox(height: 12),
@@ -10785,50 +11042,6 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
 
           const SizedBox(height: 24),
 
-          // SEZIONE: Font scaricati
-          _buildSectionHeader(tr('downloaded_fonts'), Icons.font_download, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _settings.downloadedFonts.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          tr('no_extra_fonts'),
-                          style: TextStyle(
-                            color: colorScheme.onSurfaceVariant,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                    )
-                  : Column(
-                      children: _settings.downloadedFonts.map((font) {
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.text_fields),
-                          title: Text(font),
-                          trailing: IconButton(
-                            icon: Icon(Icons.delete_outline, color: colorScheme.error),
-                            onPressed: () {
-                              final updated = List<String>.from(_settings.downloadedFonts)
-                                ..remove(font);
-                              _updateSettings(_settings.copyWith(downloadedFonts: updated));
-                            },
-                          ),
-                        );
-                      }).toList(),
-                    ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
           // SEZIONE: Template Personalizzati
           _buildSectionHeader(tr('custom_templates'), Icons.description, sectionColor),
           const SizedBox(height: 8),
@@ -10870,21 +11083,25 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                         ),
                       );
                     }),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(tr('success')),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.add),
-                      label: Text(tr('add_template')),
-                    ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _importTemplate,
+                          icon: const Icon(Icons.file_upload, size: 18),
+                          label: Text(tr('import_template'), style: const TextStyle(fontSize: 12)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _createTemplate,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: Text(tr('create_template'), style: const TextStyle(fontSize: 12)),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -16544,28 +16761,21 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
   Widget _buildSPenToolbar() {
     final colorScheme = Theme.of(context).colorScheme;
-    const btnSize = 36.0;
-    Widget toolBtn({required Widget icon, required String tooltip, required VoidCallback onPressed}) {
-      return SizedBox(
-        width: btnSize,
-        height: btnSize,
-        child: IconButton(
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: btnSize, minHeight: btnSize),
-          tooltip: tooltip,
-          onPressed: onPressed,
-          icon: icon,
-          iconSize: 18,
-        ),
+    const chipStyle = TextStyle(fontSize: 11);
+
+    Widget chip({required IconData icon, required String label, required VoidCallback onPressed}) {
+      return ActionChip(
+        avatar: Icon(icon, size: 16),
+        label: Text(label, style: chipStyle),
+        onPressed: onPressed,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
       );
     }
-    Widget vDivider() => Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Container(width: 1, height: 24, color: colorScheme.outlineVariant),
-    );
+    const gap = SizedBox(width: 6);
 
     return Material(
-      elevation: 4,
+      elevation: 6,
       borderRadius: BorderRadius.circular(16),
       color: colorScheme.surfaceContainerLowest,
       child: Container(
@@ -16573,82 +16783,65 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.outlineVariant),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               // H1, H2
-              toolBtn(
-                icon: Text('H1', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-                tooltip: tr('title'),
+              ActionChip(
+                avatar: Text('H1', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                label: Text(tr('title'), style: chipStyle),
                 onPressed: () => _quillController.formatSelection(quill.Attribute.h1),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
               ),
-              toolBtn(
-                icon: Text('H2', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-                tooltip: tr('title'),
+              gap,
+              ActionChip(
+                avatar: Text('H2', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                label: Text(tr('subtitle'), style: chipStyle),
                 onPressed: () => _quillController.formatSelection(quill.Attribute.h2),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
               ),
-              vDivider(),
+              gap,
               // Bold
-              toolBtn(
-                icon: Icon(Icons.format_bold, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('bold'),
-                onPressed: () => _quillController.formatSelection(quill.Attribute.bold),
-              ),
+              chip(icon: Icons.format_bold, label: tr('bold'), onPressed: () => _quillController.formatSelection(quill.Attribute.bold)),
+              gap,
               // Highlight
-              toolBtn(
-                icon: Icon(Icons.highlight, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('background_color'),
+              chip(
+                icon: Icons.highlight,
+                label: tr('highlight'),
                 onPressed: () {
                   _quillController.formatSelection(
                     quill.Attribute.fromKeyValue('background', _isEthosTheme(context) ? '#F2D5DC' : '#FFF9C4'),
                   );
                 },
               ),
-              // Checklist (Apple Notes style)
-              toolBtn(
-                icon: Icon(Icons.checklist, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('checklist'),
-                onPressed: () => _quillController.formatSelection(quill.Attribute.unchecked),
-              ),
-              vDivider(),
+              gap,
+              // Checklist
+              chip(icon: Icons.checklist, label: 'Checklist', onPressed: () => _quillController.formatSelection(quill.Attribute.unchecked)),
+              gap,
               // Link
-              toolBtn(
-                icon: Icon(Icons.link, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('add_link'),
-                onPressed: _insertLink,
-              ),
+              chip(icon: Icons.link, label: 'Link', onPressed: _insertLink),
+              gap,
               // HR
-              toolBtn(
-                icon: Icon(Icons.horizontal_rule, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('indent'),
-                onPressed: _insertHorizontalRule,
-              ),
-              toolBtn(
-                icon: Icon(Icons.image, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('insert_image'),
-                onPressed: _insertImage,
-              ),
-              vDivider(),
+              chip(icon: Icons.horizontal_rule, label: tr('indent'), onPressed: _insertHorizontalRule),
+              gap,
+              // Image
+              chip(icon: Icons.image, label: tr('insert_image'), onPressed: _insertImage),
+              gap,
               // UL
-              toolBtn(
-                icon: Icon(Icons.format_list_bulleted, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('bullet_list'),
-                onPressed: () => _quillController.formatSelection(quill.Attribute.ul),
-              ),
+              chip(icon: Icons.format_list_bulleted, label: tr('bullet_list'), onPressed: () => _quillController.formatSelection(quill.Attribute.ul)),
+              gap,
               // OL
-              toolBtn(
-                icon: Icon(Icons.format_list_numbered, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('numbered_list'),
-                onPressed: () => _quillController.formatSelection(quill.Attribute.ol),
-              ),
-              vDivider(),
+              chip(icon: Icons.format_list_numbered, label: tr('numbered_list'), onPressed: () => _quillController.formatSelection(quill.Attribute.ol)),
+              gap,
               // Font
-              toolBtn(
-                icon: Icon(Icons.font_download, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('font'),
+              chip(
+                icon: Icons.font_download,
+                label: tr('font'),
                 onPressed: () {
                   showModalBottomSheet(
                     context: context,
@@ -16656,62 +16849,63 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   );
                 },
               ),
+              gap,
               // Color text
-              toolBtn(
-                icon: Icon(Icons.format_color_text, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('text_color'),
-                onPressed: () => _showColorPickerPopup(isBackground: false),
-              ),
+              chip(icon: Icons.format_color_text, label: tr('text_color'), onPressed: () => _showColorPickerPopup(isBackground: false)),
+              gap,
               // Color bg
-              toolBtn(
-                icon: Icon(Icons.format_color_fill, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('background_color'),
-                onPressed: () => _showColorPickerPopup(isBackground: true),
-              ),
-              vDivider(),
+              chip(icon: Icons.format_color_fill, label: tr('background_color'), onPressed: () => _showColorPickerPopup(isBackground: true)),
+              gap,
               // Alignment
-              toolBtn(
-                icon: Icon(Icons.format_align_left, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('text_align'),
-                onPressed: () => _quillController.formatSelection(quill.Attribute.leftAlignment),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'left', icon: Icon(Icons.format_align_left, size: 16)),
+                  ButtonSegment(value: 'center', icon: Icon(Icons.format_align_center, size: 16)),
+                  ButtonSegment(value: 'right', icon: Icon(Icons.format_align_right, size: 16)),
+                ],
+                selected: const {'left'},
+                onSelectionChanged: (v) {
+                  final align = v.first;
+                  if (align == 'left') _quillController.formatSelection(quill.Attribute.leftAlignment);
+                  if (align == 'center') _quillController.formatSelection(quill.Attribute.centerAlignment);
+                  if (align == 'right') _quillController.formatSelection(quill.Attribute.rightAlignment);
+                },
+                showSelectedIcon: false,
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
-              toolBtn(
-                icon: Icon(Icons.format_align_center, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('text_align'),
-                onPressed: () => _quillController.formatSelection(quill.Attribute.centerAlignment),
-              ),
-              toolBtn(
-                icon: Icon(Icons.format_align_right, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('text_align'),
-                onPressed: () => _quillController.formatSelection(quill.Attribute.rightAlignment),
-              ),
-              vDivider(),
+              gap,
               // AI
               _isAiLoading
                   ? const Padding(
                       padding: EdgeInsets.all(6),
                       child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                     )
-                  : PopupMenuButton<String>(
-                      icon: Icon(Icons.auto_awesome, size: 18, color: colorScheme.primary),
-                      tooltip: 'AI',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: btnSize, minHeight: btnSize),
-                      itemBuilder: (_) => [
-                        PopupMenuItem(value: 'riassumi', child: Text(tr('summarize'))),
-                        PopupMenuItem(value: 'punti_chiave', child: Text(tr('content'))),
-                      ],
-                      onSelected: _callGeminiAI,
+                  : ActionChip(
+                      avatar: Icon(Icons.auto_awesome, size: 16, color: colorScheme.primary),
+                      label: Text('AI', style: chipStyle),
+                      onPressed: () {
+                        final RenderBox box = context.findRenderObject() as RenderBox;
+                        final offset = box.localToGlobal(Offset.zero);
+                        showMenu<String>(
+                          context: context,
+                          position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
+                          items: [
+                            PopupMenuItem(value: 'riassumi', child: Text(tr('summarize'))),
+                            PopupMenuItem(value: 'punti_chiave', child: Text(tr('content'))),
+                          ],
+                        ).then((v) { if (v != null) _callGeminiAI(v); });
+                      },
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
                     ),
-              vDivider(),
+              gap,
               // Header/Footer
-              toolBtn(
-                icon: Icon(
-                  _showHeader || _showFooter ? Icons.article : Icons.article_outlined,
-                  size: 18,
-                  color: colorScheme.onSurface,
-                ),
-                tooltip: '${tr('header')}/${tr('footer')}',
+              chip(
+                icon: _showHeader || _showFooter ? Icons.article : Icons.article_outlined,
+                label: '${tr('header')}/${tr('footer')}',
                 onPressed: () {
                   setState(() {
                     if (_showHeader || _showFooter) {
@@ -16724,33 +16918,42 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   });
                 },
               ),
+              gap,
               // Template
-              PopupMenuButton<String>(
-                icon: Icon(Icons.description_outlined, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('template'),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: btnSize, minHeight: btnSize),
-                itemBuilder: (_) => _businessTemplates.keys.map((name) {
-                  return PopupMenuItem(
-                    value: name,
-                    child: Row(
-                      children: [
-                        Icon(
-                          name == _selectedTemplate ? Icons.check : Icons.description,
-                          size: 18,
+              ActionChip(
+                avatar: const Icon(Icons.description_outlined, size: 16),
+                label: Text(tr('template'), style: chipStyle),
+                onPressed: () {
+                  final RenderBox box = context.findRenderObject() as RenderBox;
+                  final offset = box.localToGlobal(Offset.zero);
+                  showMenu<String>(
+                    context: context,
+                    position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
+                    items: _businessTemplates.keys.map((name) {
+                      return PopupMenuItem(
+                        value: name,
+                        child: Row(
+                          children: [
+                            Icon(
+                              name == _selectedTemplate ? Icons.check : Icons.description,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(name),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Text(name),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onSelected: _onTemplateSelected,
+                      );
+                    }).toList(),
+                  ).then((v) { if (v != null) _onTemplateSelected(v); });
+                },
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
               ),
+              gap,
               // Folder
-              toolBtn(
-                icon: Icon(Icons.folder_outlined, size: 18, color: colorScheme.onSurface),
-                tooltip: tr('folder'),
+              chip(
+                icon: Icons.folder_outlined,
+                label: tr('folder'),
                 onPressed: () {
                   showModalBottomSheet(
                     context: context,
@@ -16758,14 +16961,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   );
                 },
               ),
+              gap,
               // Calendar link
-              toolBtn(
-                icon: Icon(
-                  _linkedDate != null ? Icons.calendar_today : Icons.calendar_today_outlined,
-                  size: 18,
-                  color: _linkedDate != null ? colorScheme.primary : colorScheme.onSurface,
-                ),
-                tooltip: tr('select_date'),
+              chip(
+                icon: _linkedDate != null ? Icons.calendar_today : Icons.calendar_today_outlined,
+                label: tr('select_date'),
                 onPressed: _pickLinkedDate,
               ),
             ],
