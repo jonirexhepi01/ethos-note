@@ -4074,12 +4074,17 @@ class _CalendarPageState extends State<CalendarPage> {
     await _saveEvents();
   }
 
-  void _toggleEventCompletion(DateTime day, int index) {
+  void _toggleEventCompletion(DateTime day, int combinedIndex) {
     final key = _dateKey(day);
-    final events = _events[key];
-    if (events == null || index >= events.length) return;
+    final localEvents = _events[key];
+    if (localEvents == null) return;
+    // combinedIndex comes from _getEventsForDay() which is [...local, ...google]
+    // Only local events (index < localEvents.length) can be toggled
+    if (combinedIndex >= localEvents.length) return;
     setState(() {
-      events[index] = events[index].copyWith(isCompleted: !events[index].isCompleted);
+      localEvents[combinedIndex] = localEvents[combinedIndex].copyWith(
+        isCompleted: !localEvents[combinedIndex].isCompleted,
+      );
     });
     _saveEvents();
   }
@@ -4904,9 +4909,8 @@ class _CalendarPageState extends State<CalendarPage> {
     int completed = 0;
     double progress = 0;
     if (_selectedDay != null && eventsForSelectedDay.isNotEmpty) {
-      final now = DateTime.now();
       for (final e in eventsForSelectedDay) {
-        if (e.isCompleted || e.endTime.isBefore(now)) completed++;
+        if (e.isCompleted) completed++;
       }
       progress = completed / eventsForSelectedDay.length;
     }
