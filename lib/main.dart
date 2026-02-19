@@ -13066,32 +13066,33 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               const SizedBox(height: 16),
               Text('Gemini AI', style: Theme.of(ctx).textTheme.titleLarge),
               const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.summarize, color: Colors.purple),
-                title: const Text('Riassumi'),
-                subtitle: const Text('Crea un riassunto breve del testo'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _callFlashGeminiAI(note, index, 'riassumi');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.spellcheck, color: Colors.purple),
-                title: const Text('Correggi e formatta'),
-                subtitle: const Text('Correggi errori e migliora il testo'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _callFlashGeminiAI(note, index, 'correggi');
-                },
-              ),
               if (note.isAudioNote) ...[
                 ListTile(
                   leading: const Icon(Icons.record_voice_over, color: Colors.purple),
-                  title: const Text('Trascrivi audio'),
-                  subtitle: const Text('Converti la nota vocale in testo'),
+                  title: const Text('Trascrivi nota vocale'),
+                  subtitle: const Text('Converti l\'audio in testo'),
                   onTap: () {
                     Navigator.pop(ctx);
                     _transcribeAudioNote(note, index);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.summarize, color: Colors.purple),
+                  title: const Text('Riassumi'),
+                  subtitle: const Text('Crea un riassunto breve del contenuto'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _callFlashGeminiAI(note, index, 'riassumi');
+                  },
+                ),
+              ] else ...[
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome, color: Colors.purple),
+                  title: const Text('Riassunto intelligente'),
+                  subtitle: const Text('Crea un riassunto breve del testo'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _callFlashGeminiAI(note, index, 'riassumi');
                   },
                 ),
               ],
@@ -13577,7 +13578,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                 ),
                 const SizedBox(height: 16),
                 // Transcription section
-                if (transcription.isNotEmpty)
+                if (transcription.isNotEmpty) ...[
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
@@ -13594,6 +13595,49 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        // Save transcription to note first
+                        setState(() {
+                          _notes[originalIndex] = FlashNote(
+                            content: transcription,
+                            createdAt: note.createdAt,
+                            audioPath: note.audioPath,
+                            audioDurationMs: note.audioDurationMs,
+                          );
+                        });
+                        _saveNotes();
+                        viewerPlayer?.stop();
+                        viewerPlayer?.dispose();
+                        Navigator.pop(ctx);
+                        // Open as text editor
+                        final updatedNote = _notes[originalIndex];
+                        Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => FlashNoteEditorPage(
+                            existingNote: updatedNote,
+                            onSave: (edited) {
+                              setState(() {
+                                _notes[originalIndex] = FlashNote(
+                                  content: edited.content,
+                                  createdAt: edited.createdAt,
+                                  audioPath: note.audioPath,
+                                  audioDurationMs: note.audioDurationMs,
+                                );
+                              });
+                              _saveNotes();
+                            },
+                          ),
+                        ));
+                      },
+                      icon: const Icon(Icons.edit_note, size: 18),
+                      label: const Text('Apri come nota di testo'),
+                      style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 // Action buttons
                 Row(
@@ -17276,7 +17320,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       final String title;
       if (action == 'riassumi') {
         prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
-        title = tr('ai_summary');
+        title = 'Riassunto intelligente';
+      } else if (action == 'correggi') {
+        prompt = 'Correggi errori ortografici, grammaticali e di punteggiatura nel seguente testo italiano. Migliora la formattazione mantenendo il significato originale:\n\n$text';
+        title = 'Correggi e formatta';
       } else {
         prompt = 'Estrai i punti chiave più importanti dal seguente testo in italiano, come lista puntata:\n\n$text';
         title = tr('ai_key_points');
@@ -17340,19 +17387,32 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        final doc = _quillController.document;
-                        final length = doc.length;
-                        doc.insert(length - 1, '\n\n--- $title ---\n$result\n');
-                      },
-                      icon: const Icon(Icons.add, size: 18),
-                      label: Text(tr('insert')),
+                  if (action == 'correggi')
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _quillController.document = quill.Document()..insert(0, result);
+                        },
+                        icon: const Icon(Icons.check, size: 18),
+                        label: const Text('Applica correzione'),
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          final doc = _quillController.document;
+                          final length = doc.length;
+                          doc.insert(length - 1, '\n\n--- $title ---\n$result\n');
+                        },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: Text(tr('insert')),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -17961,8 +18021,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                           context: context,
                           position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
                           items: [
-                            PopupMenuItem(value: 'riassumi', child: Text(tr('summarize'))),
-                            PopupMenuItem(value: 'punti_chiave', child: Text(tr('content'))),
+                            const PopupMenuItem(value: 'riassumi', child: Text('Riassunto intelligente')),
+                            const PopupMenuItem(value: 'correggi', child: Text('Correggi e formatta')),
                           ],
                         ).then((v) { if (v != null) _callGeminiAI(v); });
                       },
@@ -18193,17 +18253,22 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
             padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 8),
             child: Column(
               children: [
-                // TITLE
+                // TITLE — clean, no box
                 TextField(
                   controller: _titleController,
                   focusNode: _titleFocusNode,
                   textAlign: _titleAlignment,
                   decoration: InputDecoration(
-                    labelText: tr('title'),
                     hintText: tr('title'),
-                    prefixIcon: Icon(Icons.title, color: colorScheme.primary),
+                    hintStyle: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
                   ),
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? colorScheme.primary : null),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? colorScheme.primary : null),
                 ),
                 // (title toolbar moved to Positioned overlay below)
                 const SizedBox(height: 8),
@@ -18225,23 +18290,15 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   ),
                   const SizedBox(height: 8),
                 ],
-                // QUILL EDITOR (Expanded)
+                // QUILL EDITOR (Expanded) — free page, no border
                 Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerLowest,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: colorScheme.outlineVariant),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: quill.QuillEditor(
+                  child: quill.QuillEditor(
                         controller: _quillController,
                         focusNode: _editorFocusNode,
                         scrollController: _editorScrollController,
                         config: quill.QuillEditorConfig(
                           placeholder: 'Scrivi qui la tua nota...',
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                          padding: const EdgeInsets.fromLTRB(0, 8, 0, 80),
                           customStyleBuilder: _customStyleBuilder,
                           embedBuilders: [_DividerEmbedBuilder(), _ImageEmbedBuilder()],
                           characterShortcutEvents: quill.standardCharactersShortcutEvents,
@@ -18269,8 +18326,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                             }
                           },
                         ),
-                      ),
-                    ),
                   ),
                 ),
                 // LINK GALLERY
