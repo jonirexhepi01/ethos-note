@@ -3145,15 +3145,6 @@ class Holidays {
     } else if (religione == tr('islamic')) {
       base.add(Holiday(4, 10, '🌙', 'Eid al-Fitr'));
       base.add(Holiday(6, 16, '🌙', 'Eid al-Adha'));
-    } else if (religione == tr('chinese')) {
-      base.add(Holiday(1, 29, '🧧', 'Capodanno Cinese'));
-      base.add(Holiday(2, 15, '🏮', 'Festa delle Lanterne'));
-      base.add(Holiday(4, 5, '🪦', 'Qingming'));
-      base.add(Holiday(5, 31, '🐉', 'Duanwu'));
-      base.add(Holiday(8, 29, '🌙', 'Qixi'));
-      base.add(Holiday(10, 1, '🇨🇳', 'Festa Nazionale Cinese'));
-      base.add(Holiday(10, 6, '🥮', 'Zhongqiu'));
-      base.add(Holiday(12, 29, '🎊', 'Laba'));
     }
 
     Map<String, List<Holiday>> result = {};
@@ -3422,10 +3413,6 @@ class WeatherService {
   }
 
   static Future<WeatherData?> fetchWeather(String city, double lat, double lon) async {
-    // Check cache first
-    final cached = await WeatherData.loadCached();
-    if (cached != null && cached.city == city) return cached;
-
     try {
       final url = 'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon'
           '&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe/Rome';
@@ -4304,13 +4291,54 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  Widget _buildCycleFlowBar() {
+    final intensity = _getCycleIntensity(DateTime.now());
+    final double progress;
+    final String label;
+    switch (intensity) {
+      case 'light':
+        progress = 0.33;
+        label = 'Leggero';
+      case 'heavy':
+        progress = 1.0;
+        label = 'Forte';
+      case 'very_heavy':
+        progress = 1.0;
+        label = 'Molto forte';
+      default:
+        progress = 0.66;
+        label = 'Medio';
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.water_drop, color: Colors.red, size: 16),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.red)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 3,
+                backgroundColor: Colors.red.withValues(alpha: 0.12),
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadCalendarSettings() async {
     final settings = await CalendarSettings.load();
     setState(() {
       _calSettings = settings;
       _holidays = Holidays.getHolidays(settings.religione);
     });
-    if (settings.showHoroscope) _loadHoroscope();
     if (settings.showWeather && settings.weatherCity != null && settings.weatherCity!.isNotEmpty) {
       _loadWeather();
     }
@@ -4342,7 +4370,7 @@ class _CalendarPageState extends State<CalendarPage> {
     try {
       final city = _calSettings.weatherCity;
       if (city != null && city.isNotEmpty) {
-        // Try cache first
+        // Try non-stale cache first
         final cached = await WeatherData.loadCached();
         if (cached != null && cached.city == city) {
           if (mounted) setState(() => _weatherData = cached);
@@ -4351,6 +4379,16 @@ class _CalendarPageState extends State<CalendarPage> {
           if (geo != null) {
             final data = await WeatherService.fetchWeather(city, geo.lat, geo.lon);
             if (mounted) setState(() => _weatherData = data);
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${tr('weather_city')}: "$city" non trovata'),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              );
+            }
           }
         }
       }
@@ -5468,13 +5506,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   ),
                 ),
         ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          child: _isCalendarCompact
-              ? const SizedBox.shrink()
-              : _buildHoroscopeCard(),
-        ),
+        const SizedBox.shrink(),
         const SizedBox(height: 8),
         if (_selectedDay != null) ...[
           Expanded(
@@ -5662,8 +5694,8 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                   ],
                   // Health progress bar
-                  if (_healthSnapshot != null && _healthSnapshot!.hasData)
-                    _buildHealthProgressBar(),
+                  if (_calSettings.showCycleTracking && _isCycleDay(DateTime.now()))
+                    _buildCycleFlowBar(),
                 ],
               ),
             ),
@@ -7261,29 +7293,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   style: const ButtonStyle(visualDensity: VisualDensity.compact),
                 ),
               ),
-              const Divider(),
-              SwitchListTile(
-                title: Text(tr('show_chinese_zodiac'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(tr('chinese_zodiac')),
-                value: _settings.showChineseZodiac,
-                activeColor: Color(_settings.calendarColorValue),
-                contentPadding: EdgeInsets.zero,
-                onChanged: (v) {
-                  _updateSettings(_settings.copyWith(showChineseZodiac: v));
-                },
-              ),
             ],
-            const Divider(),
-            SwitchListTile(
-              title: Text(tr('show_horoscope'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(tr('daily_horoscope')),
-              value: _settings.showHoroscope,
-              activeColor: Color(_settings.calendarColorValue),
-              contentPadding: EdgeInsets.zero,
-              onChanged: (v) {
-                _updateSettings(_settings.copyWith(showHoroscope: v));
-              },
-            ),
           ],
         ),
       ),
@@ -7493,7 +7503,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       tr('catholic'): Icons.church,
       tr('jewish'): Icons.synagogue,
       tr('islamic'): Icons.mosque,
-      tr('chinese'): Icons.temple_buddhist,
       tr('none_religion'): Icons.public,
     };
     return Card(
@@ -8731,16 +8740,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   dense: true,
                   onTap: () { Navigator.pop(ctx); _showPasswordEditor(); },
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.switch_account_outlined),
-                  title: Text(tr('switch_account')),
-                  subtitle: Text('${_profile.accounts.length} account'),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
-                  dense: true,
-                  onTap: () { Navigator.pop(ctx); _showAccountSwitcher(); },
-                ),
-
                 // Social e Condivisione
                 const Divider(height: 32),
                 Row(
@@ -9037,124 +9036,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showAccountSwitcher() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(tr('profile'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              // Main account
-              ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  child: Text(_profile.initials, style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer)),
-                ),
-                title: Text(_profile.fullName),
-                subtitle: Text(_profile.email ?? tr('no_email')),
-                trailing: _profile.activeAccountIndex == 0 ? const Icon(Icons.check_circle, color: Colors.green) : null,
-                onTap: () {
-                  setState(() => _profile.activeAccountIndex = 0);
-                  setSheetState(() {});
-                },
-              ),
-              // Secondary accounts
-              ...List.generate(_profile.accounts.length, (i) {
-                final acc = _profile.accounts[i];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                    child: Text(((acc['nome'] ?? '?').isEmpty ? '?' : acc['nome']!)[0].toUpperCase()),
-                  ),
-                  title: Text(acc['nome'] ?? ''),
-                  subtitle: Text(acc['email'] ?? ''),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_profile.activeAccountIndex == i + 1) const Icon(Icons.check_circle, color: Colors.green),
-                      IconButton(
-                        icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.error),
-                        onPressed: () {
-                          setState(() {
-                            _profile.accounts.removeAt(i);
-                            if (_profile.activeAccountIndex >= _profile.accounts.length) {
-                              _profile.activeAccountIndex = 0;
-                            }
-                          });
-                          setSheetState(() {});
-                        },
-                      ),
-                    ],
-                  ),
-                  onTap: () {
-                    setState(() => _profile.activeAccountIndex = i + 1);
-                    setSheetState(() {});
-                  },
-                );
-              }),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showAddAccountDialog() {
-    final nomeController = TextEditingController();
-    final emailController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(tr('add_account')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nomeController,
-              decoration: InputDecoration(
-                labelText: tr('name'),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                prefixIcon: const Icon(Icons.person),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: emailController,
-              decoration: InputDecoration(
-                labelText: tr('email'),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                prefixIcon: const Icon(Icons.email),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
-          FilledButton(
-            onPressed: () {
-              if (nomeController.text.isNotEmpty) {
-                setState(() {
-                  _profile.accounts.add({'nome': nomeController.text, 'email': emailController.text});
-                });
-                Navigator.pop(context);
-              }
-            },
-            child: Text(tr('add')),
-          ),
-        ],
       ),
     );
   }
@@ -9559,195 +9440,8 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
-
-          // --- Aggiungi Account ---
-          Builder(builder: (context) {
-            final maxAccounts = _auraSettings.unlimitedProfilesPurchased ? 10 : 2;
-            final atLimit = _profile.accounts.length >= maxAccounts;
-            return Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: atLimit ? null : _showAddAccountDialog,
-                    icon: const Icon(Icons.person_add, size: 18),
-                    label: Text(atLimit ? tr('max_profiles') : tr('add_account')),
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ),
-                if (atLimit && !_auraSettings.unlimitedProfilesPurchased)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const EthosAuraPage()))
-                              .then((_) => _loadAuraSettings());
-                        },
-                        icon: const Icon(Icons.auto_awesome, size: 18, color: Color(0xFFAB47BC)),
-                        label: Text('${tr('unlock_unlimited_profiles')} - €2,50', style: const TextStyle(color: Color(0xFFAB47BC))),
-                        style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: Color(0xFFAB47BC)),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          }),
-          const SizedBox(height: 12),
-
-          // --- Disconnetti ---
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _showLogoutDialog,
-              icon: const Icon(Icons.logout, size: 18),
-              label: Text(tr('disconnect')),
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // --- Elimina Account ---
-          SizedBox(
-            width: double.infinity,
-            child: TextButton.icon(
-              onPressed: _showDeleteAccountDialog,
-              icon: Icon(Icons.delete_forever, size: 18, color: colorScheme.error),
-              label: Text(tr('delete_account'), style: TextStyle(color: colorScheme.error)),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ),
           const SizedBox(height: 40),
         ],
-      ),
-    );
-  }
-
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(tr('disconnect')),
-        content: Text(tr('delete_account_confirm')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
-          FilledButton(
-            onPressed: () {
-              setState(() {
-                _profile.nome = '';
-                _profile.cognome = '';
-                _profile.email = null;
-                _profile.nickname = null;
-                _profile.photoBase64 = null;
-                _profile.photoPath = null;
-                _profile.accounts.clear();
-                _profile.activeAccountIndex = 0;
-              });
-              _saveProfile();
-              Navigator.pop(context);
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            child: Text(tr('disconnect')),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteAccountDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(tr('delete_account')),
-        content: Text(tr('delete_account_confirm')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-            onPressed: () {
-              Navigator.pop(context);
-              _showDeleteReasonDialog();
-            },
-            child: Text(tr('continue_action')),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteReasonDialog() {
-    String? selectedReason;
-    final commentController = TextEditingController();
-    final reasons = [
-      'Non uso più l\'app',
-      'Ho trovato un\'alternativa migliore',
-      tr('privacy_concerns'),
-      tr('too_many_bugs'),
-      tr('other'),
-    ];
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Text(tr('reason_for_leaving')),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ...reasons.map((r) => RadioListTile<String>(
-                  title: Text(r, style: const TextStyle(fontSize: 14)),
-                  value: r,
-                  groupValue: selectedReason,
-                  onChanged: (v) => setDialogState(() => selectedReason = v),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                )),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: commentController,
-                  decoration: InputDecoration(
-                    hintText: tr('notes'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    isDense: true,
-                  ),
-                  maxLines: 2,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-              onPressed: selectedReason == null ? null : () async {
-                await DatabaseHelper().deleteAllData();
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.clear();
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              },
-              child: Text(tr('delete_permanently')),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -11233,17 +10927,6 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Horoscope purchase
-                _buildPurchaseTile(
-                  icon: Icons.auto_awesome,
-                  title: tr('unlock_horoscope'),
-                  price: '€0,50',
-                  purchased: _auraSettings.oroscopoPurchased,
-                  onTap: () => _simulatePurchase('horoscope'),
-                  colorScheme: colorScheme,
-                ),
-                const SizedBox(height: 8),
-
                 // Unlimited voice notes
                 _buildPurchaseTile(
                   icon: Icons.mic,
@@ -12147,7 +11830,6 @@ class FlashNoteEditorPage extends StatefulWidget {
 }
 
 class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
-  late TextEditingController _titleController;
   late TextEditingController _bodyController;
   late FocusNode _bodyFocusNode;
   bool _hasChanges = false;
@@ -12156,23 +11838,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   void initState() {
     super.initState();
     _bodyFocusNode = FocusNode();
-    if (widget.existingNote != null) {
-      final content = widget.existingNote!.content;
-      final newlineIndex = content.indexOf('\n');
-      if (newlineIndex == -1) {
-        // Single-line note: all content goes to body, title empty
-        _titleController = TextEditingController();
-        _bodyController = TextEditingController(text: content);
-      } else {
-        // Multi-line: first line = title, rest = body
-        _titleController = TextEditingController(text: content.substring(0, newlineIndex));
-        _bodyController = TextEditingController(text: content.substring(newlineIndex + 1));
-      }
-    } else {
-      _titleController = TextEditingController();
-      _bodyController = TextEditingController();
-    }
-    _titleController.addListener(_onChanged);
+    _bodyController = TextEditingController(text: widget.existingNote?.content ?? '');
     _bodyController.addListener(_onChanged);
   }
 
@@ -12182,17 +11848,14 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
 
   @override
   void dispose() {
-    _titleController.dispose();
     _bodyController.dispose();
     _bodyFocusNode.dispose();
     super.dispose();
   }
 
   void _save() {
-    final title = _titleController.text.trim();
-    final body = _bodyController.text;
-    if (title.isEmpty && body.trim().isEmpty) return;
-    final content = body.trim().isEmpty ? title : '$title\n$body';
+    final content = _bodyController.text.trim();
+    if (content.isEmpty) return;
     final note = FlashNote(
       content: content,
       createdAt: widget.existingNote?.createdAt ?? DateTime.now(),
@@ -12271,31 +11934,6 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title field — large, like Apple Notes
-                TextField(
-                  controller: _titleController,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onSurface,
-                    height: 1.2,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: tr('title'),
-                    hintStyle: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  maxLines: null,
-                  textCapitalization: TextCapitalization.sentences,
-                  textInputAction: TextInputAction.next,
-                  onSubmitted: (_) => _bodyFocusNode.requestFocus(),
-                ),
-                const SizedBox(height: 8),
                 // Date display
                 if (widget.existingNote != null)
                   Padding(
@@ -13505,6 +13143,20 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
+  bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _formatDayLabel(DateTime dt) {
+    const months = ['', 'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
+      'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final noteDay = DateTime(dt.year, dt.month, dt.day);
+    final daysDiff = today.difference(noteDay).inDays;
+    if (daysDiff == 0) return tr('today');
+    if (daysDiff == 1) return tr('yesterday');
+    return '${dt.day} ${months[dt.month]} ${dt.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     var sortedNotes = List<FlashNote>.from(_notes)
@@ -13815,7 +13467,29 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                         final originalIndex = _notes.indexOf(note);
                         final heroTag = 'flash_to_deep_${note.createdAt.millisecondsSinceEpoch}';
                         final isSelected = note.id != null && _selectedNoteIds.contains(note.id);
-                        return _SlideInItem(index: index, child: Hero(
+                        // Day divider
+                        final showDayDivider = index == 0 || !_isSameDay(note.createdAt, sortedNotes[index - 1].createdAt);
+                        return _SlideInItem(index: index, child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                          if (showDayDivider)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8, bottom: 8),
+                              child: Row(
+                                children: [
+                                  Expanded(child: Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    child: Text(
+                                      _formatDayLabel(note.createdAt),
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                                    ),
+                                  ),
+                                  Expanded(child: Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+                                ],
+                              ),
+                            ),
+                          Hero(
                           tag: heroTag,
                           child: Material(
                             type: MaterialType.transparency,
@@ -13974,6 +13648,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                               ),
                             ),
                           ),
+                        ),
+                        ],
                         ));
                       },
                     ),
