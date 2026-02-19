@@ -22,7 +22,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:health/health.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, TargetPlatform, defaultTargetPlatform;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, MethodChannel;
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:path_provider/path_provider.dart';
@@ -32,6 +32,7 @@ import 'package:path/path.dart' as p;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:local_auth/local_auth.dart';
+import 'dart:io' show File;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -364,6 +365,7 @@ const _translations = <String, Map<String, String>>{
 
   // ── Voice / Audio ──
   'voice_note': {'it': 'Nota vocale', 'en': 'Voice note', 'fr': 'Note vocale', 'es': 'Nota de voz'},
+  'voice_note_saved': {'it': 'Nota vocale salvata', 'en': 'Voice note saved', 'fr': 'Note vocale enregistrée', 'es': 'Nota de voz guardada'},
   'recording': {'it': 'Registrazione...', 'en': 'Recording...', 'fr': 'Enregistrement...', 'es': 'Grabando...'},
   'stop_recording': {'it': 'Ferma registrazione', 'en': 'Stop recording', 'fr': 'Arrêter l\'enregistrement', 'es': 'Detener grabación'},
   'play': {'it': 'Riproduci', 'en': 'Play', 'fr': 'Lire', 'es': 'Reproducir'},
@@ -3306,11 +3308,48 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 1;
   int _refreshKey = 0;
   UserProfile _userProfile = UserProfile();
+  static const _shareChannel = MethodChannel('com.ethosnote.app/share');
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    _checkSharedFile();
+  }
+
+  Future<void> _checkSharedFile() async {
+    if (kIsWeb) return;
+    try {
+      final String? path = await _shareChannel.invokeMethod('getSharedFile');
+      if (path != null && path.isNotEmpty) {
+        await _handleSharedAudioFile(path);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _handleSharedAudioFile(String sourcePath) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final fileName = 'shared_audio_${DateTime.now().millisecondsSinceEpoch}${p.extension(sourcePath)}';
+      final destPath = '${appDir.path}/$fileName';
+      await File(sourcePath).copy(destPath);
+      final note = FlashNote(
+        content: '🎤 ${tr('voice_note')}',
+        audioPath: destPath,
+      );
+      await DatabaseHelper().insertFlashNote(note);
+      // Switch to Flash Notes tab and refresh
+      setState(() { _selectedIndex = 2; _refreshKey++; });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('voice_note_saved')),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadUserProfile() async {
@@ -3492,6 +3531,9 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // Health
   HealthSnapshot? _healthSnapshot;
+
+  // User zodiac icon
+  String _zodiacIcon = '⭐';
 
   @override
   void initState() {
@@ -3789,9 +3831,9 @@ class _CalendarPageState extends State<CalendarPage> {
       );
     }
 
-    final stepsReal = _healthSnapshot?.steps?.toString() ?? '0';
-    final calsReal = _healthSnapshot?.calories != null ? '${_healthSnapshot!.calories!.round()} kcal' : '0 kcal';
-    final waterReal = _healthSnapshot?.waterLiters != null ? '${_healthSnapshot!.waterLiters!.toStringAsFixed(1)}L' : '0.0L';
+    final stepsReal = _healthSnapshot?.steps?.toString() ?? '--';
+    final calsReal = _healthSnapshot?.calories != null ? '${_healthSnapshot!.calories!.round()} kcal' : '--';
+    final waterReal = _healthSnapshot?.waterLiters != null ? '${_healthSnapshot!.waterLiters!.toStringAsFixed(1)}L' : '--';
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -3823,9 +3865,13 @@ class _CalendarPageState extends State<CalendarPage> {
     try {
       final profile = await DatabaseHelper().getProfile();
       if (profile != null && profile.dataNascita != null) {
+        final segnoIcon = getZodiacSignFromDate(
+          profile.dataNascita!.month, profile.dataNascita!.day, mode: 'icon_only',
+        );
         final segno = getZodiacSignFromDate(
           profile.dataNascita!.month, profile.dataNascita!.day, mode: 'text_only',
         );
+        if (mounted) setState(() => _zodiacIcon = segnoIcon);
         final data = await fetchOroscopo(segno);
         if (mounted) setState(() => _horoscopeData = data);
       }
@@ -4707,7 +4753,7 @@ class _CalendarPageState extends State<CalendarPage> {
             )
           : _horoscopeData != null
               ? ExpansionTile(
-                  leading: const Text('⭐', style: TextStyle(fontSize: 22)),
+                  leading: Text(_zodiacIcon, style: const TextStyle(fontSize: 26)),
                   title: Text(
                     'Oroscopo ${_horoscopeData!.segno}',
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, fontFamily: _isEthosTheme(context) ? 'Georgia' : null),
@@ -4724,7 +4770,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   ],
                 )
               : ListTile(
-                  leading: const Text('⭐', style: TextStyle(fontSize: 22)),
+                  leading: Text(_zodiacIcon, style: const TextStyle(fontSize: 26)),
                   title: Text(tr('horoscope_not_available')),
                   subtitle: Text(tr('birth_date')),
                 ),
@@ -5610,6 +5656,7 @@ class HealthService {
     HealthDataType.BLOOD_OXYGEN,
     HealthDataType.WEIGHT,
     HealthDataType.TOTAL_CALORIES_BURNED,
+    HealthDataType.ACTIVE_ENERGY_BURNED,
     HealthDataType.WATER,
   ];
 
@@ -5619,6 +5666,7 @@ class HealthService {
     HealthDataAccess.READ, // BLOOD_OXYGEN
     HealthDataAccess.READ, // WEIGHT
     HealthDataAccess.READ, // TOTAL_CALORIES_BURNED
+    HealthDataAccess.READ, // ACTIVE_ENERGY_BURNED
     HealthDataAccess.READ, // WATER
   ];
 
@@ -5741,76 +5789,124 @@ class HealthService {
       final now = DateTime.now();
       final midnight = DateTime(now.year, now.month, now.day);
 
-      // Steps
-      int? steps = await health.getTotalStepsInInterval(midnight, now);
+      // ── Steps (aggregated, de-duplicated by Health Connect) ──
+      int? steps;
+      try {
+        steps = await health.getTotalStepsInInterval(midnight, now);
+      } catch (e) {
+        if (kDebugMode) debugPrint('Health steps error: $e');
+      }
 
-      // Heart rate, blood oxygen, weight
+      // ── Heart rate, blood oxygen, weight ──
       double? heartRate;
       double? bloodOxygen;
       double? weight;
 
-      final heartData = await health.getHealthDataFromTypes(
-        types: [HealthDataType.HEART_RATE],
-        startTime: midnight,
-        endTime: now,
-      );
-      if (heartData.isNotEmpty) {
-        final val = heartData.last.value;
-        if (val is NumericHealthValue) heartRate = val.numericValue.toDouble();
+      try {
+        final heartData = await health.getHealthDataFromTypes(
+          types: [HealthDataType.HEART_RATE],
+          startTime: midnight,
+          endTime: now,
+        );
+        if (heartData.isNotEmpty) {
+          final val = heartData.last.value;
+          if (val is NumericHealthValue) heartRate = val.numericValue.toDouble();
+        }
+      } catch (e) {
+        if (kDebugMode) debugPrint('Health heartRate error: $e');
       }
 
-      final oxygenData = await health.getHealthDataFromTypes(
-        types: [HealthDataType.BLOOD_OXYGEN],
-        startTime: midnight,
-        endTime: now,
-      );
-      if (oxygenData.isNotEmpty) {
-        final val = oxygenData.last.value;
-        if (val is NumericHealthValue) bloodOxygen = val.numericValue.toDouble();
+      try {
+        final oxygenData = await health.getHealthDataFromTypes(
+          types: [HealthDataType.BLOOD_OXYGEN],
+          startTime: midnight,
+          endTime: now,
+        );
+        if (oxygenData.isNotEmpty) {
+          final val = oxygenData.last.value;
+          if (val is NumericHealthValue) bloodOxygen = val.numericValue.toDouble();
+        }
+      } catch (e) {
+        if (kDebugMode) debugPrint('Health oxygen error: $e');
       }
 
-      final weightData = await health.getHealthDataFromTypes(
-        types: [HealthDataType.WEIGHT],
-        startTime: now.subtract(const Duration(days: 30)),
-        endTime: now,
-      );
-      if (weightData.isNotEmpty) {
-        final val = weightData.last.value;
-        if (val is NumericHealthValue) weight = val.numericValue.toDouble();
+      try {
+        final weightData = await health.getHealthDataFromTypes(
+          types: [HealthDataType.WEIGHT],
+          startTime: now.subtract(const Duration(days: 30)),
+          endTime: now,
+        );
+        if (weightData.isNotEmpty) {
+          final val = weightData.last.value;
+          if (val is NumericHealthValue) weight = val.numericValue.toDouble();
+        }
+      } catch (e) {
+        if (kDebugMode) debugPrint('Health weight error: $e');
       }
 
-      // Calories burned today
+      // ── Calories burned today ──
+      // Try TOTAL_CALORIES_BURNED first, fallback to ACTIVE_ENERGY_BURNED
       double? calories;
-      final caloriesData = await health.getHealthDataFromTypes(
-        types: [HealthDataType.TOTAL_CALORIES_BURNED],
-        startTime: midnight,
-        endTime: now,
-      );
-      if (caloriesData.isNotEmpty) {
-        final deduped = Health().removeDuplicates(caloriesData);
-        double totalCal = 0;
-        for (final dp in deduped) {
-          final val = dp.value;
-          if (val is NumericHealthValue) totalCal += val.numericValue.toDouble();
+      try {
+        final caloriesData = await health.getHealthDataFromTypes(
+          types: [HealthDataType.TOTAL_CALORIES_BURNED],
+          startTime: midnight,
+          endTime: now,
+        );
+        if (caloriesData.isNotEmpty) {
+          final deduped = health.removeDuplicates(caloriesData);
+          double totalCal = 0;
+          for (final dp in deduped) {
+            final val = dp.value;
+            if (val is NumericHealthValue) totalCal += val.numericValue.toDouble();
+          }
+          if (totalCal > 0) calories = totalCal;
         }
-        calories = totalCal;
+      } catch (e) {
+        if (kDebugMode) debugPrint('Health totalCalories error: $e');
       }
 
-      // Water intake today (liters)
-      double? waterLiters;
-      final waterData = await health.getHealthDataFromTypes(
-        types: [HealthDataType.WATER],
-        startTime: midnight,
-        endTime: now,
-      );
-      if (waterData.isNotEmpty) {
-        final deduped = Health().removeDuplicates(waterData);
-        double totalLiters = 0;
-        for (final dp in deduped) {
-          final val = dp.value;
-          if (val is NumericHealthValue) totalLiters += val.numericValue.toDouble();
+      // Fallback: active energy burned
+      if (calories == null) {
+        try {
+          final activeData = await health.getHealthDataFromTypes(
+            types: [HealthDataType.ACTIVE_ENERGY_BURNED],
+            startTime: midnight,
+            endTime: now,
+          );
+          if (activeData.isNotEmpty) {
+            final deduped = health.removeDuplicates(activeData);
+            double totalCal = 0;
+            for (final dp in deduped) {
+              final val = dp.value;
+              if (val is NumericHealthValue) totalCal += val.numericValue.toDouble();
+            }
+            if (totalCal > 0) calories = totalCal;
+          }
+        } catch (e) {
+          if (kDebugMode) debugPrint('Health activeCalories error: $e');
         }
-        waterLiters = totalLiters;
+      }
+
+      // ── Water intake today (liters) ──
+      double? waterLiters;
+      try {
+        final waterData = await health.getHealthDataFromTypes(
+          types: [HealthDataType.WATER],
+          startTime: midnight,
+          endTime: now,
+        );
+        if (waterData.isNotEmpty) {
+          final deduped = health.removeDuplicates(waterData);
+          double totalLiters = 0;
+          for (final dp in deduped) {
+            final val = dp.value;
+            if (val is NumericHealthValue) totalLiters += val.numericValue.toDouble();
+          }
+          if (totalLiters > 0) waterLiters = totalLiters;
+        }
+      } catch (e) {
+        if (kDebugMode) debugPrint('Health water error: $e');
       }
 
       final snapshot = HealthSnapshot(
@@ -7534,45 +7630,46 @@ class _EventEditorPageState extends State<EventEditorPage> {
             ),
             if (_recurrence != null) ...[
               const SizedBox(height: 12),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _recurrenceEndDate ?? _startTime.add(const Duration(days: 30)),
-                          firstDate: _startTime,
-                          lastDate: DateTime(2100),
-                        );
-                        if (picked != null) setState(() => _recurrenceEndDate = picked);
-                      },
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: tr('repeat_until'),
-                          prefixIcon: const Icon(Icons.event_repeat, size: 20),
-                        ),
-                        child: Text(
-                          _recurrenceEndDate != null
-                              ? '${_recurrenceEndDate!.day}/${_recurrenceEndDate!.month}/${_recurrenceEndDate!.year}'
-                              : tr('forever'),
-                          style: TextStyle(
-                            color: _recurrenceEndDate == null ? colorScheme.primary : null,
-                            fontWeight: _recurrenceEndDate == null ? FontWeight.w600 : null,
-                          ),
-                        ),
-                      ),
+                  ChoiceChip(
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.all_inclusive, size: 16),
+                        const SizedBox(width: 6),
+                        Text(tr('forever')),
+                      ],
                     ),
+                    selected: _recurrenceEndDate == null,
+                    onSelected: (_) => setState(() => _recurrenceEndDate = null),
+                    selectedColor: colorScheme.primaryContainer,
                   ),
-                  if (_recurrenceEndDate != null) ...[
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: () => setState(() => _recurrenceEndDate = null),
-                      icon: const Icon(Icons.all_inclusive, size: 20),
-                      tooltip: tr('forever'),
-                      style: IconButton.styleFrom(foregroundColor: colorScheme.primary),
+                  ChoiceChip(
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.event, size: 16),
+                        const SizedBox(width: 6),
+                        Text(_recurrenceEndDate != null
+                            ? '${_recurrenceEndDate!.day}/${_recurrenceEndDate!.month}/${_recurrenceEndDate!.year}'
+                            : tr('repeat_until')),
+                      ],
                     ),
-                  ],
+                    selected: _recurrenceEndDate != null,
+                    onSelected: (_) async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _recurrenceEndDate ?? _startTime.add(const Duration(days: 30)),
+                        firstDate: _startTime,
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) setState(() => _recurrenceEndDate = picked);
+                    },
+                    selectedColor: colorScheme.primaryContainer,
+                  ),
                 ],
               ),
             ],
@@ -13103,6 +13200,28 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     );
   }
 
+  Widget _flashFormatBtn({required IconData icon, required String label, required Color accentColor, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: accentColor.withValues(alpha: 0.08),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: accentColor),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(fontSize: 11, color: accentColor, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showWriteSheet() {
     final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
     String? attachedImageBase64;
@@ -13129,6 +13248,66 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   hintText: tr('new_flash_note'),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _flashFormatBtn(
+                    icon: Icons.format_list_bulleted,
+                    label: tr('bullet_list'),
+                    accentColor: accentColor,
+                    onTap: () {
+                      final sel = _controller.selection;
+                      final pos = sel.isValid ? sel.baseOffset : _controller.text.length;
+                      final before = _controller.text.substring(0, pos);
+                      final after = _controller.text.substring(pos);
+                      final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                      final prefix = '${needsNewline ? '\n' : ''}• ';
+                      _controller.text = '$before$prefix$after';
+                      _controller.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _flashFormatBtn(
+                    icon: Icons.format_list_numbered,
+                    label: tr('numbered_list'),
+                    accentColor: accentColor,
+                    onTap: () {
+                      final text = _controller.text;
+                      final sel = _controller.selection;
+                      final pos = sel.isValid ? sel.baseOffset : text.length;
+                      final before = text.substring(0, pos);
+                      // Count existing numbered lines to continue numbering
+                      final lines = before.split('\n');
+                      int num = 1;
+                      for (final l in lines.reversed) {
+                        final match = RegExp(r'^(\d+)\.\s').firstMatch(l);
+                        if (match != null) { num = int.parse(match.group(1)!) + 1; break; }
+                      }
+                      final after = text.substring(pos);
+                      final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                      final prefix = '${needsNewline ? '\n' : ''}$num. ';
+                      _controller.text = '$before$prefix$after';
+                      _controller.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _flashFormatBtn(
+                    icon: Icons.checklist,
+                    label: 'Checklist',
+                    accentColor: accentColor,
+                    onTap: () {
+                      final sel = _controller.selection;
+                      final pos = sel.isValid ? sel.baseOffset : _controller.text.length;
+                      final before = _controller.text.substring(0, pos);
+                      final after = _controller.text.substring(pos);
+                      final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                      final prefix = '${needsNewline ? '\n' : ''}☐ ';
+                      _controller.text = '$before$prefix$after';
+                      _controller.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                    },
+                  ),
+                ],
               ),
               if (attachedImageBase64 != null) ...[
                 const SizedBox(height: 12),
@@ -16490,6 +16669,23 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 onPressed: () => _showColorPickerPopup(isBackground: true),
               ),
               vDivider(),
+              // Alignment
+              toolBtn(
+                icon: Icon(Icons.format_align_left, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('text_align'),
+                onPressed: () => _quillController.formatSelection(quill.Attribute.leftAlignment),
+              ),
+              toolBtn(
+                icon: Icon(Icons.format_align_center, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('text_align'),
+                onPressed: () => _quillController.formatSelection(quill.Attribute.centerAlignment),
+              ),
+              toolBtn(
+                icon: Icon(Icons.format_align_right, size: 18, color: colorScheme.onSurface),
+                tooltip: tr('text_align'),
+                onPressed: () => _quillController.formatSelection(quill.Attribute.rightAlignment),
+              ),
+              vDivider(),
               // AI
               _isAiLoading
                   ? const Padding(
@@ -16790,9 +16986,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
             Positioned(
               left: 16,
               right: 16,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+              bottom: 12,
               child: Material(
-                elevation: 4,
+                elevation: 6,
                 borderRadius: BorderRadius.circular(16),
                 color: colorScheme.surfaceContainerLowest,
                 child: Container(
@@ -16800,41 +16996,46 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: colorScheme.outlineVariant),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ActionChip(
-                        label: Text(tr('all_caps'), style: const TextStyle(fontSize: 11)),
-                        avatar: const Icon(Icons.text_fields, size: 16),
-                        onPressed: () {
-                          _titleController.text = _titleController.text.toUpperCase();
-                          _titleController.selection = TextSelection.fromPosition(TextPosition(offset: _titleController.text.length));
-                        },
-                      ),
-                      ActionChip(
-                        label: Text(tr('capitalize_words'), style: const TextStyle(fontSize: 11)),
-                        avatar: const Icon(Icons.title, size: 16),
-                        onPressed: () {
-                          _titleController.text = _titleController.text.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}' : w).join(' ');
-                          _titleController.selection = TextSelection.fromPosition(TextPosition(offset: _titleController.text.length));
-                        },
-                      ),
-                      SegmentedButton<TextAlign>(
-                        segments: const [
-                          ButtonSegment(value: TextAlign.start, icon: Icon(Icons.format_align_left, size: 16)),
-                          ButtonSegment(value: TextAlign.center, icon: Icon(Icons.format_align_center, size: 16)),
-                          ButtonSegment(value: TextAlign.end, icon: Icon(Icons.format_align_right, size: 16)),
-                        ],
-                        selected: {_titleAlignment},
-                        onSelectionChanged: (v) => setState(() => _titleAlignment = v.first),
-                        showSelectedIcon: false,
-                        style: const ButtonStyle(
-                          visualDensity: VisualDensity.compact,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ActionChip(
+                          label: Text(tr('all_caps'), style: const TextStyle(fontSize: 11)),
+                          avatar: const Icon(Icons.text_fields, size: 16),
+                          onPressed: () {
+                            _titleController.text = _titleController.text.toUpperCase();
+                            _titleController.selection = TextSelection.fromPosition(TextPosition(offset: _titleController.text.length));
+                          },
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        ActionChip(
+                          label: Text(tr('capitalize_words'), style: const TextStyle(fontSize: 11)),
+                          avatar: const Icon(Icons.title, size: 16),
+                          onPressed: () {
+                            _titleController.text = _titleController.text.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}' : w).join(' ');
+                            _titleController.selection = TextSelection.fromPosition(TextPosition(offset: _titleController.text.length));
+                          },
+                        ),
+                        const SizedBox(width: 6),
+                        SegmentedButton<TextAlign>(
+                          segments: const [
+                            ButtonSegment(value: TextAlign.start, icon: Icon(Icons.format_align_left, size: 16)),
+                            ButtonSegment(value: TextAlign.center, icon: Icon(Icons.format_align_center, size: 16)),
+                            ButtonSegment(value: TextAlign.end, icon: Icon(Icons.format_align_right, size: 16)),
+                          ],
+                          selected: {_titleAlignment},
+                          onSelectionChanged: (v) => setState(() => _titleAlignment = v.first),
+                          showSelectedIcon: false,
+                          style: const ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
