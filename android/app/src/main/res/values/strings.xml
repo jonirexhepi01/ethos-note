@@ -5,7 +5,4 @@
     <string name="widget_flash_shortcuts_desc">Crea velocemente note di testo, foto o vocali</string>
     <string name="widget_calendar_label">Calendario Ethos Note</string>
     <string name="widget_calendar_desc">Vista calendario con i tuoi eventi</string>
-    <string name="widget_quick_flash_label">Nota Rapida</string>
-    <string name="widget_quick_flash_desc">Apri Flash Notes con un tap</string>
-    <string name="widget_quick_flash_hint">A cosa stai pensando?</string>
 </resources>

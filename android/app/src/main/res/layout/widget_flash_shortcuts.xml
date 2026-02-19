@@ -5,60 +5,96 @@
     android:orientation="horizontal"
     android:gravity="center"
     android:background="@drawable/widget_background"
-    android:padding="8dp">
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp">
 
     <!-- Text shortcut -->
-    <FrameLayout
+    <LinearLayout
         android:id="@+id/btn_text"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:clickable="true"
-        android:gravity="center">
-        <ImageView
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_gravity="center"
-            android:background="@drawable/widget_icon_circle"
-            android:src="@android:drawable/ic_menu_edit"
-            android:padding="10dp"
-            android:contentDescription="Testo" />
-    </FrameLayout>
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true">
+        <FrameLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/widget_icon_circle">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_widget_edit"
+                android:contentDescription="Scrivi" />
+        </FrameLayout>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Scrivi"
+            android:textSize="11sp"
+            android:textColor="#99000000" />
+    </LinearLayout>
 
     <!-- Photo shortcut -->
-    <FrameLayout
+    <LinearLayout
         android:id="@+id/btn_photo"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:clickable="true"
-        android:gravity="center">
-        <ImageView
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_gravity="center"
-            android:background="@drawable/widget_icon_circle"
-            android:src="@android:drawable/ic_menu_camera"
-            android:padding="10dp"
-            android:contentDescription="Foto" />
-    </FrameLayout>
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true">
+        <FrameLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/widget_icon_circle">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_widget_camera"
+                android:contentDescription="Foto" />
+        </FrameLayout>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Foto"
+            android:textSize="11sp"
+            android:textColor="#99000000" />
+    </LinearLayout>
 
     <!-- Voice shortcut -->
-    <FrameLayout
+    <LinearLayout
         android:id="@+id/btn_voice"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:clickable="true"
-        android:gravity="center">
-        <ImageView
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_gravity="center"
-            android:background="@drawable/widget_icon_circle"
-            android:src="@android:drawable/ic_btn_speak_now"
-            android:padding="10dp"
-            android:contentDescription="Vocale" />
-    </FrameLayout>
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true">
+        <FrameLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/widget_icon_circle">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_widget_mic"
+                android:contentDescription="Vocale" />
+        </FrameLayout>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Vocale"
+            android:textSize="11sp"
+            android:textColor="#99000000" />
+    </LinearLayout>
 
 </LinearLayout>

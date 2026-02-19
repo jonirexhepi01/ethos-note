@@ -9,6 +9,11 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <!-- Notifications (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Exact alarms for scheduled notifications (Android 12+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <!-- Health Connect permissions -->
     <uses-permission android:name="android.permission.health.READ_STEPS"/>
     <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
@@ -88,18 +93,6 @@
                 android:resource="@xml/widget_flash_shortcuts_info"/>
         </receiver>
 
-        <!-- Widget: Quick Flash Note Bar (4x1) -->
-        <receiver
-            android:name=".widget.QuickFlashNoteBarProvider"
-            android:exported="true"
-            android:label="@string/widget_quick_flash_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_quick_flash_bar_info"/>
-        </receiver>
 
         <!-- Widget: Calendar (4x5) -->
         <receiver
@@ -111,18 +104,12 @@
                 <action android:name="com.ethosnote.app.widget.ACTION_PREV"/>
                 <action android:name="com.ethosnote.app.widget.ACTION_NEXT"/>
                 <action android:name="com.ethosnote.app.widget.ACTION_TOGGLE_VIEW"/>
-                <action android:name="com.ethosnote.app.widget.ACTION_DAY_CLICK"/>
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_calendar_info"/>
         </receiver>
 
-        <!-- Calendar widget RemoteViews service -->
-        <service
-            android:name=".widget.CalendarRemoteViewsService"
-            android:permission="android.permission.BIND_REMOTEVIEWS"
-            android:exported="false"/>
 
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

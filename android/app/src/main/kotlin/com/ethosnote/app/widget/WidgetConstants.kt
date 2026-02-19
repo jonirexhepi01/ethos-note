@@ -1,5 +1,13 @@
 package com.ethosnote.app.widget
 
+data class CalendarCell(
+    val dayNumber: Int,
+    val isCurrentMonth: Boolean,
+    val isToday: Boolean,
+    val dateKey: String,
+    val eventColors: List<Int>
+)
+
 object WidgetConstants {
     const val PREFS_NAME = "HomeWidgetPreferences"
     const val CALENDAR_EVENTS_KEY = "calendar_widget_events"

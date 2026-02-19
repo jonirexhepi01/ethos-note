@@ -9890,6 +9890,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
   FlashNotesSettings _flashSettings = const FlashNotesSettings();
   late TextEditingController _apiKeyController;
   bool _isLoadingGoogle = false;
+  bool _isApiKeyRevealed = false;
 
   @override
   void initState() {
@@ -10045,9 +10046,109 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
     );
   }
 
+  // ── Biometric auth for API key ──
+  Future<bool> _authenticateBiometric() async {
+    try {
+      final localAuth = LocalAuthentication();
+      final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
+      if (!canAuth) return true; // no biometric available, allow access
+      return await localAuth.authenticate(
+        localizedReason: 'Autenticati per accedere alla API Key',
+        options: const AuthenticationOptions(biometricOnly: false),
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _showInsertApiKeyDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Inserisci API Key'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Incolla la tua chiave API di Gemini ottenuta da Google AI Studio.',
+              style: TextStyle(fontSize: 13, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'API Key',
+                hintText: 'AIza...',
+                prefixIcon: const Icon(Icons.key),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+          FilledButton(
+            onPressed: () {
+              final key = controller.text.trim();
+              if (key.isNotEmpty) {
+                setState(() {
+                  _flashSettings = _flashSettings.copyWith(geminiApiKey: key);
+                  _apiKeyController.text = key;
+                });
+                _flashSettings.save();
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditApiKeyDialog() {
+    final controller = TextEditingController(text: _flashSettings.geminiApiKey);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Modifica API Key'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'API Key',
+            prefixIcon: const Icon(Icons.key),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+          FilledButton(
+            onPressed: () {
+              final key = controller.text.trim();
+              setState(() {
+                _flashSettings = _flashSettings.copyWith(geminiApiKey: key);
+                _apiKeyController.text = key;
+                _isApiKeyRevealed = false;
+              });
+              _flashSettings.save();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Gemini AI ──
   Widget _buildGeminiSection(ColorScheme colorScheme) {
-    final isConnected = _flashSettings.geminiEnabled && _flashSettings.geminiApiKey.isNotEmpty;
+    final hasKey = _flashSettings.geminiApiKey.isNotEmpty;
+    final isConnected = _flashSettings.geminiEnabled && hasKey;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -10088,6 +10189,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                   onChanged: (val) {
                     setState(() {
                       _flashSettings = _flashSettings.copyWith(geminiEnabled: val);
+                      _isApiKeyRevealed = false;
                     });
                     _flashSettings.save();
                   },
@@ -10096,24 +10198,126 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
             ),
             if (_flashSettings.geminiEnabled) ...[
               const SizedBox(height: 16),
-              TextField(
-                controller: _apiKeyController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'API Key Gemini',
-                  hintText: tr('api_key'),
-                  prefixIcon: const Icon(Icons.key),
-                  suffixIcon: _flashSettings.geminiApiKey.isNotEmpty
-                      ? const Icon(Icons.check_circle, color: Colors.green)
-                      : null,
+              // ── API Key area ──
+              if (!hasKey) ...[
+                // No key yet → show "Inserisci API Key" button
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _showInsertApiKeyDialog,
+                    icon: const Icon(Icons.key, size: 18),
+                    label: const Text('Inserisci API Key'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.purple.shade700,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    _flashSettings = _flashSettings.copyWith(geminiApiKey: value);
-                  });
-                  _flashSettings.save();
-                },
-              ),
+              ] else ...[
+                // Key exists → show masked key + action buttons
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.key, size: 18, color: Colors.green.shade600),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _isApiKeyRevealed
+                                  ? _flashSettings.geminiApiKey
+                                  : '${'•' * 8}${_flashSettings.geminiApiKey.substring(_flashSettings.geminiApiKey.length > 4 ? _flashSettings.geminiApiKey.length - 4 : 0)}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontFamily: 'monospace',
+                                color: colorScheme.onSurface,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Icon(Icons.check_circle, size: 18, color: Colors.green.shade600),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildApiKeyAction(
+                              icon: _isApiKeyRevealed ? Icons.visibility_off : Icons.visibility,
+                              label: _isApiKeyRevealed ? 'Nascondi' : 'Mostra',
+                              onTap: () async {
+                                if (_isApiKeyRevealed) {
+                                  setState(() => _isApiKeyRevealed = false);
+                                } else {
+                                  final ok = await _authenticateBiometric();
+                                  if (ok && mounted) setState(() => _isApiKeyRevealed = true);
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildApiKeyAction(
+                              icon: Icons.copy,
+                              label: 'Copia',
+                              onTap: () async {
+                                final ok = await _authenticateBiometric();
+                                if (ok && mounted) {
+                                  Clipboard.setData(ClipboardData(text: _flashSettings.geminiApiKey));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('API Key copiata'),
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildApiKeyAction(
+                              icon: Icons.edit,
+                              label: 'Modifica',
+                              onTap: () async {
+                                final ok = await _authenticateBiometric();
+                                if (ok && mounted) _showEditApiKeyDialog();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildApiKeyAction(
+                              icon: Icons.delete_outline,
+                              label: 'Rimuovi',
+                              color: Colors.red,
+                              onTap: () async {
+                                final ok = await _authenticateBiometric();
+                                if (ok && mounted) {
+                                  setState(() {
+                                    _flashSettings = _flashSettings.copyWith(geminiApiKey: '');
+                                    _apiKeyController.text = '';
+                                    _isApiKeyRevealed = false;
+                                  });
+                                  _flashSettings.save();
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
                 tr('api_key_privacy'),
@@ -10170,6 +10374,31 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApiKeyAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 20, color: color ?? Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(fontSize: 11, color: color ?? Theme.of(context).colorScheme.onSurfaceVariant)),
           ],
         ),
       ),
@@ -12242,6 +12471,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   ap.AudioPlayer? _audioPlayer;
   StreamSubscription? _playerSubscription;
   int? _playingNoteIndex;
+  // AI availability
+  bool _isAiAvailable = false;
 
   @override
   void initState() {
@@ -12249,6 +12480,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     _loadNotes();
     _loadViewMode();
     _loadGroupingMode();
+    _loadAiAvailability();
     // Handle deep link initial mode from widget
     if (widget.initialMode != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -12290,6 +12522,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   Future<void> _loadGroupingMode() async {
     final settings = await FlashNotesSettings.load();
     setState(() => _groupingMode = settings.groupingMode);
+  }
+
+  Future<void> _loadAiAvailability() async {
+    final settings = await FlashNotesSettings.load();
+    if (mounted) {
+      setState(() => _isAiAvailable = settings.geminiEnabled && settings.geminiApiKey.isNotEmpty);
+    }
   }
 
   static const _months = ['', 'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
@@ -12825,35 +13064,37 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(tr('gemini_ai'), style: Theme.of(ctx).textTheme.titleLarge),
+              Text('Gemini AI', style: Theme.of(ctx).textTheme.titleLarge),
               const SizedBox(height: 16),
               ListTile(
-                leading: Icon(Icons.summarize, color: Colors.purple),
-                title: Text(tr('ai_response')),
-                subtitle: Text(tr('ai_response')),
+                leading: const Icon(Icons.summarize, color: Colors.purple),
+                title: const Text('Riassumi'),
+                subtitle: const Text('Crea un riassunto breve del testo'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _callFlashGeminiAI(note, index, 'riassumi');
                 },
               ),
               ListTile(
-                leading: Icon(Icons.mic, color: Colors.purple),
-                title: Text(tr('ai_response')),
-                subtitle: Text(tr('voice_note')),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _callFlashGeminiAI(note, index, 'trascrivi');
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.spellcheck, color: Colors.purple),
-                title: Text(tr('formatting_preset')),
-                subtitle: Text(tr('formatting_preset')),
+                leading: const Icon(Icons.spellcheck, color: Colors.purple),
+                title: const Text('Correggi e formatta'),
+                subtitle: const Text('Correggi errori e migliora il testo'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _callFlashGeminiAI(note, index, 'correggi');
                 },
               ),
+              if (note.isAudioNote) ...[
+                ListTile(
+                  leading: const Icon(Icons.record_voice_over, color: Colors.purple),
+                  title: const Text('Trascrivi audio'),
+                  subtitle: const Text('Converti la nota vocale in testo'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _transcribeAudioNote(note, index);
+                  },
+                ),
+              ],
               const SizedBox(height: 8),
             ],
           ),
@@ -12902,10 +13143,6 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
           title = tr('ai_summary');
           break;
-        case 'trascrivi':
-          prompt = 'Trascrivi e pulisci il seguente testo in italiano, correggendo eventuali errori di trascrizione:\n\n$text';
-          title = tr('ai_transcription');
-          break;
         case 'correggi':
           // Use custom instructions if formattingPreset is 'custom'
           if (settings.formattingPreset == 'custom' && settings.customFormatInstructions.isNotEmpty) {
@@ -12933,7 +13170,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           return;
       }
 
-      final model = gemini.GenerativeModel(model: 'gemini-2.0-flash', apiKey: apiKey);
+      final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
       final response = await model.generateContent([gemini.Content.text(prompt)]);
       final result = response.text ?? tr('no_results');
 
@@ -13030,6 +13267,129 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
+      );
+    }
+  }
+
+  Future<void> _transcribeAudioNote(FlashNote note, int index) async {
+    final settings = await FlashNotesSettings.load();
+    final apiKey = settings.geminiApiKey;
+    if (apiKey.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('api_key')), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    if (note.audioPath == null || note.audioPath!.isEmpty) return;
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(children: [
+          const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 12),
+          const Text('Trascrizione in corso...'),
+        ]),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 30),
+      ),
+    );
+
+    try {
+      final audioBytes = await File(note.audioPath!).readAsBytes();
+      final mimeType = note.audioPath!.endsWith('.m4a') ? 'audio/mp4' : 'audio/mpeg';
+      final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
+      final response = await model.generateContent([
+        gemini.Content.multi([
+          gemini.DataPart(mimeType, audioBytes),
+          gemini.TextPart('Trascrivi questo audio in italiano. Restituisci solo il testo trascritto, senza commenti.'),
+        ]),
+      ]);
+      final result = response.text ?? '';
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (result.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: const Text('Nessun testo riconosciuto'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        );
+        return;
+      }
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (ctx) {
+          final colorScheme = Theme.of(ctx).colorScheme;
+          return DraggableScrollableSheet(
+            initialChildSize: 0.5,
+            minChildSize: 0.3,
+            maxChildSize: 0.85,
+            expand: false,
+            builder: (_, scrollController) => Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    const Icon(Icons.record_voice_over, color: Colors.purple),
+                    const SizedBox(width: 8),
+                    Text('Trascrizione audio', style: Theme.of(ctx).textTheme.titleLarge),
+                  ]),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      child: Card(
+                        elevation: 0,
+                        color: colorScheme.surfaceContainerLowest,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: SelectableText(result, style: const TextStyle(height: 1.6)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _notes[index] = FlashNote(
+                            content: result,
+                            createdAt: note.createdAt,
+                            audioPath: note.audioPath,
+                            audioDurationMs: note.audioDurationMs,
+                          );
+                        });
+                        _saveNotes();
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(tr('success')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        );
+                      },
+                      icon: const Icon(Icons.check),
+                      label: const Text('Applica trascrizione'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       );
     }
   }
@@ -13254,9 +13614,14 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                           }
                           setSheetState(() => isTranscribing = true);
                           try {
-                            final model = gemini.GenerativeModel(model: 'gemini-2.0-flash', apiKey: settings.geminiApiKey);
+                            final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: settings.geminiApiKey);
+                            final audioBytes = await File(note.audioPath!).readAsBytes();
+                            final mimeType = note.audioPath!.endsWith('.m4a') ? 'audio/mp4' : 'audio/mpeg';
                             final response = await model.generateContent([
-                              gemini.Content.text('Trascrivi questa nota vocale. Il contenuto attuale è: "${note.content}". Restituisci solo il testo trascritto e pulito.'),
+                              gemini.Content.multi([
+                                gemini.DataPart(mimeType, audioBytes),
+                                gemini.TextPart('Trascrivi questo audio in italiano. Restituisci solo il testo trascritto, senza commenti.'),
+                              ]),
                             ]);
                             setSheetState(() {
                               transcription = response.text ?? '';
@@ -13677,7 +14042,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                         _buildCellAction(Icons.event, _isEthosTheme(context) ? const Color(0xFFA3274F) : const Color(0xFF1E88E5), () => _createEventFromFlashNote(note)),
                                         const SizedBox(width: 6),
                                       ],
-                                      _buildCellAction(Icons.psychology, Colors.purple, () => _showAIOptions(note, originalIndex)),
+                                      if (_isAiAvailable)
+                                        _buildCellAction(Icons.psychology, Colors.purple, () => _showAIOptions(note, originalIndex)),
                                     ],
                                   ),
                                 ],
@@ -13865,12 +14231,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                         tooltip: tr('create_event'),
                                         onPressed: () => _createEventFromFlashNote(note),
                                       ),
-                                    IconButton(
-                                      icon: const Icon(Icons.psychology),
-                                      color: Colors.purple,
-                                      tooltip: 'AI',
-                                      onPressed: () => _showAIOptions(note, originalIndex),
-                                    ),
+                                    if (_isAiAvailable)
+                                      IconButton(
+                                        icon: const Icon(Icons.psychology),
+                                        color: Colors.purple,
+                                        tooltip: 'AI',
+                                        onPressed: () => _showAIOptions(note, originalIndex),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -16915,7 +17282,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         title = tr('ai_key_points');
       }
 
-      final model = gemini.GenerativeModel(model: 'gemini-2.0-flash', apiKey: apiKey);
+      final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
       final response = await model.generateContent([gemini.Content.text(prompt)]);
       final result = response.text ?? tr('no_results');
 
