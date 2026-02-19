@@ -4488,6 +4488,8 @@ class _CalendarPageState extends State<CalendarPage> {
     // Match against known translated strings
     if (r == tr('10_min_before')) {
       minutesBefore = 10;
+    } else if (r == tr('15_min_before')) {
+      minutesBefore = 15;
     } else if (r == tr('30_min_before')) {
       minutesBefore = 30;
     } else if (r == tr('1_hour_before')) {
@@ -6622,6 +6624,7 @@ class NotificationService {
   static Future<void> init() async {
     if (_initialized || kIsWeb) return;
     tz.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('Europe/Rome'));
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -6629,11 +6632,33 @@ class NotificationService {
       requestSoundPermission: true,
     );
     const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
-    await _plugin.initialize(settings);
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        // Notification tapped — no-op for now, app opens automatically
+        debugPrint('Notification tapped: ${response.payload}');
+      },
+    );
     _initialized = true;
     // Request notification permission on Android 13+
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.requestNotificationsPermission();
+    await androidPlugin?.requestExactAlarmsPermission();
+  }
+
+  static String _buildBody(String title, int minutesBefore) {
+    if (minutesBefore < 60) {
+      return '$title tra $minutesBefore minuti';
+    } else if (minutesBefore < 1440) {
+      final hours = minutesBefore ~/ 60;
+      return '$title tra $hours ${hours == 1 ? 'ora' : 'ore'}';
+    } else if (minutesBefore < 10080) {
+      final days = minutesBefore ~/ 1440;
+      return '$title tra $days ${days == 1 ? 'giorno' : 'giorni'}';
+    } else {
+      final weeks = minutesBefore ~/ 10080;
+      return '$title tra $weeks ${weeks == 1 ? 'settimana' : 'settimane'}';
+    }
   }
 
   static Future<void> scheduleEventReminder({
@@ -6651,22 +6676,29 @@ class NotificationService {
       'event_reminders',
       'Promemoria eventi',
       channelDescription: 'Notifiche promemoria per gli eventi del calendario',
-      importance: Importance.high,
+      importance: Importance.max,
       priority: Priority.high,
       playSound: true,
+      enableVibration: true,
+      fullScreenIntent: true,
     );
     const iosDetails = DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true);
     const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
-    await _plugin.zonedSchedule(
-      id,
-      title,
-      '${tr('event_in')} $minutesBefore ${tr('minutes')}',
-      tzScheduled,
-      details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-    );
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        'Promemoria',
+        _buildBody(title, minutesBefore),
+        tzScheduled,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'event_$id',
+      );
+    } catch (e) {
+      debugPrint('Errore scheduling notifica: $e');
+    }
   }
 
   static Future<void> cancelReminder(int id) async {
@@ -11084,62 +11116,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
 
           const SizedBox(height: 24),
 
-          // SEZIONE C: Formattazione AI
-          _buildSectionHeader(tr('ai_formatting'), Icons.auto_fix_high, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!_settings.geminiEnabled)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(
-                        tr('requires_gemini'),
-                        style: TextStyle(fontSize: 12, color: colorScheme.error),
-                      ),
-                    ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<String>(
-                      segments: [
-                        ButtonSegment(value: 'simple', label: Text(tr('simple_formatting'), style: const TextStyle(fontSize: 12))),
-                        ButtonSegment(value: 'ai', label: Text(tr('advanced_formatting'), style: const TextStyle(fontSize: 12))),
-                      ],
-                      selected: {_settings.formattingPreset == 'custom' ? 'ai' : _settings.formattingPreset},
-                      onSelectionChanged: _settings.geminiEnabled
-                          ? (sel) {
-                              _updateSettings(_settings.copyWith(formattingPreset: sel.first));
-                            }
-                          : null,
-                      showSelectedIcon: false,
-                      style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    (_settings.formattingPreset == 'simple')
-                        ? tr('simple_formatting_desc')
-                        : tr('advanced_formatting_desc'),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // SEZIONE D: Durata nota vocale
+          // SEZIONE C: Durata nota vocale
           _buildSectionHeader(tr('voice_duration'), Icons.mic, sectionColor),
           const SizedBox(height: 8),
           Card(
@@ -12416,12 +12393,17 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                       color: colorScheme.onSurface,
                       height: 1.6,
                     ),
-                    decoration: InputDecoration.collapsed(
+                    decoration: InputDecoration(
                       hintText: tr('type_message'),
                       hintStyle: TextStyle(
                         fontSize: 16,
                         color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                       ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      isDense: true,
                     ),
                     maxLines: null,
                     textCapitalization: TextCapitalization.sentences,
