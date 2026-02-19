@@ -221,7 +221,7 @@ const _translations = <String, Map<String, String>>{
   'tomorrow': {'it': 'Domani', 'en': 'Tomorrow', 'fr': 'Demain', 'es': 'Mañana'},
   'yesterday': {'it': 'Ieri', 'en': 'Yesterday', 'fr': 'Hier', 'es': 'Ayer'},
   'month': {'it': 'Mese', 'en': 'Month', 'fr': 'Mois', 'es': 'Mes'},
-  'week': {'it': 'Settimana', 'en': 'Week', 'fr': 'Semaine', 'es': 'Semana'},
+  'week': {'it': 'Sett.', 'en': 'Week', 'fr': 'Sem.', 'es': 'Sem.'},
   'split_layout': {'it': 'Split', 'en': 'Split', 'fr': 'Divisé', 'es': 'Dividido'},
   'full_layout': {'it': 'Full', 'en': 'Full', 'fr': 'Plein', 'es': 'Completo'},
   'event_created': {'it': 'Evento creato', 'en': 'Event created', 'fr': 'Événement créé', 'es': 'Evento creado'},
@@ -1087,6 +1087,17 @@ const _translations = <String, Map<String, String>>{
   'create_template': {'it': 'Crea Template', 'en': 'Create Template', 'fr': 'Créer un modèle', 'es': 'Crear plantilla'},
   'auth_required': {'it': 'Autenticazione richiesta', 'en': 'Authentication required', 'fr': 'Authentification requise', 'es': 'Autenticación requerida'},
   'auth_to_access': {'it': 'Autenticati per accedere', 'en': 'Authenticate to access', 'fr': 'Authentifiez-vous pour accéder', 'es': 'Autentíquese para acceder'},
+
+  // ── Welcome / Auth ──
+  'welcome_title': {'it': 'Benvenuto su Ethos Note', 'en': 'Welcome to Ethos Note', 'fr': 'Bienvenue sur Ethos Note', 'es': 'Bienvenido a Ethos Note'},
+  'welcome_subtitle': {'it': 'Le tue note, il tuo calendario, tutto in un posto', 'en': 'Your notes, your calendar, all in one place', 'fr': 'Vos notes, votre calendrier, tout en un seul endroit', 'es': 'Tus notas, tu calendario, todo en un lugar'},
+  'sign_in_google': {'it': 'Accedi con Google', 'en': 'Sign in with Google', 'fr': 'Se connecter avec Google', 'es': 'Iniciar sesión con Google'},
+  'continue_without_account': {'it': 'Continua senza account', 'en': 'Continue without account', 'fr': 'Continuer sans compte', 'es': 'Continuar sin cuenta'},
+  'sign_out': {'it': 'Esci', 'en': 'Sign out', 'fr': 'Se déconnecter', 'es': 'Cerrar sesión'},
+  'signed_in_as': {'it': 'Accesso come', 'en': 'Signed in as', 'fr': 'Connecté en tant que', 'es': 'Conectado como'},
+  'welcome_feature_1': {'it': 'Note ricche con editor avanzato', 'en': 'Rich notes with advanced editor', 'fr': 'Notes riches avec éditeur avancé', 'es': 'Notas ricas con editor avanzado'},
+  'welcome_feature_2': {'it': 'Calendario con sync Google', 'en': 'Calendar with Google sync', 'fr': 'Calendrier avec sync Google', 'es': 'Calendario con sincronización Google'},
+  'welcome_feature_3': {'it': 'Flash Notes con AI', 'en': 'Flash Notes with AI', 'fr': 'Flash Notes avec IA', 'es': 'Flash Notes con IA'},
 };
 
 // ─── SQLite Database Helper ──────────────────────────────────────────────────
@@ -2177,12 +2188,35 @@ class EthosNoteApp extends StatefulWidget {
 class _EthosNoteAppState extends State<EthosNoteApp> {
   // 'light', 'dark', 'ethos'
   String _themeMode = 'ethos';
+  bool _onboardingComplete = true; // default true to avoid flash
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadTheme();
     _loadLocale();
+    _loadOnboarding();
+  }
+
+  Future<void> _loadOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    final complete = prefs.getBool('onboarding_complete') ?? false;
+    // Try silent sign-in at boot so GoogleCalendarService._currentUser is set
+    await GoogleCalendarService.trySilentSignIn();
+    if (mounted) {
+      setState(() {
+        _onboardingComplete = complete;
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _completeOnboarding() {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setBool('onboarding_complete', true);
+    });
+    setState(() => _onboardingComplete = true);
   }
 
   Future<void> _loadTheme() async {
@@ -2462,13 +2496,22 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         Locale('es'),
       ],
       theme: theme,
-      home: _SplashGate(
-        child: HomePage(
-          themeMode: _themeMode,
-          onThemeModeChanged: setThemeMode,
-          onLocaleChanged: setLocale,
-        ),
-      ),
+      home: _isLoading
+          ? Container(color: const Color(0xFF1A1A1A))
+          : _SplashGate(
+              child: _onboardingComplete
+                  ? HomePage(
+                      themeMode: _themeMode,
+                      onThemeModeChanged: setThemeMode,
+                      onLocaleChanged: setLocale,
+                    )
+                  : WelcomePage(
+                      onComplete: _completeOnboarding,
+                      themeMode: _themeMode,
+                      onThemeModeChanged: setThemeMode,
+                      onLocaleChanged: setLocale,
+                    ),
+            ),
     );
   }
 }
@@ -2559,6 +2602,190 @@ class _SplashGateState extends State<_SplashGate> with SingleTickerProviderState
             ),
           ),
       ],
+    );
+  }
+}
+
+// ─── Welcome / Onboarding Page ───────────────────────────────────────────────
+
+class WelcomePage extends StatefulWidget {
+  final VoidCallback onComplete;
+  final String themeMode;
+  final Function(String) onThemeModeChanged;
+  final Function(String) onLocaleChanged;
+
+  const WelcomePage({
+    super.key,
+    required this.onComplete,
+    required this.themeMode,
+    required this.onThemeModeChanged,
+    required this.onLocaleChanged,
+  });
+
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  bool _signingIn = false;
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _signingIn = true);
+    try {
+      final success = await GoogleCalendarService.signIn();
+      if (!mounted) return;
+      if (success) {
+        // Populate UserProfile with Google account data
+        final db = DatabaseHelper();
+        final existing = await db.getProfile();
+        final profile = existing ?? UserProfile();
+
+        profile.nome = GoogleCalendarService.userDisplayName ?? profile.nome;
+        profile.email = GoogleCalendarService.userEmail ?? profile.email;
+        profile.googleCalendarConnected = true;
+
+        // Download Google profile photo
+        final photoUrl = GoogleCalendarService.userPhotoUrl;
+        if (photoUrl != null && photoUrl.isNotEmpty) {
+          try {
+            final response = await http.get(Uri.parse(photoUrl));
+            if (response.statusCode == 200) {
+              profile.photoBase64 = base64Encode(response.bodyBytes);
+            }
+          } catch (_) {}
+        }
+
+        await db.saveProfile(profile);
+        widget.onComplete();
+      } else {
+        setState(() => _signingIn = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _signingIn = false);
+      if (kDebugMode) debugPrint('Welcome Google sign-in error: $e');
+    }
+  }
+
+  void _handleContinueWithout() {
+    widget.onComplete();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1A1A),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 32),
+                // Logo
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Image.asset(
+                    'assets/logo.png',
+                    width: 120,
+                    height: 120,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // App name
+                const Text(
+                  'Ethos Note',
+                  style: TextStyle(
+                    fontFamily: 'Georgia',
+                    fontSize: 32,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFB8566B),
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Subtitle
+                Text(
+                  tr('welcome_subtitle'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: 40),
+                // Feature pills
+                _buildFeaturePill(Icons.edit_note, tr('welcome_feature_1'), const Color(0xFFE53935)),
+                const SizedBox(height: 12),
+                _buildFeaturePill(Icons.calendar_month, tr('welcome_feature_2'), const Color(0xFF1E88E5)),
+                const SizedBox(height: 12),
+                _buildFeaturePill(Icons.flash_on, tr('welcome_feature_3'), const Color(0xFFFFA726)),
+                const SizedBox(height: 48),
+                // Google Sign-In button
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _signingIn ? null : _handleGoogleSignIn,
+                    icon: _signingIn
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.g_mobiledata, size: 24),
+                    label: Text(_signingIn ? '...' : tr('sign_in_google')),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF6366F1),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Continue without account
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: _handleContinueWithout,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white.withValues(alpha: 0.7),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      textStyle: const TextStyle(fontSize: 15),
+                    ),
+                    child: Text(tr('continue_without_account')),
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeaturePill(IconData icon, String text, Color accentColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accentColor.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: accentColor, size: 22),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.white.withValues(alpha: 0.9),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -3297,6 +3524,53 @@ class _CalendarIcon9 extends StatelessWidget {
   }
 }
 
+class _AnimatedCalendarIcon9 extends AnimatedWidget {
+  final double size;
+  final Color unselectedColor;
+  final Color selectedColor;
+
+  const _AnimatedCalendarIcon9({
+    required Animation<double> animation,
+    this.size = 24,
+    required this.unselectedColor,
+    required this.selectedColor,
+  }) : super(listenable: animation);
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (listenable as Animation<double>).value;
+    final color = Color.lerp(unselectedColor, selectedColor, progress)!;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(Icons.calendar_today, size: size, color: color),
+          Positioned(
+            bottom: size * 0.12,
+            child: Opacity(
+              opacity: progress,
+              child: Transform.scale(
+                scale: 0.5 + 0.5 * progress,
+                child: Text(
+                  '9',
+                  style: TextStyle(
+                    fontSize: size * 0.42,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SlideInItem extends StatelessWidget {
   final int index;
   final Widget child;
@@ -3339,20 +3613,45 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   int _selectedIndex = 1;
   int _refreshKey = 0;
   UserProfile _userProfile = UserProfile();
   static const _shareChannel = MethodChannel('com.ethosnote.app/share');
   static const _deepLinkChannel = MethodChannel('com.ethosnote.app/deeplink');
   String? _pendingDeepLink;
+  late final AnimationController _calIconController;
 
   @override
   void initState() {
     super.initState();
+    _calIconController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+      value: 1.0, // starts on calendar tab (index 1)
+    );
     _loadUserProfile();
     _checkSharedFile();
     _checkDeepLink();
+    _refreshWidgets();
+  }
+
+  @override
+  void dispose() {
+    _calIconController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshWidgets() async {
+    if (kIsWeb) return;
+    try {
+      await HomeWidget.updateWidget(
+        androidName: 'com.ethosnote.app.widget.CalendarWidgetProvider',
+      );
+      await HomeWidget.updateWidget(
+        androidName: 'com.ethosnote.app.widget.FlashNotesShortcutsProvider',
+      );
+    } catch (_) {}
   }
 
   Future<void> _checkDeepLink() async {
@@ -3587,6 +3886,11 @@ class _HomePageState extends State<HomePage> {
           setState(() {
             _selectedIndex = index;
           });
+          if (index == 1) {
+            _calIconController.forward();
+          } else {
+            _calIconController.reverse();
+          }
         },
         destinations: [
           NavigationDestination(
@@ -3595,8 +3899,12 @@ class _HomePageState extends State<HomePage> {
             label: 'Deep Note',
           ),
           NavigationDestination(
-            icon: Icon(Icons.calendar_today_outlined, color: colorScheme.onSurfaceVariant),
-            selectedIcon: Icon(Icons.calendar_month, color: _sectionColors[1]),
+            icon: _AnimatedCalendarIcon9(
+              animation: _calIconController,
+              size: 24,
+              unselectedColor: colorScheme.onSurfaceVariant,
+              selectedColor: _sectionColors[1],
+            ),
             label: tr('calendar'),
           ),
           NavigationDestination(
@@ -3648,6 +3956,7 @@ class _CalendarPageState extends State<CalendarPage> {
   // Google Calendar
   Map<String, List<CalendarEventFull>> _googleEvents = {};
   bool _isLoadingGoogle = false;
+  Set<String> _completedGoogleEventIds = {};
 
   // Health
   HealthSnapshot? _healthSnapshot;
@@ -3666,6 +3975,7 @@ class _CalendarPageState extends State<CalendarPage> {
     _loadEvents();
     _loadCalendarSettings();
     _loadCycleDays();
+    _loadCompletedGoogleEventIds();
     _initGoogleCalendar();
     _initHealth();
     _loadAuraSettings();
@@ -3675,13 +3985,14 @@ class _CalendarPageState extends State<CalendarPage> {
   void _onEventsScroll() {
     if (!_eventsScrollController.hasClients) return;
     final offset = _eventsScrollController.offset;
+    final maxExtent = _eventsScrollController.position.maxScrollExtent;
     if (offset > 30 && !_isCalendarCompact) {
       setState(() => _isCalendarCompact = true);
       _compactCooldown = true;
       Future.delayed(const Duration(milliseconds: 800), () {
         if (mounted) _compactCooldown = false;
       });
-    } else if (offset <= 5 && _isCalendarCompact && !_compactCooldown) {
+    } else if (offset <= 5 && _isCalendarCompact && !_compactCooldown && maxExtent > 60) {
       setState(() => _isCalendarCompact = false);
     }
   }
@@ -3705,6 +4016,22 @@ class _CalendarPageState extends State<CalendarPage> {
       _cycleDays = days;
       _cycleDaysIntensity = intensityMap;
     });
+  }
+
+  Future<void> _loadCompletedGoogleEventIds() async {
+    final cached = await DatabaseHelper().getCache('completed_google_events');
+    if (cached != null && cached.isNotEmpty) {
+      setState(() {
+        _completedGoogleEventIds = Set<String>.from(json.decode(cached) as List);
+      });
+    }
+  }
+
+  Future<void> _saveCompletedGoogleEventIds() async {
+    await DatabaseHelper().saveCache(
+      'completed_google_events',
+      json.encode(_completedGoogleEventIds.toList()),
+    );
   }
 
   Future<void> _toggleCycleDay(DateTime day, {String intensity = 'medium'}) async {
@@ -3848,6 +4175,13 @@ class _CalendarPageState extends State<CalendarPage> {
         _googleEvents = mapped;
         _isLoadingGoogle = false;
       });
+      // Schedule Ethos Note notifications for future Google events
+      final now = DateTime.now();
+      for (final e in events) {
+        if (e.startTime.isAfter(now)) {
+          _scheduleNotification(e);
+        }
+      }
     }
   }
 
@@ -4029,6 +4363,7 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {
       _events = events;
     });
+    _syncCalendarEventsToWidget();
   }
 
   Future<void> _saveEvents() async {
@@ -4057,14 +4392,24 @@ class _CalendarPageState extends State<CalendarPage> {
 
   void _scheduleNotification(CalendarEventFull event) {
     if (event.reminder == null || event.reminder!.isEmpty) return;
-    // Parse reminder string to get minutes before
-    int minutesBefore = 10;
-    if (event.reminder!.contains('5')) minutesBefore = 5;
-    if (event.reminder!.contains('10')) minutesBefore = 10;
-    if (event.reminder!.contains('15')) minutesBefore = 15;
-    if (event.reminder!.contains('30')) minutesBefore = 30;
-    if (event.reminder!.contains('1 ora') || event.reminder!.contains('1 hour')) minutesBefore = 60;
-    if (event.reminder!.contains('2 or') || event.reminder!.contains('2 hour')) minutesBefore = 120;
+    final r = event.reminder!;
+    int minutesBefore = 15; // default
+    // Match against known translated strings
+    if (r == tr('10_min_before')) {
+      minutesBefore = 10;
+    } else if (r == tr('30_min_before')) {
+      minutesBefore = 30;
+    } else if (r == tr('1_hour_before')) {
+      minutesBefore = 60;
+    } else if (r == tr('day_before') || r == tr('1_day_before')) {
+      minutesBefore = 1440;
+    } else if (r == tr('1_week_before')) {
+      minutesBefore = 10080;
+    } else {
+      // Try parsing custom "X min" format
+      final numMatch = RegExp(r'(\d+)').firstMatch(r);
+      if (numMatch != null) minutesBefore = int.tryParse(numMatch.group(1)!) ?? 15;
+    }
     final id = event.startTime.millisecondsSinceEpoch ~/ 1000;
     NotificationService.scheduleEventReminder(
       id: id,
@@ -4083,7 +4428,13 @@ class _CalendarPageState extends State<CalendarPage> {
     final filtered = google.where((g) => !local.any((l) =>
       l.title == g.title &&
       l.startTime.difference(g.startTime).inMinutes.abs() < 2
-    )).toList();
+    )).map((g) {
+      // Apply persisted completion state for Google events
+      if (g.googleEventId != null && _completedGoogleEventIds.contains(g.googleEventId)) {
+        return g.copyWith(isCompleted: true);
+      }
+      return g;
+    }).toList();
     return [...local, ...filtered];
   }
 
@@ -4151,27 +4502,87 @@ class _CalendarPageState extends State<CalendarPage> {
     if (_selectedDay == null) return;
     final key = _dateKey(_selectedDay!);
     final localEvents = _events[key] ?? [];
-    if (index >= localEvents.length) return; // Google event, can't delete locally
-    setState(() {
-      _events[key]?.removeAt(index);
-      if (_events[key]?.isEmpty ?? false) _events.remove(key);
-    });
-    await _saveEvents();
+    if (index < localEvents.length) {
+      // Local event
+      final event = localEvents[index];
+      final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+      NotificationService.cancelReminder(notifId);
+      setState(() {
+        _events[key]?.removeAt(index);
+        if (_events[key]?.isEmpty ?? false) _events.remove(key);
+      });
+      await _saveEvents();
+    } else {
+      // Google Calendar event
+      final events = _getEventsForDay(_selectedDay!);
+      if (index >= events.length) return;
+      final event = events[index];
+      final gid = event.googleEventId;
+      if (gid == null) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(tr('confirm_delete')),
+          content: Text(tr('delete_event_confirm')),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('delete'))),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      final success = await GoogleCalendarService.deleteEvent(gid);
+      if (success && mounted) {
+        // Cancel notification for this event
+        final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+        NotificationService.cancelReminder(notifId);
+        setState(() {
+          // Remove from _googleEvents map
+          final gKey = _dateKey(event.startTime);
+          _googleEvents[gKey]?.removeWhere((e) => e.googleEventId == gid);
+          if (_googleEvents[gKey]?.isEmpty ?? false) _googleEvents.remove(gKey);
+          _completedGoogleEventIds.remove(gid);
+        });
+        _saveCompletedGoogleEventIds();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('event_deleted')),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
   }
 
   void _toggleEventCompletion(DateTime day, int combinedIndex) {
     final key = _dateKey(day);
-    final localEvents = _events[key];
-    if (localEvents == null) return;
-    // combinedIndex comes from _getEventsForDay() which is [...local, ...google]
-    // Only local events (index < localEvents.length) can be toggled
-    if (combinedIndex >= localEvents.length) return;
-    setState(() {
-      localEvents[combinedIndex] = localEvents[combinedIndex].copyWith(
-        isCompleted: !localEvents[combinedIndex].isCompleted,
-      );
-    });
-    _saveEvents();
+    final localEvents = _events[key] ?? [];
+    if (combinedIndex < localEvents.length) {
+      // Local event
+      setState(() {
+        localEvents[combinedIndex] = localEvents[combinedIndex].copyWith(
+          isCompleted: !localEvents[combinedIndex].isCompleted,
+        );
+      });
+      _saveEvents();
+    } else {
+      // Google Calendar event
+      final events = _getEventsForDay(day);
+      if (combinedIndex >= events.length) return;
+      final event = events[combinedIndex];
+      final gid = event.googleEventId;
+      if (gid == null) return;
+      setState(() {
+        if (_completedGoogleEventIds.contains(gid)) {
+          _completedGoogleEventIds.remove(gid);
+        } else {
+          _completedGoogleEventIds.add(gid);
+        }
+      });
+      _saveCompletedGoogleEventIds();
+    }
   }
 
   Widget _buildProgressBar(DateTime day) {
@@ -4833,9 +5244,9 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(ctx);
-                    _deleteEvent(index);
+                    await _deleteEvent(index);
                     setSheetState(() {});
                   },
                   icon: Icon(Icons.delete_outline, color: colorScheme.error),
@@ -4931,7 +5342,7 @@ class _CalendarPageState extends State<CalendarPage> {
       child: Row(
         children: [
           Expanded(
-            flex: 3,
+            flex: 5,
             child: SegmentedButton<String>(
               segments: [
                 ButtonSegment(value: 'split', icon: const Icon(Icons.view_agenda, size: 16), label: Text(tr('split_layout'))),
@@ -4954,7 +5365,7 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
           const SizedBox(width: 6),
           Expanded(
-            flex: 2,
+            flex: 4,
             child: Opacity(
               opacity: isFullScreen ? 1.0 : 0.35,
               child: IgnorePointer(
@@ -5517,10 +5928,19 @@ class _CalendarPageState extends State<CalendarPage> {
                   ? _buildCustomWeekView(colorScheme)
                   : LayoutBuilder(
                       builder: (context, constraints) {
-                        final rows = 6;
+                        // Calculate actual rows: 6 when preview enforced, else natural rows
+                        final int displayRows;
+                        if (_calSettings.showNextMonthPreview) {
+                          displayRows = 6; // sixWeekMonthsEnforced forces 6 rows
+                        } else {
+                          final first = DateTime(_focusedDay.year, _focusedDay.month, 1);
+                          final daysInMonth = DateTime(_focusedDay.year, _focusedDay.month + 1, 0).day;
+                          final firstWeekday = first.weekday % 7; // Sunday=0
+                          displayRows = ((firstWeekday + daysInMonth) / 7).ceil();
+                        }
                         // Header ~56, day-of-week row ~28 = ~84 total chrome
                         final availableHeight = constraints.maxHeight - 84;
-                        final dynamicRowHeight = (availableHeight / rows).clamp(48.0, 200.0);
+                        final dynamicRowHeight = (availableHeight / displayRows).clamp(48.0, 200.0);
                         return _buildTableCalendar(colorScheme, format: CalendarFormat.month, rowHeight: dynamicRowHeight);
                       },
                     ),
@@ -5697,11 +6117,24 @@ class GoogleCalendarService {
           timeZone: DateTime.now().timeZoneName,
         ),
         description: tr('created_by_ethos'),
+        reminders: gcal.EventReminders(useDefault: false, overrides: []),
       );
       await _calendarApi!.events.insert(gEvent, 'primary');
       return true;
     } catch (e) {
       if (kDebugMode) debugPrint('Push event error: $e');
+      return false;
+    }
+  }
+
+  /// Delete an event from Google Calendar
+  static Future<bool> deleteEvent(String eventId) async {
+    if (_calendarApi == null) return false;
+    try {
+      await _calendarApi!.events.delete('primary', eventId);
+      return true;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Delete Google event error: $e');
       return false;
     }
   }
@@ -6113,6 +6546,9 @@ class NotificationService {
     const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
     await _plugin.initialize(settings);
     _initialized = true;
+    // Request notification permission on Android 13+
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.requestNotificationsPermission();
   }
 
   static Future<void> scheduleEventReminder({
@@ -7399,6 +7835,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
   List<String> _sharedWith = [];
   List<String> _availableFriends = [];
   String? _attachmentBase64;
+  String? _attachmentFileName;
   String? _recurrence; // null/daily/weekly/monthly/yearly
   DateTime? _recurrenceEndDate;
 
@@ -7541,6 +7978,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(isStart ? _startTime : _endTime),
+      initialEntryMode: TimePickerEntryMode.input,
     );
     if (time != null) {
       setState(() {
@@ -7552,6 +7990,8 @@ class _EventEditorPageState extends State<EventEditorPage> {
             time.hour,
             time.minute,
           );
+          // Auto-adjust end time to start + 1 hour
+          _endTime = _startTime.add(const Duration(hours: 1));
         } else {
           _endTime = DateTime(
             _endTime.year,
@@ -7585,6 +8025,31 @@ class _EventEditorPageState extends State<EventEditorPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${tr('photo_error')}: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        withData: true,
+      );
+      if (result != null && result.files.single.bytes != null) {
+        setState(() {
+          _attachmentBase64 = base64Encode(result.files.single.bytes!);
+          _attachmentFileName = result.files.single.name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Errore: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -7718,19 +8183,56 @@ class _EventEditorPageState extends State<EventEditorPage> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _reminders.map((reminder) {
-                final isSelected = _selectedReminder == reminder;
-                return FilterChip(
-                  label: Text(reminder),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    setState(
-                      () => _selectedReminder = selected ? reminder : null,
+              children: [
+                ..._reminders.map((reminder) {
+                  final isSelected = _selectedReminder == reminder;
+                  return FilterChip(
+                    label: Text(reminder),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(
+                        () => _selectedReminder = selected ? reminder : null,
+                      );
+                    },
+                    selectedColor: colorScheme.primaryContainer,
+                  );
+                }),
+                FilterChip(
+                  label: Text(_selectedReminder != null && !_reminders.contains(_selectedReminder!)
+                      ? _selectedReminder!
+                      : tr('custom')),
+                  selected: _selectedReminder != null && !_reminders.contains(_selectedReminder!),
+                  onSelected: (_) async {
+                    final controller = TextEditingController();
+                    final minutes = await showDialog<int>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text(tr('custom_alert_time')),
+                        content: TextField(
+                          controller: controller,
+                          keyboardType: TextInputType.number,
+                          autofocus: true,
+                          decoration: InputDecoration(
+                            labelText: tr('insert_minutes'),
+                            suffixText: tr('minutes'),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+                          FilledButton(onPressed: () {
+                            final val = int.tryParse(controller.text);
+                            if (val != null && val > 0) Navigator.pop(ctx, val);
+                          }, child: Text(tr('confirm'))),
+                        ],
+                      ),
                     );
+                    if (minutes != null) {
+                      setState(() => _selectedReminder = '$minutes min');
+                    }
                   },
                   selectedColor: colorScheme.primaryContainer,
-                );
-              }).toList(),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Text(
@@ -7844,43 +8346,84 @@ class _EventEditorPageState extends State<EventEditorPage> {
             ),
             const SizedBox(height: 12),
             if (_attachmentBase64 != null) ...[
-              Stack(
-                children: [
-                  ClipRRect(
+              if (_attachmentFileName != null) ...[
+                // File attachment preview
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.memory(
-                      base64Decode(_attachmentBase64!),
-                      width: double.infinity,
-                      height: 200,
-                      fit: BoxFit.cover,
+                    color: colorScheme.surfaceContainerLowest,
+                    border: Border.all(color: colorScheme.outlineVariant),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.attach_file, color: colorScheme.primary),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(_attachmentFileName!, overflow: TextOverflow.ellipsis)),
+                      GestureDetector(
+                        onTap: () => setState(() { _attachmentBase64 = null; _attachmentFileName = null; }),
+                        child: Icon(Icons.close, color: colorScheme.error, size: 20),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                // Image attachment preview
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        base64Decode(_attachmentBase64!),
+                        width: double.infinity,
+                        height: 200,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _attachmentBase64 = null),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: colorScheme.error,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.close, color: colorScheme.onError, size: 18),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+            ] else
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickPhoto,
+                      icon: const Icon(Icons.add_a_photo),
+                      label: Text(tr('insert_image')),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                      ),
                     ),
                   ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _attachmentBase64 = null),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: colorScheme.error,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.close, color: colorScheme.onError, size: 18),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickFile,
+                      icon: const Icon(Icons.attach_file),
+                      label: Text(tr('from_file')),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 48),
                       ),
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 12),
-            ] else
-              OutlinedButton.icon(
-                onPressed: _pickPhoto,
-                icon: const Icon(Icons.add_a_photo),
-                label: Text(tr('insert_image')),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
               ),
             const SizedBox(height: 16),
             SizedBox(
@@ -8765,6 +9308,45 @@ class _SettingsPageState extends State<SettingsPage> {
                   ],
                   const SizedBox(height: 8),
                   Text(tr('profile'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
+                  if (GoogleCalendarService.isSignedIn) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle, size: 16, color: Colors.green.shade400),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              '${tr('signed_in_as')} ${GoogleCalendarService.userEmail ?? ''}',
+                              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () async {
+                        await GoogleCalendarService.signOut();
+                        _profile.googleCalendarConnected = false;
+                        widget.onSave(_profile);
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.logout, size: 16),
+                      label: Text(tr('sign_out')),
+                      style: TextButton.styleFrom(
+                        foregroundColor: colorScheme.error,
+                        textStyle: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -11809,12 +12391,10 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
             _addPhotoNote();
             break;
           case 'voice':
-            // Focus on text field — voice recording is inline in the input bar
-            _controller.clear();
-            FocusScope.of(context).requestFocus(FocusNode());
+            _showAudioSheet();
             break;
-          default:
-            // 'text' — just focus on the input
+          case 'text':
+            _showWriteSheet();
             break;
         }
       });
@@ -12674,7 +13254,14 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   children: [
                     Icon(Icons.mic, color: accentColor),
                     const SizedBox(width: 8),
-                    Text(tr('voice_note'), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                    Expanded(
+                      child: Text(
+                        note.content.startsWith('🎤') ? tr('voice_note') : note.content,
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     const Spacer(),
                     Text(
                       _formatDateTime(note.createdAt),
@@ -12905,12 +13492,16 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   String _formatDateTime(DateTime dt) {
     final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inDays == 0)
-      return '${tr('today')} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
-    if (diff.inDays == 1)
-      return '${tr('yesterday')} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
-    if (diff.inDays < 7) return '${diff.inDays} ${tr('days_ago')}';
+    final today = DateTime(now.year, now.month, now.day);
+    final noteDay = DateTime(dt.year, dt.month, dt.day);
+    final daysDiff = today.difference(noteDay).inDays;
+    if (daysDiff == 0) {
+      return '${tr('today')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    if (daysDiff == 1) {
+      return '${tr('yesterday')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    if (daysDiff < 7) return '$daysDiff ${tr('days_ago')}';
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
@@ -13322,9 +13913,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                           if (note.isAudioNote)
                                             Row(
                                               children: [
-                                                Text(
-                                                  tr('voice_note'),
-                                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                                                Flexible(
+                                                  child: Text(
+                                                    note.content.startsWith('🎤') ? tr('voice_note') : note.content,
+                                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
                                                 ),
                                                 const SizedBox(width: 8),
                                                 Text(
@@ -13562,9 +14157,81 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     );
   }
 
+  String _prevText = '';
+  void _handleListContinuation() {
+    final text = _controller.text;
+    final sel = _controller.selection;
+    if (!sel.isValid || !sel.isCollapsed) { _prevText = text; return; }
+    final pos = sel.baseOffset;
+    // Only trigger when a newline was just inserted
+    if (text.length != _prevText.length + 1 || pos < 1 || text[pos - 1] != '\n') {
+      _prevText = text;
+      return;
+    }
+    // Find the line before this newline
+    final beforeNewline = text.substring(0, pos - 1);
+    final lastNewline = beforeNewline.lastIndexOf('\n');
+    final prevLine = beforeNewline.substring(lastNewline + 1);
+
+    // Check for double-enter (previous line is empty or just a list prefix)
+    final stripped = prevLine.trim();
+    if (stripped == '•' || stripped == '☐' || RegExp(r'^\d+\.\s*$').hasMatch(stripped)) {
+      // Double-enter: remove the empty list prefix line
+      final removeFrom = lastNewline + 1;
+      final newText = text.substring(0, removeFrom) + text.substring(pos);
+      _controller.text = newText;
+      _controller.selection = TextSelection.collapsed(offset: removeFrom);
+      _prevText = _controller.text;
+      return;
+    }
+
+    // Bullet list continuation
+    if (prevLine.startsWith('• ')) {
+      final insert = '• ';
+      final newText = text.substring(0, pos) + insert + text.substring(pos);
+      _controller.text = newText;
+      _controller.selection = TextSelection.collapsed(offset: pos + insert.length);
+      _prevText = _controller.text;
+      return;
+    }
+    // Checklist continuation
+    if (prevLine.startsWith('☐ ') || prevLine.startsWith('☑ ')) {
+      final insert = '☐ ';
+      final newText = text.substring(0, pos) + insert + text.substring(pos);
+      _controller.text = newText;
+      _controller.selection = TextSelection.collapsed(offset: pos + insert.length);
+      _prevText = _controller.text;
+      return;
+    }
+    // Numbered list continuation
+    final numMatch = RegExp(r'^(\d+)\.\s').firstMatch(prevLine);
+    if (numMatch != null) {
+      // Count consecutive numbered lines in this block (stop at empty line)
+      final lines = beforeNewline.substring(0, lastNewline < 0 ? 0 : lastNewline).split('\n');
+      int count = 1; // current line is already a numbered line
+      for (final l in lines.reversed) {
+        if (RegExp(r'^\d+\.\s').hasMatch(l)) {
+          count++;
+        } else {
+          break;
+        }
+      }
+      final nextNum = count + 1;
+      final insert = '$nextNum. ';
+      final newText = text.substring(0, pos) + insert + text.substring(pos);
+      _controller.text = newText;
+      _controller.selection = TextSelection.collapsed(offset: pos + insert.length);
+      _prevText = _controller.text;
+      return;
+    }
+    _prevText = text;
+  }
+
   void _showWriteSheet() {
     final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
     String? attachedImageBase64;
+    _prevText = _controller.text;
+    _controller.addListener(_handleListContinuation);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -13617,12 +14284,12 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       final sel = _controller.selection;
                       final pos = sel.isValid ? sel.baseOffset : text.length;
                       final before = text.substring(0, pos);
-                      // Count existing numbered lines to continue numbering
+                      // Count consecutive numbered lines in current block (restart after empty line)
                       final lines = before.split('\n');
                       int num = 1;
                       for (final l in lines.reversed) {
-                        final match = RegExp(r'^(\d+)\.\s').firstMatch(l);
-                        if (match != null) { num = int.parse(match.group(1)!) + 1; break; }
+                        if (l.trim().isEmpty) break;
+                        if (RegExp(r'^\d+\.\s').hasMatch(l)) { num++; } else { break; }
                       }
                       final after = text.substring(pos);
                       final needsNewline = before.isNotEmpty && !before.endsWith('\n');
@@ -13730,7 +14397,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           ),
         ),
       ),
-    );
+    ).then((_) {
+      _controller.removeListener(_handleListContinuation);
+    });
   }
 
   String _formatAudioDuration(int totalSeconds) {
