@@ -2640,7 +2640,14 @@ class _WelcomePageState extends State<WelcomePage> {
         final existing = await db.getProfile();
         final profile = existing ?? UserProfile();
 
-        profile.nome = GoogleCalendarService.userDisplayName ?? profile.nome;
+        final displayName = GoogleCalendarService.userDisplayName;
+        if (displayName != null && displayName.isNotEmpty) {
+          final parts = displayName.trim().split(RegExp(r'\s+'));
+          profile.nome = parts.first;
+          if (parts.length > 1) {
+            profile.cognome = parts.sublist(1).join(' ');
+          }
+        }
         profile.email = GoogleCalendarService.userEmail ?? profile.email;
         profile.googleCalendarConnected = true;
 
@@ -3145,6 +3152,13 @@ class Holidays {
     } else if (religione == tr('islamic')) {
       base.add(Holiday(4, 10, '🌙', 'Eid al-Fitr'));
       base.add(Holiday(6, 16, '🌙', 'Eid al-Adha'));
+    } else if (religione == tr('chinese')) {
+      base.add(Holiday(1, 29, '🧧', 'Capodanno Cinese'));
+      base.add(Holiday(2, 15, '🏮', 'Festa delle Lanterne'));
+      base.add(Holiday(4, 5, '🪦', 'Qingming'));
+      base.add(Holiday(5, 31, '🐉', 'Duanwu'));
+      base.add(Holiday(10, 1, '🇨🇳', 'Festa Nazionale Cinese'));
+      base.add(Holiday(10, 6, '🥮', 'Zhongqiu'));
     }
 
     Map<String, List<Holiday>> result = {};
@@ -3396,32 +3410,62 @@ class WeatherData {
   }
 }
 
+class WeatherCityResult {
+  final String name;
+  final String? country;
+  final String? admin;
+  final double lat;
+  final double lon;
+
+  WeatherCityResult({required this.name, this.country, this.admin, required this.lat, required this.lon});
+
+  String get displayName {
+    final parts = <String>[name];
+    if (admin != null && admin!.isNotEmpty && admin != name) parts.add(admin!);
+    if (country != null && country!.isNotEmpty) parts.add(country!);
+    return parts.join(', ');
+  }
+}
+
 class WeatherService {
-  static Future<({double lat, double lon})?> geocodeCity(String name) async {
+  static Future<List<WeatherCityResult>> searchCities(String query) async {
+    if (query.trim().length < 2) return [];
     try {
-      final url = 'https://geocoding-api.open-meteo.com/v1/search?name=${Uri.encodeComponent(name)}&count=1&language=it';
+      final url = 'https://geocoding-api.open-meteo.com/v1/search?name=${Uri.encodeComponent(query.trim())}&count=5&language=it';
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final results = data['results'] as List?;
-        if (results != null && results.isNotEmpty) {
-          return (lat: (results[0]['latitude'] as num).toDouble(), lon: (results[0]['longitude'] as num).toDouble());
+        if (results != null) {
+          return results.map((r) => WeatherCityResult(
+            name: r['name'] as String,
+            country: r['country'] as String?,
+            admin: r['admin1'] as String?,
+            lat: (r['latitude'] as num).toDouble(),
+            lon: (r['longitude'] as num).toDouble(),
+          )).toList();
         }
       }
     } catch (_) {}
+    return [];
+  }
+
+  static Future<({double lat, double lon})?> geocodeCity(String name) async {
+    final results = await searchCities(name);
+    if (results.isNotEmpty) return (lat: results.first.lat, lon: results.first.lon);
     return null;
   }
 
   static Future<WeatherData?> fetchWeather(String city, double lat, double lon) async {
     try {
       final url = 'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon'
-          '&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe/Rome';
+          '&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto';
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final daily = data['daily'];
         final dates = (daily['time'] as List).cast<String>();
-        final codes = (daily['weathercode'] as List);
+        final codes = (daily['weather_code'] as List);
         final maxTemps = (daily['temperature_2m_max'] as List);
         final minTemps = (daily['temperature_2m_min'] as List);
 
@@ -3958,7 +4002,7 @@ class _CalendarPageState extends State<CalendarPage> {
       _focusedDay = widget.initialDate!;
     }
     _selectedDay = _focusedDay;
-    _holidays = Holidays.getHolidays(_calSettings.religione);
+    _holidays = _calSettings.showHolidays ? Holidays.getHolidays(_calSettings.religione) : {};
     _loadEvents();
     _loadCalendarSettings();
     _loadCycleDays();
@@ -4337,7 +4381,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final settings = await CalendarSettings.load();
     setState(() {
       _calSettings = settings;
-      _holidays = Holidays.getHolidays(settings.religione);
+      _holidays = settings.showHolidays ? Holidays.getHolidays(settings.religione) : {};
     });
     if (settings.showWeather && settings.weatherCity != null && settings.weatherCity!.isNotEmpty) {
       _loadWeather();
@@ -4375,9 +4419,18 @@ class _CalendarPageState extends State<CalendarPage> {
         if (cached != null && cached.city == city) {
           if (mounted) setState(() => _weatherData = cached);
         } else {
-          final geo = await WeatherService.geocodeCity(city);
-          if (geo != null) {
-            final data = await WeatherService.fetchWeather(city, geo.lat, geo.lon);
+          // Use stored coordinates if available, otherwise geocode
+          double? lat = _calSettings.weatherLat;
+          double? lon = _calSettings.weatherLon;
+          if (lat == null || lon == null) {
+            final geo = await WeatherService.geocodeCity(city);
+            if (geo != null) {
+              lat = geo.lat;
+              lon = geo.lon;
+            }
+          }
+          if (lat != null && lon != null) {
+            final data = await WeatherService.fetchWeather(city, lat, lon);
             if (mounted) setState(() => _weatherData = data);
           } else {
             if (mounted) {
@@ -6655,6 +6708,8 @@ class CalendarSettings {
   // Weather
   final bool showWeather;
   final String? weatherCity;
+  final double? weatherLat;
+  final double? weatherLon;
 
   // Layout
   final String calendarLayout; // 'split' or 'fullScreen'
@@ -6665,6 +6720,7 @@ class CalendarSettings {
   final int cyclePeriodDays; // default 28
 
   // Religion (for holidays)
+  final bool showHolidays;
   final String religione;
 
   const CalendarSettings({
@@ -6684,10 +6740,13 @@ class CalendarSettings {
     this.showHoroscope = false,
     this.showWeather = false,
     this.weatherCity,
+    this.weatherLat,
+    this.weatherLon,
     this.calendarLayout = 'split',
     this.calendarViewMode = 'month',
     this.showCycleTracking = false,
     this.cyclePeriodDays = 28,
+    this.showHolidays = true,
     this.religione = 'Cattolica',
   });
 
@@ -6713,10 +6772,13 @@ class CalendarSettings {
     bool? showHoroscope,
     bool? showWeather,
     String? weatherCity,
+    double? weatherLat,
+    double? weatherLon,
     String? calendarLayout,
     String? calendarViewMode,
     bool? showCycleTracking,
     int? cyclePeriodDays,
+    bool? showHolidays,
     String? religione,
   }) {
     return CalendarSettings(
@@ -6736,10 +6798,13 @@ class CalendarSettings {
       showHoroscope: showHoroscope ?? this.showHoroscope,
       showWeather: showWeather ?? this.showWeather,
       weatherCity: weatherCity ?? this.weatherCity,
+      weatherLat: weatherLat ?? this.weatherLat,
+      weatherLon: weatherLon ?? this.weatherLon,
       calendarLayout: calendarLayout ?? this.calendarLayout,
       calendarViewMode: calendarViewMode ?? this.calendarViewMode,
       showCycleTracking: showCycleTracking ?? this.showCycleTracking,
       cyclePeriodDays: cyclePeriodDays ?? this.cyclePeriodDays,
+      showHolidays: showHolidays ?? this.showHolidays,
       religione: religione ?? this.religione,
     );
   }
@@ -6761,10 +6826,13 @@ class CalendarSettings {
     'showHoroscope': showHoroscope,
     'showWeather': showWeather,
     'weatherCity': weatherCity,
+    'weatherLat': weatherLat,
+    'weatherLon': weatherLon,
     'calendarLayout': calendarLayout,
     'calendarViewMode': calendarViewMode,
     'showCycleTracking': showCycleTracking,
     'cyclePeriodDays': cyclePeriodDays,
+    'showHolidays': showHolidays,
     'religione': religione,
   };
 
@@ -6791,10 +6859,13 @@ class CalendarSettings {
         showHoroscope: json['showHoroscope'] ?? false,
         showWeather: json['showWeather'] ?? false,
         weatherCity: json['weatherCity'],
+        weatherLat: (json['weatherLat'] as num?)?.toDouble(),
+        weatherLon: (json['weatherLon'] as num?)?.toDouble(),
         calendarLayout: json['calendarLayout'] ?? 'split',
         calendarViewMode: json['calendarViewMode'] ?? 'month',
         showCycleTracking: json['showCycleTracking'] ?? false,
         cyclePeriodDays: json['cyclePeriodDays'] ?? 28,
+        showHolidays: json['showHolidays'] ?? true,
         religione: json['religione'] ?? tr('catholic'),
       );
 
@@ -6830,6 +6901,9 @@ class CalendarSettingsPage extends StatefulWidget {
 class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   late CalendarSettings _settings;
   late TextEditingController _weatherCityController;
+  List<WeatherCityResult> _citySuggestions = [];
+  bool _isSearchingCity = false;
+  Timer? _citySearchDebounce;
 
   static final _availableAlertMinutes = <int, String>{
     5: tr('5_min_before'),
@@ -6875,7 +6949,31 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   @override
   void dispose() {
     _weatherCityController.dispose();
+    _citySearchDebounce?.cancel();
     super.dispose();
+  }
+
+  void _searchCity(String query) {
+    _citySearchDebounce?.cancel();
+    if (query.trim().length < 2) {
+      setState(() { _citySuggestions = []; _isSearchingCity = false; });
+      return;
+    }
+    setState(() => _isSearchingCity = true);
+    _citySearchDebounce = Timer(const Duration(milliseconds: 400), () async {
+      final results = await WeatherService.searchCities(query);
+      if (mounted) setState(() { _citySuggestions = results; _isSearchingCity = false; });
+    });
+  }
+
+  void _selectCity(WeatherCityResult city) {
+    _weatherCityController.text = city.name;
+    setState(() => _citySuggestions = []);
+    _updateSettings(_settings.copyWith(
+      weatherCity: city.name,
+      weatherLat: city.lat,
+      weatherLon: city.lon,
+    ));
   }
 
   void _updateSettings(CalendarSettings newSettings) {
@@ -7451,6 +7549,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   }
 
   Widget _buildWeatherSettingsCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final calColor = Color(_settings.calendarColorValue);
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -7463,7 +7563,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               title: Text(tr('show_weather'), style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(tr('show_weather')),
               value: _settings.showWeather,
-              activeColor: Color(_settings.calendarColorValue),
+              activeColor: calColor,
               contentPadding: EdgeInsets.zero,
               onChanged: (v) {
                 _updateSettings(_settings.copyWith(showWeather: v));
@@ -7471,6 +7571,40 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             ),
             if (_settings.showWeather) ...[
               const Divider(),
+              // City currently selected
+              if (_settings.weatherCity != null && _settings.weatherCity!.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: calColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: calColor.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on, color: calColor, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _settings.weatherCity!,
+                          style: TextStyle(fontWeight: FontWeight.w600, color: calColor),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, size: 18, color: colorScheme.onSurfaceVariant),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          _weatherCityController.clear();
+                          setState(() => _citySuggestions = []);
+                          _updateSettings(_settings.copyWith(weatherCity: '', weatherLat: 0.0, weatherLon: 0.0));
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              // Search field
               TextField(
                 controller: _weatherCityController,
                 decoration: InputDecoration(
@@ -7478,19 +7612,51 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   hintText: tr('city_hint'),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   filled: true,
-                  fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-                  prefixIcon: Icon(Icons.location_city, color: Color(_settings.calendarColorValue)),
+                  fillColor: colorScheme.surfaceContainerLowest,
+                  prefixIcon: Icon(Icons.search, color: calColor),
+                  suffixIcon: _isSearchingCity
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                        )
+                      : null,
                 ),
-                textInputAction: TextInputAction.done,
-                onSubmitted: (v) {
-                  _updateSettings(_settings.copyWith(weatherCity: v.trim().isEmpty ? '' : v.trim()));
-                },
-                onEditingComplete: () {
-                  final v = _weatherCityController.text;
-                  _updateSettings(_settings.copyWith(weatherCity: v.trim().isEmpty ? '' : v.trim()));
-                  FocusScope.of(context).unfocus();
-                },
+                textInputAction: TextInputAction.search,
+                onChanged: _searchCity,
               ),
+              // Search results
+              if (_citySuggestions.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: _citySuggestions.map((city) {
+                      return ListTile(
+                        dense: true,
+                        leading: Icon(Icons.location_on_outlined, size: 20, color: calColor),
+                        title: Text(city.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        subtitle: Text(
+                          [if (city.admin != null && city.admin != city.name) city.admin!, if (city.country != null) city.country!].join(', '),
+                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                        ),
+                        onTap: () => _selectCity(city),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              if (_citySuggestions.isEmpty && !_isSearchingCity && _settings.weatherCity != null && _settings.weatherCity!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Dati meteo da Open-Meteo.com',
+                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                  ),
+                ),
             ],
           ],
         ),
@@ -7503,7 +7669,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       tr('catholic'): Icons.church,
       tr('jewish'): Icons.synagogue,
       tr('islamic'): Icons.mosque,
-      tr('none_religion'): Icons.public,
+      tr('chinese'): Icons.temple_buddhist,
     };
     return Card(
       elevation: 0,
@@ -7513,29 +7679,41 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(tr('holidays'), style: const TextStyle(fontSize: 13)),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<String>(
-                segments: religions.entries.map((e) {
-                  return ButtonSegment(
-                    value: e.key,
-                    icon: Icon(e.value, size: 18),
-                    label: FittedBox(fit: BoxFit.scaleDown, child: Text(
-                      e.key == tr('none_religion') ? tr('other_none') : e.key,
-                      style: const TextStyle(fontSize: 10),
-                    )),
-                  );
-                }).toList(),
-                selected: {_settings.religione},
-                onSelectionChanged: (sel) {
-                  _updateSettings(_settings.copyWith(religione: sel.first));
-                },
-                showSelectedIcon: false,
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
-              ),
+            SwitchListTile(
+              title: Text(tr('holidays'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Mostra festività religiose nel calendario'),
+              value: _settings.showHolidays,
+              activeColor: Color(_settings.calendarColorValue),
+              contentPadding: EdgeInsets.zero,
+              secondary: Icon(Icons.celebration, color: Color(_settings.calendarColorValue)),
+              onChanged: (v) {
+                _updateSettings(_settings.copyWith(showHolidays: v));
+              },
             ),
+            if (_settings.showHolidays) ...[
+              const Divider(),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<String>(
+                  segments: religions.entries.map((e) {
+                    return ButtonSegment(
+                      value: e.key,
+                      icon: Icon(e.value, size: 18),
+                      label: FittedBox(fit: BoxFit.scaleDown, child: Text(
+                        e.key,
+                        style: const TextStyle(fontSize: 10),
+                      )),
+                    );
+                  }).toList(),
+                  selected: {_settings.religione},
+                  onSelectionChanged: (sel) {
+                    _updateSettings(_settings.copyWith(religione: sel.first));
+                  },
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -9453,7 +9631,6 @@ class _SettingsPageState extends State<SettingsPage> {
       connected.add('Google Drive');
     }
     if (_profile.geminiConnected) connected.add('Gemini AI');
-    if (HealthService.isAuthorized) connected.add(tr('health'));
     return connected.isEmpty ? tr('no_active_integrations') : connected.join(', ');
   }
 
@@ -9753,8 +9930,6 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
           _buildGoogleSection(colorScheme),
           const SizedBox(height: 16),
           _buildGeminiSection(colorScheme),
-          const SizedBox(height: 16),
-          _buildHealthSection(colorScheme),
         ],
       ),
     );
@@ -9948,10 +10123,74 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
+              const SizedBox(height: 16),
+              // Mini guida per ottenere API Key
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade700.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.purple.shade700.withValues(alpha: 0.15)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.help_outline, size: 18, color: Colors.purple.shade700),
+                        const SizedBox(width: 8),
+                        Text('Come ottenere la API Key', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple.shade700)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _buildGuideStep('1', 'Vai su aistudio.google.com'),
+                    const SizedBox(height: 6),
+                    _buildGuideStep('2', 'Accedi con il tuo account Google'),
+                    const SizedBox(height: 6),
+                    _buildGuideStep('3', 'Clicca su "Get API Key" nella barra laterale'),
+                    const SizedBox(height: 6),
+                    _buildGuideStep('4', 'Clicca "Create API Key" e seleziona un progetto'),
+                    const SizedBox(height: 6),
+                    _buildGuideStep('5', 'Copia la chiave e incollala qui sopra'),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => launchUrl(Uri.parse('https://aistudio.google.com/apikey')),
+                        icon: Icon(Icons.open_in_new, size: 16, color: Colors.purple.shade700),
+                        label: Text('Apri Google AI Studio', style: TextStyle(fontSize: 13, color: Colors.purple.shade700)),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.purple.shade700.withValues(alpha: 0.4)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildGuideStep(String number, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 20, height: 20,
+          decoration: BoxDecoration(
+            color: Colors.purple.shade700.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+          ),
+          child: Center(child: Text(number, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.purple.shade700))),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
+      ],
     );
   }
 
@@ -10934,17 +11173,6 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                   price: '€1,00',
                   purchased: _auraSettings.unlimitedVoicePurchased,
                   onTap: () => _simulatePurchase('voice'),
-                  colorScheme: colorScheme,
-                ),
-                const SizedBox(height: 8),
-
-                // Unlimited profiles
-                _buildPurchaseTile(
-                  icon: Icons.people,
-                  title: tr('unlock_unlimited_profiles'),
-                  price: '€2,50',
-                  purchased: _auraSettings.unlimitedProfilesPurchased,
-                  onTap: () => _simulatePurchase('profiles'),
                   colorScheme: colorScheme,
                 ),
               ],
