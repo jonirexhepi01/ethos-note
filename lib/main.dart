@@ -4455,6 +4455,19 @@ class _CalendarPageState extends State<CalendarPage> {
       _events = events;
     });
     _syncCalendarEventsToWidget();
+    // Re-schedule all future notifications on app start
+    _rescheduleAllNotifications();
+  }
+
+  void _rescheduleAllNotifications() {
+    final now = DateTime.now();
+    for (final dayEvents in _events.values) {
+      for (final event in dayEvents) {
+        if (event.startTime.isAfter(now)) {
+          _scheduleNotification(event);
+        }
+      }
+    }
   }
 
   Future<void> _saveEvents() async {
@@ -4482,34 +4495,47 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _scheduleNotification(CalendarEventFull event) {
-    if (event.reminder == null || event.reminder!.isEmpty) return;
-    final r = event.reminder!;
-    int minutesBefore = 15; // default
-    // Match against known translated strings
-    if (r == tr('10_min_before')) {
-      minutesBefore = 10;
-    } else if (r == tr('15_min_before')) {
-      minutesBefore = 15;
-    } else if (r == tr('30_min_before')) {
-      minutesBefore = 30;
-    } else if (r == tr('1_hour_before')) {
-      minutesBefore = 60;
-    } else if (r == tr('day_before') || r == tr('1_day_before')) {
-      minutesBefore = 1440;
-    } else if (r == tr('1_week_before')) {
-      minutesBefore = 10080;
-    } else {
-      // Try parsing custom "X min" format
-      final numMatch = RegExp(r'(\d+)').firstMatch(r);
-      if (numMatch != null) minutesBefore = int.tryParse(numMatch.group(1)!) ?? 15;
+    final baseId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+
+    // 1) Schedule from event-specific reminder (if set)
+    if (event.reminder != null && event.reminder!.isNotEmpty) {
+      final r = event.reminder!;
+      int minutesBefore = 15;
+      if (r == tr('10_min_before')) {
+        minutesBefore = 10;
+      } else if (r == tr('15_min_before')) {
+        minutesBefore = 15;
+      } else if (r == tr('30_min_before')) {
+        minutesBefore = 30;
+      } else if (r == tr('1_hour_before')) {
+        minutesBefore = 60;
+      } else if (r == tr('day_before') || r == tr('1_day_before')) {
+        minutesBefore = 1440;
+      } else if (r == tr('1_week_before')) {
+        minutesBefore = 10080;
+      } else {
+        final numMatch = RegExp(r'(\d+)').firstMatch(r);
+        if (numMatch != null) minutesBefore = int.tryParse(numMatch.group(1)!) ?? 15;
+      }
+      NotificationService.scheduleEventReminder(
+        id: baseId,
+        title: event.title,
+        eventTime: event.startTime,
+        minutesBefore: minutesBefore,
+      );
+      return;
     }
-    final id = event.startTime.millisecondsSinceEpoch ~/ 1000;
-    NotificationService.scheduleEventReminder(
-      id: id,
-      title: event.title,
-      eventTime: event.startTime,
-      minutesBefore: minutesBefore,
-    );
+
+    // 2) Fallback: use global alertMinutesBefore from CalendarSettings
+    for (int i = 0; i < _calSettings.alertMinutesBefore.length; i++) {
+      final mins = _calSettings.alertMinutesBefore[i];
+      NotificationService.scheduleEventReminder(
+        id: baseId + i + 1,
+        title: event.title,
+        eventTime: event.startTime,
+        minutesBefore: mins,
+      );
+    }
   }
 
   String _dateKey(DateTime date) => '${date.year}-${date.month}-${date.day}';
@@ -6710,6 +6736,29 @@ class NotificationService {
     if (kIsWeb || !_initialized) return;
     await _plugin.cancelAll();
   }
+
+  /// Sends an immediate test notification to verify the pipeline works.
+  static Future<bool> showTestNotification() async {
+    if (kIsWeb || !_initialized) return false;
+    const androidDetails = AndroidNotificationDetails(
+      'event_reminders',
+      'Promemoria eventi',
+      channelDescription: 'Notifiche promemoria per gli eventi del calendario',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    );
+    const iosDetails = DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true);
+    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    try {
+      await _plugin.show(0, 'Ethos Note', 'Le notifiche funzionano!', details);
+      return true;
+    } catch (e) {
+      debugPrint('Test notification error: $e');
+      return false;
+    }
+  }
 }
 
 class CalendarSettings {
@@ -7573,6 +7622,24 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   },
                 ),
               ],
+            ),
+            const Divider(),
+            Center(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final ok = await NotificationService.showTestNotification();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(ok ? 'Notifica inviata! Controlla la barra notifiche.' : 'Errore: notifiche non autorizzate. Controlla le impostazioni del telefono.'),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.notifications_active, size: 18),
+                label: const Text('Testa notifiche'),
+              ),
             ),
           ],
         ),
