@@ -3677,10 +3677,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _checkSharedFile();
     _checkDeepLink();
     _refreshWidgets();
+    // Listen for deep links pushed from native (warm start)
+    _deepLinkChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onDeepLink') {
+        final String? link = call.arguments as String?;
+        if (link != null && link.isNotEmpty) {
+          _handleDeepLink(link);
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _deepLinkChannel.setMethodCallHandler(null);
     _calIconController.dispose();
     super.dispose();
   }
@@ -4350,8 +4360,8 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildCycleFlowBar() {
-    final intensity = _getCycleIntensity(DateTime.now());
+  Widget _buildCycleFlowBar(DateTime day) {
+    final intensity = _getCycleIntensity(day);
     final double progress;
     final String label;
     switch (intensity) {
@@ -5807,7 +5817,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   ],
                   // Health progress bar
                   if (_calSettings.showCycleTracking && _isCycleDay(DateTime.now()))
-                    _buildCycleFlowBar(),
+                    _buildCycleFlowBar(DateTime.now()),
                 ],
               ),
             ),

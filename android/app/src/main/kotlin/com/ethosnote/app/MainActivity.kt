@@ -62,6 +62,13 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
+        // Push deep link to Flutter immediately (warm start)
+        if (pendingDeepLink != null) {
+            flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
+                MethodChannel(messenger, DEEP_LINK_CHANNEL)
+                    .invokeMethod("onDeepLink", pendingDeepLink)
+            }
+        }
     }
 
     private fun handleIntent(intent: Intent?) {

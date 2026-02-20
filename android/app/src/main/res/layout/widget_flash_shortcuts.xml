@@ -1,100 +1,124 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
+    android:orientation="vertical"
     android:gravity="center"
     android:background="@drawable/widget_background"
-    android:paddingTop="10dp"
+    android:paddingTop="8dp"
     android:paddingBottom="10dp"
     android:paddingStart="12dp"
     android:paddingEnd="12dp">
 
-    <!-- Text shortcut -->
-    <LinearLayout
-        android:id="@+id/btn_text"
-        android:layout_width="0dp"
+    <!-- Header -->
+    <TextView
+        android:id="@+id/widget_header"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
+        android:text="⚡ Flash Notes"
+        android:textSize="12sp"
+        android:textColor="#99000000"
         android:gravity="center"
-        android:clickable="true">
-        <FrameLayout
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="@drawable/widget_icon_circle">
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_widget_edit"
-                android:contentDescription="Scrivi" />
-        </FrameLayout>
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Scrivi"
-            android:textSize="11sp"
-            android:textColor="#99000000" />
-    </LinearLayout>
+        android:layout_marginBottom="4dp" />
 
-    <!-- Photo shortcut -->
+    <!-- Buttons row -->
     <LinearLayout
-        android:id="@+id/btn_photo"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:clickable="true">
-        <FrameLayout
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="@drawable/widget_icon_circle">
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_widget_camera"
-                android:contentDescription="Foto" />
-        </FrameLayout>
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Foto"
-            android:textSize="11sp"
-            android:textColor="#99000000" />
-    </LinearLayout>
+        android:orientation="horizontal"
+        android:gravity="center">
 
-    <!-- Voice shortcut -->
-    <LinearLayout
-        android:id="@+id/btn_voice"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:clickable="true">
-        <FrameLayout
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="@drawable/widget_icon_circle">
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_widget_mic"
-                android:contentDescription="Vocale" />
-        </FrameLayout>
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- Text shortcut -->
+        <LinearLayout
+            android:id="@+id/btn_text"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Vocale"
-            android:textSize="11sp"
-            android:textColor="#99000000" />
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:clickable="true">
+            <FrameLayout
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/widget_icon_circle">
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_edit"
+                    android:contentDescription="Scrivi" />
+            </FrameLayout>
+            <TextView
+                android:id="@+id/label_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Scrivi"
+                android:textSize="11sp"
+                android:textColor="#99000000" />
+        </LinearLayout>
+
+        <!-- Photo shortcut -->
+        <LinearLayout
+            android:id="@+id/btn_photo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:clickable="true">
+            <FrameLayout
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/widget_icon_circle">
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_camera"
+                    android:contentDescription="Foto" />
+            </FrameLayout>
+            <TextView
+                android:id="@+id/label_photo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Foto"
+                android:textSize="11sp"
+                android:textColor="#99000000" />
+        </LinearLayout>
+
+        <!-- Voice shortcut -->
+        <LinearLayout
+            android:id="@+id/btn_voice"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:clickable="true">
+            <FrameLayout
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/widget_icon_circle">
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_mic"
+                    android:contentDescription="Vocale" />
+            </FrameLayout>
+            <TextView
+                android:id="@+id/label_voice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Vocale"
+                android:textSize="11sp"
+                android:textColor="#99000000" />
+        </LinearLayout>
+
     </LinearLayout>
 
 </LinearLayout>
