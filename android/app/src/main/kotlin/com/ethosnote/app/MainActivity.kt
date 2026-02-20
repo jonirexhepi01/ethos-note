@@ -20,10 +20,15 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Create 3 notification channels for different alert types (Android 8+)
+        // Create 3 notification channels (v2) for different alert types (Android 8+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager =
                 getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            // Delete ALL legacy channels (cached with wrong settings)
+            for (old in listOf("event_reminders_v2", "event_sound", "event_vibration", "event_both")) {
+                notificationManager.deleteNotificationChannel(old)
+            }
 
             val defaultSound = android.media.RingtoneManager.getDefaultUri(
                 android.media.RingtoneManager.TYPE_NOTIFICATION
@@ -33,33 +38,30 @@ class MainActivity : FlutterFragmentActivity() {
                 .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
 
-            // Channel: sound only
+            // Channel: sound only (v2)
             notificationManager.createNotificationChannel(
-                NotificationChannel("event_sound", "Promemoria (suono)", NotificationManager.IMPORTANCE_HIGH).apply {
+                NotificationChannel("event_sound_v2", "Promemoria (suono)", NotificationManager.IMPORTANCE_HIGH).apply {
                     description = "Solo suono, senza vibrazione"
                     enableVibration(false)
                     setSound(defaultSound, audioAttrs)
                 }
             )
-            // Channel: vibration only
+            // Channel: vibration only (v2)
             notificationManager.createNotificationChannel(
-                NotificationChannel("event_vibration", "Promemoria (vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
+                NotificationChannel("event_vibration_v2", "Promemoria (vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
                     description = "Solo vibrazione, senza suono"
                     enableVibration(true)
                     setSound(null, null)
                 }
             )
-            // Channel: sound + vibration
+            // Channel: sound + vibration (v2)
             notificationManager.createNotificationChannel(
-                NotificationChannel("event_both", "Promemoria (suono + vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
+                NotificationChannel("event_both_v2", "Promemoria (suono + vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
                     description = "Suono e vibrazione insieme"
                     enableVibration(true)
                     setSound(defaultSound, audioAttrs)
                 }
             )
-
-            // Delete legacy channel if present
-            notificationManager.deleteNotificationChannel("event_reminders_v2")
         }
 
         // Share channel (existing)
@@ -92,11 +94,15 @@ class MainActivity : FlutterFragmentActivity() {
         handleIntent(intent)
         // Push deep link to Flutter immediately (warm start)
         if (pendingDeepLink != null) {
+            val link = pendingDeepLink
+            pendingDeepLink = null // Clear before sending to prevent re-delivery
             flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
                 MethodChannel(messenger, DEEP_LINK_CHANNEL)
-                    .invokeMethod("onDeepLink", pendingDeepLink)
+                    .invokeMethod("onDeepLink", link)
             }
         }
+        // Replace activity intent with a clean one to prevent stale re-delivery
+        setIntent(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER))
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -107,6 +113,9 @@ class MainActivity : FlutterFragmentActivity() {
             val uri = intent.data
             if (uri != null && uri.scheme == "ethosnote") {
                 pendingDeepLink = uri.toString()
+                // Clear intent data to prevent re-delivery on activity recreation
+                intent.action = null
+                intent.data = null
                 return
             }
         }

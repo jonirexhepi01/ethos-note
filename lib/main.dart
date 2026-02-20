@@ -301,6 +301,21 @@ const _translations = <String, Map<String, String>>{
   'cycle_q_notes': {'it': 'Appunti', 'en': 'Notes', 'fr': 'Notes', 'es': 'Notas'},
   'cycle_q_notes_hint': {'it': 'Scrivi quello che vuoi...', 'en': 'Write whatever you want...', 'fr': 'Écris ce que tu veux...', 'es': 'Escribe lo que quieras...'},
   'cycle_report_saved': {'it': 'Report ciclo salvato', 'en': 'Cycle report saved', 'fr': 'Rapport du cycle sauvegardé', 'es': 'Informe del ciclo guardado'},
+  'cycle_set_next_date': {'it': 'Data prevista prossimo ciclo', 'en': 'Expected next period date', 'fr': 'Date prévue des prochaines règles', 'es': 'Fecha prevista del próximo periodo'},
+  'cycle_set_next_date_sub': {'it': 'Imposta quando prevedi il prossimo ciclo', 'en': 'Set when you expect your next period', 'fr': 'Définir quand vous attendez vos prochaines règles', 'es': 'Establece cuándo esperas tu próximo periodo'},
+  'cycle_test_questionnaire': {'it': 'Prova questionario', 'en': 'Test questionnaire', 'fr': 'Tester le questionnaire', 'es': 'Probar cuestionario'},
+  'cycle_ended_notif': {'it': 'Il tuo ciclo è terminato — Come è andata?', 'en': 'Your period ended — How did it go?', 'fr': 'Tes règles sont terminées — Comment ça s\'est passé ?', 'es': 'Tu periodo terminó — ¿Cómo te fue?'},
+  'cycle_missing': {'it': 'Ciclo mancante', 'en': 'Missing period', 'fr': 'Règles manquées', 'es': 'Periodo faltante'},
+  'cycle_missing_why': {'it': 'Perché non hai segnato il ciclo?', 'en': 'Why didn\'t you mark your period?', 'fr': 'Pourquoi n\'as-tu pas marqué tes règles ?', 'es': '¿Por qué no marcaste tu periodo?'},
+  'cycle_missing_arrived': {'it': 'È arrivato ma non l\'ho segnato', 'en': 'It arrived but I didn\'t mark it', 'fr': 'Il est arrivé mais je ne l\'ai pas marqué', 'es': 'Llegó pero no lo marqué'},
+  'cycle_missing_not_yet': {'it': 'Non è ancora arrivato', 'en': 'It hasn\'t arrived yet', 'fr': 'Il n\'est pas encore arrivé', 'es': 'Aún no ha llegado'},
+  'cycle_missing_pregnant': {'it': 'Sono incinta', 'en': 'I\'m pregnant', 'fr': 'Je suis enceinte', 'es': 'Estoy embarazada'},
+  'cycle_missing_other': {'it': 'Altro', 'en': 'Other', 'fr': 'Autre', 'es': 'Otro'},
+  'cycle_mark_days_or_skip': {'it': 'Vuoi segnare i giorni del ciclo prima di compilare il report?', 'en': 'Do you want to mark the cycle days before filling in the report?', 'fr': 'Veux-tu marquer les jours du cycle avant de remplir le rapport ?', 'es': '¿Quieres marcar los días del periodo antes de rellenar el informe?'},
+  'cycle_mark_days': {'it': 'Segna i giorni', 'en': 'Mark the days', 'fr': 'Marquer les jours', 'es': 'Marcar los días'},
+  'cycle_skip_to_report': {'it': 'Vai al questionario', 'en': 'Go to questionnaire', 'fr': 'Aller au questionnaire', 'es': 'Ir al cuestionario'},
+  'cycle_predictions_disabled': {'it': 'Le previsioni ciclo sono state disattivate', 'en': 'Cycle predictions have been disabled', 'fr': 'Les prévisions de cycle ont été désactivées', 'es': 'Las predicciones del ciclo han sido desactivadas'},
+  'cycle_diary_folder': {'it': 'Diario del Ciclo', 'en': 'Cycle Diary', 'fr': 'Journal du Cycle', 'es': 'Diario del Ciclo'},
 
   // ── Deep Note ──
   'new_note': {'it': 'Nuova nota', 'en': 'New note', 'fr': 'Nouvelle note', 'es': 'Nueva nota'},
@@ -3188,6 +3203,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   int _selectedIndex = 1;
   int _refreshKey = 0;
   UserProfile _userProfile = UserProfile();
+  bool _cycleDiaryActive = false;
   static const _shareChannel = MethodChannel('com.ethosnote.app/share');
   static const _deepLinkChannel = MethodChannel('com.ethosnote.app/deeplink');
   String? _pendingDeepLink;
@@ -3203,6 +3219,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       value: 1.0, // starts on calendar tab (index 1)
     );
     _loadUserProfile();
+    _checkCycleDiaryBadge();
     _checkSharedFile();
     _checkDeepLink();
     _refreshWidgets();
@@ -3222,6 +3239,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _deepLinkChannel.setMethodCallHandler(null);
     _calIconController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkCycleDiaryBadge() async {
+    final activeJson = await DatabaseHelper().getCache('cycle_diary_active');
+    final active = activeJson != null && activeJson.isNotEmpty;
+    if (mounted && active != _cycleDiaryActive) {
+      setState(() => _cycleDiaryActive = active);
+    }
   }
 
   Future<void> _refreshWidgets() async {
@@ -3340,6 +3365,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     ).then((_) {
       // Refresh pages when returning from settings
+      _checkCycleDiaryBadge();
       setState(() => _refreshKey++);
     });
   }
@@ -3469,6 +3495,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               return;
             }
           }
+          _checkCycleDiaryBadge();
           setState(() {
             _selectedIndex = index;
           });
@@ -3480,8 +3507,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         },
         destinations: [
           NavigationDestination(
-            icon: Icon(Icons.note_outlined, color: colorScheme.onSurfaceVariant),
-            selectedIcon: Icon(Icons.note, color: _sectionColors[0]),
+            icon: Badge(
+              isLabelVisible: _cycleDiaryActive,
+              backgroundColor: Colors.red,
+              smallSize: 8,
+              child: Icon(Icons.note_outlined, color: colorScheme.onSurfaceVariant),
+            ),
+            selectedIcon: Badge(
+              isLabelVisible: _cycleDiaryActive,
+              backgroundColor: Colors.red,
+              smallSize: 8,
+              child: Icon(Icons.note, color: _sectionColors[0]),
+            ),
             label: 'Deep Note',
           ),
           NavigationDestination(
@@ -3542,8 +3579,6 @@ class _CalendarPageState extends State<CalendarPage> {
   // Health
   HealthSnapshot? _healthSnapshot;
 
-  // Cycle diary active questionnaire
-  Map<String, dynamic>? _activeCycleDiary;
 
   @override
   void initState() {
@@ -3747,17 +3782,30 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   /// Calculates the next predicted cycle start date.
-  /// Returns null if not enough data.
+  /// Uses manual date if set and no cycle data, otherwise calculates from periods.
   DateTime? _getNextPredictedCycleStart() {
     final periods = _findCyclePeriods();
-    if (periods.isEmpty) return null;
-    final lastStart = periods.last.$1;
     final cyclePeriod = _calSettings.cyclePeriodDays;
     final now = DateTime.now();
     final todayNorm = DateTime(now.year, now.month, now.day);
-    // Find the next predicted start that is today or in the future
+
+    if (periods.isEmpty) {
+      // Use manual date if available
+      if (_calSettings.manualNextCycleDate != null) {
+        final manual = DateTime.tryParse(_calSettings.manualNextCycleDate!);
+        if (manual != null) {
+          var predicted = DateTime(manual.year, manual.month, manual.day);
+          while (predicted.isBefore(todayNorm)) {
+            predicted = predicted.add(Duration(days: cyclePeriod));
+          }
+          return predicted;
+        }
+      }
+      return null;
+    }
+
+    final lastStart = periods.last.$1;
     var predicted = lastStart.add(Duration(days: cyclePeriod));
-    // If predicted is in the past, advance by full cycles
     while (predicted.isBefore(todayNorm)) {
       predicted = predicted.add(Duration(days: cyclePeriod));
     }
@@ -3765,18 +3813,31 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   bool _isPredictedCycleDay(DateTime day) {
-    if (!_calSettings.showCycleTracking || _cycleDays.isEmpty) return false;
-    // Don't predict days that are already marked
+    if (!_calSettings.showCycleTracking) return false;
     if (_isCycleDay(day)) return false;
-    final periods = _findCyclePeriods();
-    if (periods.isEmpty) return false;
-    final lastStart = periods.last.$1;
     final cyclePeriod = _calSettings.cyclePeriodDays;
     final duration = _calSettings.cycleDurationDays;
     final dayNorm = DateTime(day.year, day.month, day.day);
-    // Predict the next 3 cycles
+    final periods = _findCyclePeriods();
+
+    DateTime? baseStart;
+    if (periods.isNotEmpty) {
+      baseStart = periods.last.$1;
+    } else if (_calSettings.manualNextCycleDate != null) {
+      // Use manual date as the first predicted start (c=0)
+      final manual = DateTime.tryParse(_calSettings.manualNextCycleDate!);
+      if (manual != null) {
+        final manualNorm = DateTime(manual.year, manual.month, manual.day);
+        // Check if day falls in the manual period itself
+        final diff0 = dayNorm.difference(manualNorm).inDays;
+        if (diff0 >= 0 && diff0 < duration) return true;
+        baseStart = manualNorm;
+      }
+    }
+    if (baseStart == null) return false;
+
     for (int c = 1; c <= 3; c++) {
-      final predictedStart = lastStart.add(Duration(days: cyclePeriod * c));
+      final predictedStart = baseStart.add(Duration(days: cyclePeriod * c));
       final diff = dayNorm.difference(predictedStart).inDays;
       if (diff >= 0 && diff < duration) return true;
     }
@@ -3936,44 +3997,100 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _checkAndCreateCycleDiary() async {
     if (!_calSettings.showCycleTracking) return;
-
-    // 1) Check if there's already an active diary in cache — show or auto-move
-    final activeJson = await DatabaseHelper().getCache('cycle_diary_active');
-    if (activeJson != null && activeJson.isNotEmpty) {
-      final data = json.decode(activeJson) as Map<String, dynamic>;
-      final createdAt = DateTime.parse(data['createdAt'] as String);
-      final now = DateTime.now();
-      final daysSinceCreated = now.difference(createdAt).inDays;
-      if (daysSinceCreated >= 2) {
-        // Auto-move to "Diario del Ciclo" folder
-        await _saveCycleDiaryAsNote(data);
-        await DatabaseHelper().saveCache('cycle_diary_active', '');
-        if (mounted) setState(() => _activeCycleDiary = null);
-      } else {
-        if (mounted) setState(() => _activeCycleDiary = data);
-      }
-      return;
-    }
-
-    // 2) Detect a newly completed period (last day ≥ 1 day ago, no active diary)
-    final periods = _findCyclePeriods();
-    if (periods.isEmpty) return;
     final now = DateTime.now();
     final todayNorm = DateTime(now.year, now.month, now.day);
-    final (start, end) = periods.last;
-    final daysSinceEnd = todayNorm.difference(end).inDays;
-    if (daysSinceEnd < 1) return; // period still ongoing or same day
-    // Check if we already handled this period
-    final doneKey = 'cycle_diary_done_${start.year}-${start.month}-${start.day}';
-    final done = await DatabaseHelper().getCache(doneKey);
-    if (done != null) return;
-    // Create active diary entry
     final months = localizedMonths();
+
+    // 1) Check if a tracked period has ended (≥1 day gap)
+    final periods = _findCyclePeriods();
+    if (periods.isNotEmpty) {
+      final (start, end) = periods.last;
+      final daysSinceEnd = todayNorm.difference(end).inDays;
+      if (daysSinceEnd >= 1) {
+        final doneKey = 'cycle_diary_done_${start.year}-${start.month}-${start.day}';
+        final done = await DatabaseHelper().getCache(doneKey);
+        if (done == null) {
+          // Create report note in Diario del Ciclo
+          final month = months[end.month] ?? '';
+          await _createCycleDiaryNote(
+            title: '${tr('cycle_report')} $month',
+            type: 'cycle_diary',
+            periodStart: '${start.year}-${start.month}-${start.day}',
+            periodEnd: '${end.year}-${end.month}-${end.day}',
+            month: month,
+          );
+          await DatabaseHelper().saveCache(doneKey, 'done');
+          // Schedule notification immediately (for today at 9:00 or now if past 9)
+          final notifTime = DateTime(now.year, now.month, now.day, 9, 0);
+          if (notifTime.isAfter(now)) {
+            NotificationService.scheduleCycleDiaryNotification(notifTime, alertType: _calSettings.alertConfig.alertType);
+          } else {
+            NotificationService.showCycleDiaryNotification(alertType: _calSettings.alertConfig.alertType);
+          }
+        }
+      }
+    }
+
+    // 2) Check if predicted cycle passed without marking
+    final nextPredicted = _getNextPredictedCycleStart();
+    if (nextPredicted != null && periods.isNotEmpty) {
+      // Only check if prediction is based on actual data (not manual) and the predicted END has passed
+      final predictedEnd = nextPredicted.add(Duration(days: _calSettings.cycleDurationDays - 1));
+      if (todayNorm.isAfter(predictedEnd)) {
+        // Check if any cycle days were marked in the predicted window
+        bool markedInWindow = false;
+        for (final k in _cycleDays) {
+          final parts = k.split('-');
+          if (parts.length == 3) {
+            final d = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+            if (!d.isBefore(nextPredicted) && !d.isAfter(predictedEnd)) {
+              markedInWindow = true;
+              break;
+            }
+          }
+        }
+        if (!markedInWindow) {
+          final missKey = 'cycle_missing_${nextPredicted.year}-${nextPredicted.month}-${nextPredicted.day}';
+          final missDone = await DatabaseHelper().getCache(missKey);
+          if (missDone == null) {
+            final month = months[nextPredicted.month] ?? '';
+            await _createCycleDiaryNote(
+              title: '${tr('cycle_missing')} $month',
+              type: 'cycle_missing',
+              periodStart: '',
+              periodEnd: '',
+              month: month,
+            );
+            await DatabaseHelper().saveCache(missKey, 'done');
+            NotificationService.showCycleDiaryNotification(alertType: _calSettings.alertConfig.alertType);
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _ensureCycleDiaryFolder() async {
+    final customFolders = await DatabaseHelper().getAllFolders();
+    const folderName = 'Diario del Ciclo';
+    if (!customFolders.containsKey(folderName)) {
+      customFolders[folderName] = const FolderStyle(Icons.water_drop, Colors.red, isCustom: true);
+      await DatabaseHelper().saveAllFolders(customFolders);
+    }
+  }
+
+  Future<void> _createCycleDiaryNote({
+    required String title,
+    required String type,
+    required String periodStart,
+    required String periodEnd,
+    required String month,
+  }) async {
+    await _ensureCycleDiaryFolder();
     final data = <String, dynamic>{
-      'periodStart': '${start.year}-${start.month}-${start.day}',
-      'periodEnd': '${end.year}-${end.month}-${end.day}',
-      'createdAt': now.toIso8601String(),
-      'month': months[end.month] ?? '',
+      'type': type,
+      'periodStart': periodStart,
+      'periodEnd': periodEnd,
+      'month': month,
       'timing': null,
       'flow': null,
       'symptoms': <String>[],
@@ -3985,40 +4102,31 @@ class _CalendarPageState extends State<CalendarPage> {
       'emotions': <String>[],
       'emotionsCustom': '',
       'notes': '',
+      // For cycle_missing type
+      'missingReason': null,
+      'missingReasonCustom': '',
     };
-    await DatabaseHelper().saveCache('cycle_diary_active', json.encode(data));
-    if (mounted) {
-      setState(() => _activeCycleDiary = data);
-    }
-  }
-
-  Future<void> _saveCycleDiaryAsNote(Map<String, dynamic> data) async {
-    // Ensure "Diario del Ciclo" folder exists
-    final customFolders = await DatabaseHelper().getAllFolders();
-    const folderName = 'Diario del Ciclo';
-    if (!customFolders.containsKey(folderName)) {
-      customFolders[folderName] = const FolderStyle(Icons.water_drop, Colors.red, isCustom: true);
-      await DatabaseHelper().saveAllFolders(customFolders);
-    }
-    final month = data['month'] as String? ?? '';
-    final title = '${tr('cycle_report')} $month';
-    final content = _buildCycleDiaryPlainText(data);
     final note = ProNote(
       title: title,
-      content: content,
-      contentDelta: json.encode(_buildCycleDiaryDelta(data)),
-      folder: folderName,
+      content: title,
+      contentDelta: json.encode(data),
+      folder: 'Diario del Ciclo',
       createdAt: DateTime.now(),
     );
     await DatabaseHelper().insertProNote(note);
-    // Mark as done so we don't re-create
-    final pStart = data['periodStart'] as String;
-    await DatabaseHelper().saveCache('cycle_diary_done_$pStart', 'done');
   }
 
-  String _buildCycleDiaryPlainText(Map<String, dynamic> data) {
+  /// Build plain-text summary from cycle diary data (for PDF/content field).
+  static String buildCycleDiaryPlainText(Map<String, dynamic> data) {
     final buf = StringBuffer();
-    buf.writeln('${tr('cycle_report')} ${data['month'] ?? ''}');
+    final type = data['type'] as String? ?? 'cycle_diary';
+    final month = data['month'] as String? ?? '';
+    buf.writeln(type == 'cycle_missing' ? '${tr('cycle_missing')} $month' : '${tr('cycle_report')} $month');
+    if (type == 'cycle_missing') {
+      if (data['missingReason'] != null) buf.writeln('${tr('cycle_missing_why')}: ${data['missingReason']}');
+      if ((data['missingReasonCustom'] as String?)?.isNotEmpty == true) buf.writeln('${data['missingReasonCustom']}');
+      return buf.toString();
+    }
     if (data['timing'] != null) buf.writeln('${tr('cycle_q_timing')}: ${data['timing']}');
     if (data['flow'] != null) buf.writeln('${tr('cycle_q_flow')}: ${data['flow']}');
     final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
@@ -4034,39 +4142,6 @@ class _CalendarPageState extends State<CalendarPage> {
     if ((data['emotionsCustom'] as String?)?.isNotEmpty == true) buf.writeln('  ${data['emotionsCustom']}');
     if ((data['notes'] as String?)?.isNotEmpty == true) buf.writeln('${tr('cycle_q_notes')}: ${data['notes']}');
     return buf.toString();
-  }
-
-  List<Map<String, dynamic>> _buildCycleDiaryDelta(Map<String, dynamic> data) {
-    final d = <Map<String, dynamic>>[];
-    d.add({'insert': '${tr('cycle_report')} ${data['month'] ?? ''}\n', 'attributes': {'bold': true, 'size': 'large'}});
-    d.add({'insert': '\n'});
-    void addSection(String label, String? value) {
-      d.add({'insert': '$label: ', 'attributes': {'bold': true}});
-      d.add({'insert': '${value ?? '—'}\n'});
-    }
-    void addListSection(String label, List<String> items) {
-      d.add({'insert': '$label: ', 'attributes': {'bold': true}});
-      d.add({'insert': items.isNotEmpty ? '${items.join(', ')}\n' : '—\n'});
-    }
-    addSection(tr('cycle_q_timing'), data['timing'] as String?);
-    addSection(tr('cycle_q_flow'), data['flow'] as String?);
-    addListSection(tr('cycle_q_symptoms'), (data['symptoms'] as List?)?.cast<String>() ?? []);
-    addSection(tr('cycle_q_energy'), data['energy'] as String?);
-    final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
-    final cravCustom = data['cravingsCustom'] as String? ?? '';
-    final allCravings = [...cravings, if (cravCustom.isNotEmpty) cravCustom];
-    addListSection(tr('cycle_q_cravings'), allCravings);
-    final sleep = data['sleep'] as String? ?? '';
-    final sleepCustom = data['sleepCustom'] as String? ?? '';
-    addSection(tr('cycle_q_sleep'), [sleep, if (sleepCustom.isNotEmpty) sleepCustom].where((s) => s.isNotEmpty).join(' — '));
-    final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
-    final emoCustom = data['emotionsCustom'] as String? ?? '';
-    final allEmo = [...emotions, if (emoCustom.isNotEmpty) emoCustom];
-    addListSection(tr('cycle_q_emotions'), allEmo);
-    d.add({'insert': '\n'});
-    d.add({'insert': '${tr('cycle_q_notes')}:\n', 'attributes': {'bold': true}});
-    d.add({'insert': '${(data['notes'] as String?)?.isNotEmpty == true ? data['notes'] : '—'}\n'});
-    return d;
   }
 
   Future<void> _loadWeather() async {
@@ -5130,74 +5205,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildCycleDiaryBanner(ColorScheme colorScheme) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Card(
-        elevation: 0,
-        color: Colors.red.shade50,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Navigator.push(context, MaterialPageRoute(
-              builder: (_) => CycleDiaryPage(
-                data: Map<String, dynamic>.from(_activeCycleDiary!),
-                onSave: (updatedData) async {
-                  await DatabaseHelper().saveCache('cycle_diary_active', json.encode(updatedData));
-                  if (mounted) setState(() => _activeCycleDiary = updatedData);
-                },
-                onComplete: (updatedData) async {
-                  await _saveCycleDiaryAsNote(updatedData);
-                  await DatabaseHelper().saveCache('cycle_diary_active', '');
-                  final pStart = updatedData['periodStart'] as String;
-                  await DatabaseHelper().saveCache('cycle_diary_done_$pStart', 'done');
-                  if (mounted) {
-                    setState(() => _activeCycleDiary = null);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(tr('cycle_report_saved')),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
-                  }
-                },
-              ),
-            ));
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.edit_note, color: Colors.red, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(tr('cycle_report_fill'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.red)),
-                      const SizedBox(height: 2),
-                      Text(tr('cycle_report_fill_sub'), style: TextStyle(fontSize: 12, color: Colors.red.shade300)),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: Colors.red.shade300),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSplitLayout(ColorScheme colorScheme) {
     final eventsForSelectedDay = _selectedDay != null
         ? _getEventsForDay(_selectedDay!)
@@ -5271,7 +5278,6 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
         ),
         const SizedBox.shrink(),
-        if (_activeCycleDiary != null) _buildCycleDiaryBanner(colorScheme),
         const SizedBox(height: 8),
         if (_selectedDay != null) ...[
           Expanded(
@@ -5720,7 +5726,6 @@ class _CalendarPageState extends State<CalendarPage> {
       children: [
         Column(
           children: [
-            if (_activeCycleDiary != null) _buildCycleDiaryBanner(colorScheme),
             Expanded(
               child: isWeek
                   ? _buildCustomWeekView(colorScheme)
@@ -6531,6 +6536,43 @@ class NotificationService {
     }
   }
 
+  /// Schedule cycle diary notification at a specific time.
+  static Future<void> scheduleCycleDiaryNotification(DateTime time, {String alertType = 'sound_vibration'}) async {
+    if (kIsWeb || !_initialized) return;
+    await ensurePermissions();
+    if (!_permissionsGranted) return;
+    final tzScheduled = tz.TZDateTime.from(time, tz.local);
+    final details = _buildNotifDetails(alertType);
+    const id = 999777;
+    try {
+      await _plugin.zonedSchedule(
+        id, 'Ethos Note', tr('cycle_ended_notif'), tzScheduled, details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'cycle_diary',
+      );
+    } catch (_) {
+      try {
+        await _plugin.zonedSchedule(
+          id, 'Ethos Note', tr('cycle_ended_notif'), tzScheduled, details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+          payload: 'cycle_diary',
+        );
+      } catch (_) {}
+    }
+  }
+
+  /// Show cycle diary notification immediately.
+  static Future<void> showCycleDiaryNotification({String alertType = 'sound_vibration'}) async {
+    if (kIsWeb || !_initialized) return;
+    await ensurePermissions();
+    if (!_permissionsGranted) return;
+    try {
+      await _plugin.show(999777, 'Ethos Note', tr('cycle_ended_notif'), _buildNotifDetails(alertType), payload: 'cycle_diary');
+    } catch (_) {}
+  }
+
   /// Cancel the cycle reminder notification.
   static Future<void> cancelCycleReminder() async {
     if (kIsWeb || !_initialized) return;
@@ -6609,6 +6651,7 @@ class CalendarSettings {
   final int cyclePeriodDays; // default 28
   final int cycleDurationDays; // average flow duration in days (default 5, range 2-10)
   final bool cycleReminder; // auto-reminder the day before predicted start
+  final String? manualNextCycleDate; // user-set expected date (ISO8601)
 
   // Religion (for holidays)
   final bool showHolidays;
@@ -6639,6 +6682,7 @@ class CalendarSettings {
     this.cyclePeriodDays = 28,
     this.cycleDurationDays = 5,
     this.cycleReminder = true,
+    this.manualNextCycleDate,
     this.showHolidays = true,
     this.religione = 'Cattolica',
   });
@@ -6673,6 +6717,8 @@ class CalendarSettings {
     int? cyclePeriodDays,
     int? cycleDurationDays,
     bool? cycleReminder,
+    String? manualNextCycleDate,
+    bool clearManualNextCycleDate = false,
     bool? showHolidays,
     String? religione,
   }) {
@@ -6701,6 +6747,7 @@ class CalendarSettings {
       cyclePeriodDays: cyclePeriodDays ?? this.cyclePeriodDays,
       cycleDurationDays: cycleDurationDays ?? this.cycleDurationDays,
       cycleReminder: cycleReminder ?? this.cycleReminder,
+      manualNextCycleDate: clearManualNextCycleDate ? null : (manualNextCycleDate ?? this.manualNextCycleDate),
       showHolidays: showHolidays ?? this.showHolidays,
       religione: religione ?? this.religione,
     );
@@ -6731,6 +6778,7 @@ class CalendarSettings {
     'cyclePeriodDays': cyclePeriodDays,
     'cycleDurationDays': cycleDurationDays,
     'cycleReminder': cycleReminder,
+    'manualNextCycleDate': manualNextCycleDate,
     'showHolidays': showHolidays,
     'religione': religione,
   };
@@ -6766,6 +6814,7 @@ class CalendarSettings {
         cyclePeriodDays: json['cyclePeriodDays'] ?? 28,
         cycleDurationDays: json['cycleDurationDays'] ?? 5,
         cycleReminder: json['cycleReminder'] ?? true,
+        manualNextCycleDate: json['manualNextCycleDate'],
         showHolidays: json['showHolidays'] ?? true,
         religione: json['religione'] ?? tr('catholic'),
       );
@@ -6835,43 +6884,60 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   }
 
   Future<void> _loadCyclePrediction() async {
-    if (!_settings.showCycleTracking) return;
-    final days = await DatabaseHelper().getCycleDays();
-    if (days.isEmpty || !mounted) return;
-    // Parse dates and find periods
-    final dates = <DateTime>[];
-    for (final k in days) {
-      final parts = k.split('-');
-      if (parts.length == 3) {
-        dates.add(DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2])));
-      }
+    if (!_settings.showCycleTracking) {
+      if (mounted) setState(() => _nextPredictedCycleStart = null);
+      return;
     }
-    if (dates.isEmpty) return;
-    dates.sort();
-    // Group into periods (gap ≤ 1 day)
-    var start = dates.first;
-    var end = dates.first;
-    DateTime? lastPeriodStart;
-    for (int i = 1; i < dates.length; i++) {
-      if (dates[i].difference(end).inDays <= 1) {
-        end = dates[i];
-      } else {
-        lastPeriodStart = start;
-        start = dates[i];
-        end = dates[i];
-      }
-    }
-    lastPeriodStart = start; // last period's start
     final cyclePeriod = _settings.cyclePeriodDays;
     final now = DateTime.now();
     final todayNorm = DateTime(now.year, now.month, now.day);
-    var predicted = lastPeriodStart.add(Duration(days: cyclePeriod));
-    while (predicted.isBefore(todayNorm)) {
-      predicted = predicted.add(Duration(days: cyclePeriod));
+
+    final days = await DatabaseHelper().getCycleDays();
+    if (!mounted) return;
+
+    if (days.isNotEmpty) {
+      final dates = <DateTime>[];
+      for (final k in days) {
+        final parts = k.split('-');
+        if (parts.length == 3) {
+          dates.add(DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2])));
+        }
+      }
+      if (dates.isNotEmpty) {
+        dates.sort();
+        var start = dates.first;
+        var end = dates.first;
+        for (int i = 1; i < dates.length; i++) {
+          if (dates[i].difference(end).inDays <= 1) {
+            end = dates[i];
+          } else {
+            start = dates[i];
+            end = dates[i];
+          }
+        }
+        var predicted = start.add(Duration(days: cyclePeriod));
+        while (predicted.isBefore(todayNorm)) {
+          predicted = predicted.add(Duration(days: cyclePeriod));
+        }
+        setState(() => _nextPredictedCycleStart = predicted);
+        return;
+      }
     }
-    if (mounted) {
-      setState(() => _nextPredictedCycleStart = predicted);
+
+    // Fallback: use manual date
+    if (_settings.manualNextCycleDate != null) {
+      final manual = DateTime.tryParse(_settings.manualNextCycleDate!);
+      if (manual != null) {
+        var predicted = DateTime(manual.year, manual.month, manual.day);
+        while (predicted.isBefore(todayNorm)) {
+          predicted = predicted.add(Duration(days: cyclePeriod));
+        }
+        setState(() => _nextPredictedCycleStart = predicted);
+        return;
+      }
     }
+
+    setState(() => _nextPredictedCycleStart = null);
   }
 
   @override
@@ -7611,6 +7677,46 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 },
               ),
               const Divider(),
+              // Manual date picker
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.edit_calendar, color: Colors.red),
+                title: Text(tr('cycle_set_next_date')),
+                subtitle: Text(
+                  _settings.manualNextCycleDate != null
+                      ? () {
+                          final d = DateTime.tryParse(_settings.manualNextCycleDate!);
+                          return d != null ? '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}' : tr('cycle_set_next_date_sub');
+                        }()
+                      : tr('cycle_set_next_date_sub'),
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                ),
+                trailing: _settings.manualNextCycleDate != null
+                    ? IconButton(
+                        icon: Icon(Icons.clear, size: 18, color: colorScheme.onSurfaceVariant),
+                        onPressed: () {
+                          _updateSettings(_settings.copyWith(clearManualNextCycleDate: true));
+                          _loadCyclePrediction();
+                        },
+                      )
+                    : null,
+                onTap: () async {
+                  final initial = _settings.manualNextCycleDate != null
+                      ? DateTime.tryParse(_settings.manualNextCycleDate!) ?? DateTime.now()
+                      : DateTime.now();
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: initial,
+                    firstDate: DateTime.now().subtract(const Duration(days: 60)),
+                    lastDate: DateTime.now().add(const Duration(days: 90)),
+                  );
+                  if (picked != null) {
+                    _updateSettings(_settings.copyWith(manualNextCycleDate: picked.toIso8601String()));
+                    _loadCyclePrediction();
+                  }
+                },
+              ),
+              const Divider(),
               // Prediction card
               if (_nextPredictedCycleStart != null)
                 Container(
@@ -7654,6 +7760,47 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                     ],
                   ),
                 ),
+            ],
+            if (_settings.showCycleTracking) ...[
+              const SizedBox(height: 8),
+              // Temporary test button
+              OutlinedButton.icon(
+                onPressed: () {
+                  final months = localizedMonths();
+                  final now = DateTime.now();
+                  final testData = <String, dynamic>{
+                    'periodStart': '${now.year}-${now.month}-${now.day}',
+                    'periodEnd': '${now.year}-${now.month}-${now.day}',
+                    'createdAt': now.toIso8601String(),
+                    'month': months[now.month] ?? '',
+                    'timing': null,
+                    'flow': null,
+                    'symptoms': <String>[],
+                    'energy': null,
+                    'cravings': <String>[],
+                    'cravingsCustom': '',
+                    'sleep': null,
+                    'sleepCustom': '',
+                    'emotions': <String>[],
+                    'emotionsCustom': '',
+                    'notes': '',
+                  };
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => CycleDiaryPage(
+                      data: testData,
+                      onSave: (_) async {},
+                      onComplete: (_) async {},
+                    ),
+                  ));
+                },
+                icon: const Icon(Icons.science_outlined, size: 18),
+                label: Text(tr('cycle_test_questionnaire')),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
             ],
             const SizedBox(height: 8),
             const Divider(),
@@ -7706,10 +7853,11 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 
 class CycleDiaryPage extends StatefulWidget {
   final Map<String, dynamic> data;
+  final int? noteId;
   final Future<void> Function(Map<String, dynamic>) onSave;
   final Future<void> Function(Map<String, dynamic>) onComplete;
 
-  const CycleDiaryPage({super.key, required this.data, required this.onSave, required this.onComplete});
+  const CycleDiaryPage({super.key, required this.data, this.noteId, required this.onSave, required this.onComplete});
 
   @override
   State<CycleDiaryPage> createState() => _CycleDiaryPageState();
@@ -7727,6 +7875,11 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
   late Set<String> _emotions;
   late TextEditingController _emotionsCustomCtrl;
   late TextEditingController _notesCtrl;
+  // Missing cycle fields
+  late String? _missingReason;
+  late TextEditingController _missingReasonCustomCtrl;
+
+  bool get _isMissingType => widget.data['type'] == 'cycle_missing';
 
   static const _symptomOptions = [
     'Crampi addominali',
@@ -7759,6 +7912,8 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     _emotions = Set<String>.from((widget.data['emotions'] as List?)?.cast<String>() ?? []);
     _emotionsCustomCtrl = TextEditingController(text: widget.data['emotionsCustom'] as String? ?? '');
     _notesCtrl = TextEditingController(text: widget.data['notes'] as String? ?? '');
+    _missingReason = widget.data['missingReason'] as String?;
+    _missingReasonCustomCtrl = TextEditingController(text: widget.data['missingReasonCustom'] as String? ?? '');
   }
 
   @override
@@ -7767,6 +7922,7 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     _sleepCustomCtrl.dispose();
     _emotionsCustomCtrl.dispose();
     _notesCtrl.dispose();
+    _missingReasonCustomCtrl.dispose();
     super.dispose();
   }
 
@@ -7783,7 +7939,82 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     data['emotions'] = _emotions.toList();
     data['emotionsCustom'] = _emotionsCustomCtrl.text;
     data['notes'] = _notesCtrl.text;
+    data['missingReason'] = _missingReason;
+    data['missingReasonCustom'] = _missingReasonCustomCtrl.text;
     return data;
+  }
+
+  Future<void> _exportPdf() async {
+    final data = _collectData();
+    final pdf = pw.Document();
+    pdf.addPage(pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(40),
+      build: (ctx) {
+        final title = _isMissingType
+            ? '${tr('cycle_missing')} ${data['month'] ?? ''}'
+            : '${tr('cycle_report')} ${data['month'] ?? ''}';
+        final sections = <pw.Widget>[
+          pw.Text('Ethos Note', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+          pw.SizedBox(height: 8),
+          pw.Text(title, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.red)),
+          pw.Divider(color: PdfColors.red100),
+          pw.SizedBox(height: 12),
+        ];
+        if (_isMissingType) {
+          sections.add(_pdfRow(tr('cycle_missing_why'), data['missingReason'] ?? '—'));
+          if ((data['missingReasonCustom'] as String?)?.isNotEmpty == true) {
+            sections.add(_pdfRow(tr('cycle_missing_other'), data['missingReasonCustom']));
+          }
+        } else {
+          sections.add(_pdfRow(tr('cycle_q_timing'), data['timing'] ?? '—'));
+          sections.add(_pdfRow(tr('cycle_q_flow'), data['flow'] ?? '—'));
+          final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
+          sections.add(_pdfRow(tr('cycle_q_symptoms'), symptoms.isNotEmpty ? symptoms.join(', ') : '—'));
+          sections.add(_pdfRow(tr('cycle_q_energy'), data['energy'] ?? '—'));
+          final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
+          final cravCustom = data['cravingsCustom'] as String? ?? '';
+          sections.add(_pdfRow(tr('cycle_q_cravings'), [...cravings, if (cravCustom.isNotEmpty) cravCustom].join(', ')));
+          final sleepVal = data['sleep'] as String? ?? '';
+          final sleepCust = data['sleepCustom'] as String? ?? '';
+          sections.add(_pdfRow(tr('cycle_q_sleep'), [sleepVal, if (sleepCust.isNotEmpty) sleepCust].where((s) => s.isNotEmpty).join(' — ')));
+          final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
+          final emoCust = data['emotionsCustom'] as String? ?? '';
+          sections.add(_pdfRow(tr('cycle_q_emotions'), [...emotions, if (emoCust.isNotEmpty) emoCust].join(', ')));
+          sections.add(_pdfRow(tr('cycle_q_notes'), (data['notes'] as String?)?.isNotEmpty == true ? data['notes'] : '—'));
+        }
+        return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: sections);
+      },
+    ));
+    await Printing.layoutPdf(onLayout: (_) => pdf.save());
+  }
+
+  pw.Widget _pdfRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 10),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(label, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.grey800)),
+          pw.SizedBox(height: 2),
+          pw.Text(value.isEmpty ? '—' : value, style: const pw.TextStyle(fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handlePregnant() async {
+    final settings = await CalendarSettings.load();
+    await settings.copyWith(showCycleTracking: false).save();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('cycle_predictions_disabled')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 
   @override
@@ -7791,19 +8022,33 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     final colorScheme = Theme.of(context).colorScheme;
     final month = widget.data['month'] as String? ?? '';
 
+    final appBarTitle = _isMissingType
+        ? '${tr('cycle_missing')} $month'
+        : '${tr('cycle_report')} $month';
+
     return PopScope(
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) widget.onSave(_collectData());
       },
       child: Scaffold(
       appBar: AppBar(
-        title: Text('${tr('cycle_report')} $month', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(appBarTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
         scrolledUnderElevation: 2,
         backgroundColor: Colors.transparent,
         actions: [
+          IconButton(
+            onPressed: _exportPdf,
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'PDF',
+            color: Colors.red,
+          ),
           TextButton.icon(
             onPressed: () async {
+              // Handle "Sono incinta" option
+              if (_isMissingType && _missingReason == tr('cycle_missing_pregnant')) {
+                await _handlePregnant();
+              }
               await widget.onComplete(_collectData());
               if (mounted) Navigator.pop(context);
             },
@@ -7816,6 +8061,60 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         children: [
+          if (_isMissingType) ...[
+            _buildSectionCard(
+              number: '1',
+              title: tr('cycle_missing_why'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSingleChoice(
+                    options: [tr('cycle_missing_arrived'), tr('cycle_missing_not_yet'), tr('cycle_missing_pregnant'), tr('cycle_missing_other')],
+                    selected: _missingReason,
+                    onChanged: (v) => setState(() => _missingReason = v),
+                  ),
+                  if (_missingReason == tr('cycle_missing_other')) ...[
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _missingReasonCustomCtrl,
+                      decoration: InputDecoration(
+                        hintText: tr('cycle_q_notes_hint'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: colorScheme.surfaceContainerLowest,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      ),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                  if (_missingReason == tr('cycle_missing_arrived')) ...[
+                    const SizedBox(height: 12),
+                    Text(tr('cycle_mark_days_or_skip'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              // Go back to calendar to mark days
+                              Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.calendar_month, size: 16),
+                            label: Text(tr('cycle_mark_days'), style: const TextStyle(fontSize: 12)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ] else ...[
           // 1. Timing
           _buildSectionCard(
             number: '1',
@@ -7994,10 +8293,14 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
               style: const TextStyle(fontSize: 14),
             ),
           ),
+          ],
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
+          if (_isMissingType && _missingReason == tr('cycle_missing_pregnant')) {
+            await _handlePregnant();
+          }
           await widget.onComplete(_collectData());
           if (mounted) Navigator.pop(context);
         },
@@ -15826,6 +16129,11 @@ class _NotesProPageState extends State<NotesProPage> {
   }
 
   void _createNewNote() {
+    // In "Diario del Ciclo" folder, open cycle questionnaire instead
+    if (_selectedFolder == 'Diario del Ciclo') {
+      _createNewCycleDiary();
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -15840,8 +16148,75 @@ class _NotesProPageState extends State<NotesProPage> {
     );
   }
 
+  void _createNewCycleDiary() {
+    final months = localizedMonths();
+    final now = DateTime.now();
+    final month = months[now.month] ?? '';
+    final data = <String, dynamic>{
+      'type': 'cycle_diary',
+      'periodStart': '',
+      'periodEnd': '',
+      'month': month,
+      'timing': null,
+      'flow': null,
+      'symptoms': <String>[],
+      'energy': null,
+      'cravings': <String>[],
+      'cravingsCustom': '',
+      'sleep': null,
+      'sleepCustom': '',
+      'emotions': <String>[],
+      'emotionsCustom': '',
+      'notes': '',
+      'missingReason': null,
+      'missingReasonCustom': '',
+    };
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => CycleDiaryPage(
+        data: data,
+        onSave: (updatedData) async {
+          final note = ProNote(
+            title: '${tr('cycle_report')} $month',
+            content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
+            contentDelta: json.encode(updatedData),
+            folder: 'Diario del Ciclo',
+            createdAt: DateTime.now(),
+          );
+          await DatabaseHelper().insertProNote(note);
+          await _loadNotes();
+        },
+        onComplete: (updatedData) async {
+          final note = ProNote(
+            title: '${tr('cycle_report')} $month',
+            content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
+            contentDelta: json.encode(updatedData),
+            folder: 'Diario del Ciclo',
+            createdAt: DateTime.now(),
+          );
+          await DatabaseHelper().insertProNote(note);
+          await _loadNotes();
+        },
+      ),
+    ));
+  }
+
+  bool _isCycleDiaryNote(ProNote note) {
+    if (note.folder != 'Diario del Ciclo' || note.contentDelta == null) return false;
+    try {
+      final data = json.decode(note.contentDelta!) as Map<String, dynamic>;
+      return data['type'] == 'cycle_diary' || data['type'] == 'cycle_missing';
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _editNote(int index) {
     final note = _proNotes[index];
+    // Cycle diary notes open in interactive questionnaire
+    if (_isCycleDiaryNote(note)) {
+      _editCycleDiaryNote(note);
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -15859,6 +16234,42 @@ class _NotesProPageState extends State<NotesProPage> {
         ),
       ),
     );
+  }
+
+  void _editCycleDiaryNote(ProNote note) {
+    final data = json.decode(note.contentDelta!) as Map<String, dynamic>;
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => CycleDiaryPage(
+        data: data,
+        noteId: note.id,
+        onSave: (updatedData) async {
+          if (note.id != null) {
+            final updated = ProNote(
+              title: note.title,
+              content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
+              contentDelta: json.encode(updatedData),
+              folder: 'Diario del Ciclo',
+              createdAt: note.createdAt,
+            );
+            await DatabaseHelper().updateProNote(note.id!, updated);
+            await _loadNotes();
+          }
+        },
+        onComplete: (updatedData) async {
+          if (note.id != null) {
+            final updated = ProNote(
+              title: note.title,
+              content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
+              contentDelta: json.encode(updatedData),
+              folder: 'Diario del Ciclo',
+              createdAt: note.createdAt,
+            );
+            await DatabaseHelper().updateProNote(note.id!, updated);
+            await _loadNotes();
+          }
+        },
+      ),
+    ));
   }
 
   Future<void> _deleteNote(int index) async {
