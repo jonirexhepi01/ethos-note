@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -266,8 +267,40 @@ const _translations = <String, Map<String, String>>{
   'cycle_reminder': {'it': 'Promemoria giorno prima', 'en': 'Reminder day before', 'fr': 'Rappel la veille', 'es': 'Recordatorio el día antes'},
   'cycle_reminder_sub': {'it': 'Notifica il giorno prima del ciclo previsto', 'en': 'Notification the day before the predicted period', 'fr': 'Notification la veille des règles prévues', 'es': 'Notificación el día antes del periodo previsto'},
   'next_cycle_predicted': {'it': 'Prossimo ciclo previsto', 'en': 'Next predicted period', 'fr': 'Prochaines règles prévues', 'es': 'Próximo periodo previsto'},
-  'cycle_diary_created': {'it': 'Diario del ciclo creato automaticamente', 'en': 'Cycle diary created automatically', 'fr': 'Journal du cycle créé automatiquement', 'es': 'Diario del ciclo creado automáticamente'},
+  'cycle_diary_created': {'it': 'Report ciclo creato', 'en': 'Cycle report created', 'fr': 'Rapport de cycle créé', 'es': 'Informe del ciclo creado'},
   'no_cycle_data': {'it': 'Segna i giorni del ciclo nel calendario per attivare le previsioni', 'en': 'Mark period days on the calendar to enable predictions', 'fr': 'Marquez les jours de règles sur le calendrier pour activer les prévisions', 'es': 'Marca los días del periodo en el calendario para activar las predicciones'},
+  'cycle_report': {'it': 'Report Ciclo', 'en': 'Cycle Report', 'fr': 'Rapport du Cycle', 'es': 'Informe del Ciclo'},
+  'cycle_report_fill': {'it': 'Compila il Report del Ciclo', 'en': 'Fill in the Cycle Report', 'fr': 'Remplir le rapport du cycle', 'es': 'Rellenar el informe del ciclo'},
+  'cycle_report_fill_sub': {'it': 'Hai 2 giorni per compilarlo', 'en': 'You have 2 days to fill it in', 'fr': 'Vous avez 2 jours pour le remplir', 'es': 'Tienes 2 días para rellenarlo'},
+  'cycle_q_timing': {'it': 'Quando è arrivato il ciclo?', 'en': 'When did your period arrive?', 'fr': 'Quand tes règles sont arrivées ?', 'es': '¿Cuándo llegó tu periodo?'},
+  'cycle_q_timing_early': {'it': 'In anticipo', 'en': 'Early', 'fr': 'En avance', 'es': 'Temprano'},
+  'cycle_q_timing_ontime': {'it': 'Puntuale', 'en': 'On time', 'fr': 'À l\'heure', 'es': 'Puntual'},
+  'cycle_q_timing_late': {'it': 'In ritardo', 'en': 'Late', 'fr': 'En retard', 'es': 'Tarde'},
+  'cycle_q_flow': {'it': 'Flusso', 'en': 'Flow', 'fr': 'Flux', 'es': 'Flujo'},
+  'cycle_q_flow_light': {'it': 'Poco', 'en': 'Light', 'fr': 'Léger', 'es': 'Poco'},
+  'cycle_q_flow_medium': {'it': 'Medio', 'en': 'Medium', 'fr': 'Moyen', 'es': 'Medio'},
+  'cycle_q_flow_heavy': {'it': 'Molto', 'en': 'Heavy', 'fr': 'Abondant', 'es': 'Mucho'},
+  'cycle_q_flow_very_heavy': {'it': 'Moltissimo', 'en': 'Very heavy', 'fr': 'Très abondant', 'es': 'Muchísimo'},
+  'cycle_q_symptoms': {'it': 'Sintomi', 'en': 'Symptoms', 'fr': 'Symptômes', 'es': 'Síntomas'},
+  'cycle_q_energy': {'it': 'Livelli di energia durante il ciclo?', 'en': 'Energy levels during your period?', 'fr': 'Niveaux d\'énergie pendant les règles ?', 'es': '¿Niveles de energía durante el periodo?'},
+  'cycle_q_energy_low': {'it': 'Poco', 'en': 'Low', 'fr': 'Faible', 'es': 'Bajo'},
+  'cycle_q_energy_normal': {'it': 'Normale', 'en': 'Normal', 'fr': 'Normal', 'es': 'Normal'},
+  'cycle_q_energy_high': {'it': 'Molta', 'en': 'High', 'fr': 'Élevé', 'es': 'Alto'},
+  'cycle_q_cravings': {'it': 'Di cosa ti è venuta voglia?', 'en': 'What did you crave?', 'fr': 'De quoi avais-tu envie ?', 'es': '¿De qué tuviste antojo?'},
+  'cycle_q_cravings_other': {'it': 'Altro...', 'en': 'Other...', 'fr': 'Autre...', 'es': 'Otro...'},
+  'cycle_q_sleep': {'it': 'Sonno', 'en': 'Sleep', 'fr': 'Sommeil', 'es': 'Sueño'},
+  'cycle_q_sleep_normal': {'it': 'Normale', 'en': 'Normal', 'fr': 'Normal', 'es': 'Normal'},
+  'cycle_q_sleep_deep': {'it': 'Profondo', 'en': 'Deep', 'fr': 'Profond', 'es': 'Profundo'},
+  'cycle_q_sleep_restless': {'it': 'Irrequieto', 'en': 'Restless', 'fr': 'Agité', 'es': 'Inquieto'},
+  'cycle_q_sleep_insomnia': {'it': 'Insonnia', 'en': 'Insomnia', 'fr': 'Insomnie', 'es': 'Insomnio'},
+  'cycle_q_emotions': {'it': 'Emozioni dominanti', 'en': 'Dominant emotions', 'fr': 'Émotions dominantes', 'es': 'Emociones dominantes'},
+  'cycle_q_emotions_calm': {'it': 'Calma', 'en': 'Calm', 'fr': 'Calme', 'es': 'Calma'},
+  'cycle_q_emotions_irritable': {'it': 'Irritabilità', 'en': 'Irritability', 'fr': 'Irritabilité', 'es': 'Irritabilidad'},
+  'cycle_q_emotions_sensitive': {'it': 'Sensibilità', 'en': 'Sensitivity', 'fr': 'Sensibilité', 'es': 'Sensibilidad'},
+  'cycle_q_emotions_sad': {'it': 'Tristezza', 'en': 'Sadness', 'fr': 'Tristesse', 'es': 'Tristeza'},
+  'cycle_q_notes': {'it': 'Appunti', 'en': 'Notes', 'fr': 'Notes', 'es': 'Notas'},
+  'cycle_q_notes_hint': {'it': 'Scrivi quello che vuoi...', 'en': 'Write whatever you want...', 'fr': 'Écris ce que tu veux...', 'es': 'Escribe lo que quieras...'},
+  'cycle_report_saved': {'it': 'Report ciclo salvato', 'en': 'Cycle report saved', 'fr': 'Rapport du cycle sauvegardé', 'es': 'Informe del ciclo guardado'},
 
   // ── Deep Note ──
   'new_note': {'it': 'Nuova nota', 'en': 'New note', 'fr': 'Nouvelle note', 'es': 'Nueva nota'},
@@ -1599,6 +1632,7 @@ void main() async {
     await prefs.setBool('db_wiped_v1', true);
   }
   await NotificationService.init();
+  await initializeDateFormatting();
   runApp(const EthosNoteApp());
 }
 
@@ -3508,6 +3542,9 @@ class _CalendarPageState extends State<CalendarPage> {
   // Health
   HealthSnapshot? _healthSnapshot;
 
+  // Cycle diary active questionnaire
+  Map<String, dynamic>? _activeCycleDiary;
+
   @override
   void initState() {
     super.initState();
@@ -3899,68 +3936,137 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _checkAndCreateCycleDiary() async {
     if (!_calSettings.showCycleTracking) return;
+
+    // 1) Check if there's already an active diary in cache — show or auto-move
+    final activeJson = await DatabaseHelper().getCache('cycle_diary_active');
+    if (activeJson != null && activeJson.isNotEmpty) {
+      final data = json.decode(activeJson) as Map<String, dynamic>;
+      final createdAt = DateTime.parse(data['createdAt'] as String);
+      final now = DateTime.now();
+      final daysSinceCreated = now.difference(createdAt).inDays;
+      if (daysSinceCreated >= 2) {
+        // Auto-move to "Diario del Ciclo" folder
+        await _saveCycleDiaryAsNote(data);
+        await DatabaseHelper().saveCache('cycle_diary_active', '');
+        if (mounted) setState(() => _activeCycleDiary = null);
+      } else {
+        if (mounted) setState(() => _activeCycleDiary = data);
+      }
+      return;
+    }
+
+    // 2) Detect a newly completed period (last day ≥ 1 day ago, no active diary)
     final periods = _findCyclePeriods();
     if (periods.isEmpty) return;
     final now = DateTime.now();
     final todayNorm = DateTime(now.year, now.month, now.day);
-    // Only check the last completed period (end ≥ 2 days ago)
     final (start, end) = periods.last;
     final daysSinceEnd = todayNorm.difference(end).inDays;
-    if (daysSinceEnd < 2) return; // period not yet completed or too recent
-    final cacheKey = 'cycle_diary_${start.year}-${start.month}-${start.day}';
-    final existing = await DatabaseHelper().getCache(cacheKey);
-    if (existing != null) return; // diary already created
+    if (daysSinceEnd < 1) return; // period still ongoing or same day
+    // Check if we already handled this period
+    final doneKey = 'cycle_diary_done_${start.year}-${start.month}-${start.day}';
+    final done = await DatabaseHelper().getCache(doneKey);
+    if (done != null) return;
+    // Create active diary entry
+    final months = localizedMonths();
+    final data = <String, dynamic>{
+      'periodStart': '${start.year}-${start.month}-${start.day}',
+      'periodEnd': '${end.year}-${end.month}-${end.day}',
+      'createdAt': now.toIso8601String(),
+      'month': months[end.month] ?? '',
+      'timing': null,
+      'flow': null,
+      'symptoms': <String>[],
+      'energy': null,
+      'cravings': <String>[],
+      'cravingsCustom': '',
+      'sleep': null,
+      'sleepCustom': '',
+      'emotions': <String>[],
+      'emotionsCustom': '',
+      'notes': '',
+    };
+    await DatabaseHelper().saveCache('cycle_diary_active', json.encode(data));
+    if (mounted) {
+      setState(() => _activeCycleDiary = data);
+    }
+  }
+
+  Future<void> _saveCycleDiaryAsNote(Map<String, dynamic> data) async {
     // Ensure "Diario del Ciclo" folder exists
-    final folders = <String, FolderStyle>{'Generale': const FolderStyle(Icons.folder, Colors.blue)};
     final customFolders = await DatabaseHelper().getAllFolders();
-    folders.addAll(customFolders);
     const folderName = 'Diario del Ciclo';
-    if (!folders.containsKey(folderName)) {
+    if (!customFolders.containsKey(folderName)) {
       customFolders[folderName] = const FolderStyle(Icons.water_drop, Colors.red, isCustom: true);
       await DatabaseHelper().saveAllFolders(customFolders);
     }
-    // Build diary content
-    final durationDays = end.difference(start).inDays + 1;
-    final startStr = '${start.day.toString().padLeft(2, '0')}/${start.month.toString().padLeft(2, '0')}';
-    final endStr = '${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')}';
-    final title = 'Ciclo $startStr - $endStr';
-    final contentDelta = json.encode([
-      {'insert': 'Diario del Ciclo\n', 'attributes': {'bold': true, 'size': 'large'}},
-      {'insert': '\n'},
-      {'insert': 'Periodo: $startStr - $endStr\n'},
-      {'insert': 'Durata: $durationDays giorni\n'},
-      {'insert': '\n'},
-      {'insert': 'Come ti sei sentita durante il ciclo?\n', 'attributes': {'bold': true}},
-      {'insert': '...\n\n'},
-      {'insert': 'Livello di dolore (1-10):\n', 'attributes': {'bold': true}},
-      {'insert': '...\n\n'},
-      {'insert': 'Sintomi:\n', 'attributes': {'bold': true}},
-      {'insert': '☐ Crampi\n☐ Mal di testa\n☐ Stanchezza\n☐ Gonfiore\n☐ Sbalzi d\'umore\n☐ Mal di schiena\n\n'},
-      {'insert': 'Flusso prevalente:\n', 'attributes': {'bold': true}},
-      {'insert': '...\n\n'},
-      {'insert': 'Note aggiuntive:\n', 'attributes': {'bold': true}},
-      {'insert': '...\n'},
-    ]);
-    final plainContent = 'Diario del Ciclo\nPeriodo: $startStr - $endStr\nDurata: $durationDays giorni';
+    final month = data['month'] as String? ?? '';
+    final title = '${tr('cycle_report')} $month';
+    final content = _buildCycleDiaryPlainText(data);
     final note = ProNote(
       title: title,
-      content: plainContent,
-      contentDelta: contentDelta,
+      content: content,
+      contentDelta: json.encode(_buildCycleDiaryDelta(data)),
       folder: folderName,
       createdAt: DateTime.now(),
     );
     await DatabaseHelper().insertProNote(note);
-    await DatabaseHelper().saveCache(cacheKey, 'created');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('cycle_diary_created')),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+    // Mark as done so we don't re-create
+    final pStart = data['periodStart'] as String;
+    await DatabaseHelper().saveCache('cycle_diary_done_$pStart', 'done');
+  }
+
+  String _buildCycleDiaryPlainText(Map<String, dynamic> data) {
+    final buf = StringBuffer();
+    buf.writeln('${tr('cycle_report')} ${data['month'] ?? ''}');
+    if (data['timing'] != null) buf.writeln('${tr('cycle_q_timing')}: ${data['timing']}');
+    if (data['flow'] != null) buf.writeln('${tr('cycle_q_flow')}: ${data['flow']}');
+    final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
+    if (symptoms.isNotEmpty) buf.writeln('${tr('cycle_q_symptoms')}: ${symptoms.join(', ')}');
+    if (data['energy'] != null) buf.writeln('${tr('cycle_q_energy')}: ${data['energy']}');
+    final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
+    if (cravings.isNotEmpty) buf.writeln('${tr('cycle_q_cravings')}: ${cravings.join(', ')}');
+    if ((data['cravingsCustom'] as String?)?.isNotEmpty == true) buf.writeln('  ${data['cravingsCustom']}');
+    if (data['sleep'] != null) buf.writeln('${tr('cycle_q_sleep')}: ${data['sleep']}');
+    if ((data['sleepCustom'] as String?)?.isNotEmpty == true) buf.writeln('  ${data['sleepCustom']}');
+    final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
+    if (emotions.isNotEmpty) buf.writeln('${tr('cycle_q_emotions')}: ${emotions.join(', ')}');
+    if ((data['emotionsCustom'] as String?)?.isNotEmpty == true) buf.writeln('  ${data['emotionsCustom']}');
+    if ((data['notes'] as String?)?.isNotEmpty == true) buf.writeln('${tr('cycle_q_notes')}: ${data['notes']}');
+    return buf.toString();
+  }
+
+  List<Map<String, dynamic>> _buildCycleDiaryDelta(Map<String, dynamic> data) {
+    final d = <Map<String, dynamic>>[];
+    d.add({'insert': '${tr('cycle_report')} ${data['month'] ?? ''}\n', 'attributes': {'bold': true, 'size': 'large'}});
+    d.add({'insert': '\n'});
+    void addSection(String label, String? value) {
+      d.add({'insert': '$label: ', 'attributes': {'bold': true}});
+      d.add({'insert': '${value ?? '—'}\n'});
     }
+    void addListSection(String label, List<String> items) {
+      d.add({'insert': '$label: ', 'attributes': {'bold': true}});
+      d.add({'insert': items.isNotEmpty ? '${items.join(', ')}\n' : '—\n'});
+    }
+    addSection(tr('cycle_q_timing'), data['timing'] as String?);
+    addSection(tr('cycle_q_flow'), data['flow'] as String?);
+    addListSection(tr('cycle_q_symptoms'), (data['symptoms'] as List?)?.cast<String>() ?? []);
+    addSection(tr('cycle_q_energy'), data['energy'] as String?);
+    final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
+    final cravCustom = data['cravingsCustom'] as String? ?? '';
+    final allCravings = [...cravings, if (cravCustom.isNotEmpty) cravCustom];
+    addListSection(tr('cycle_q_cravings'), allCravings);
+    final sleep = data['sleep'] as String? ?? '';
+    final sleepCustom = data['sleepCustom'] as String? ?? '';
+    addSection(tr('cycle_q_sleep'), [sleep, if (sleepCustom.isNotEmpty) sleepCustom].where((s) => s.isNotEmpty).join(' — '));
+    final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
+    final emoCustom = data['emotionsCustom'] as String? ?? '';
+    final allEmo = [...emotions, if (emoCustom.isNotEmpty) emoCustom];
+    addListSection(tr('cycle_q_emotions'), allEmo);
+    d.add({'insert': '\n'});
+    d.add({'insert': '${tr('cycle_q_notes')}:\n', 'attributes': {'bold': true}});
+    d.add({'insert': '${(data['notes'] as String?)?.isNotEmpty == true ? data['notes'] : '—'}\n'});
+    return d;
   }
 
   Future<void> _loadWeather() async {
@@ -4425,6 +4531,8 @@ class _CalendarPageState extends State<CalendarPage> {
       firstDay: DateTime.utc(2000, 1, 1),
       lastDay: DateTime.utc(2100, 12, 31),
       focusedDay: _focusedDay,
+      locale: _appLocale,
+      startingDayOfWeek: StartingDayOfWeek.monday,
       calendarFormat: format,
       rowHeight: rowHeight ?? 52,
       sixWeekMonthsEnforced: _calSettings.showNextMonthPreview,
@@ -5022,6 +5130,74 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  Widget _buildCycleDiaryBanner(ColorScheme colorScheme) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Card(
+        elevation: 0,
+        color: Colors.red.shade50,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => CycleDiaryPage(
+                data: Map<String, dynamic>.from(_activeCycleDiary!),
+                onSave: (updatedData) async {
+                  await DatabaseHelper().saveCache('cycle_diary_active', json.encode(updatedData));
+                  if (mounted) setState(() => _activeCycleDiary = updatedData);
+                },
+                onComplete: (updatedData) async {
+                  await _saveCycleDiaryAsNote(updatedData);
+                  await DatabaseHelper().saveCache('cycle_diary_active', '');
+                  final pStart = updatedData['periodStart'] as String;
+                  await DatabaseHelper().saveCache('cycle_diary_done_$pStart', 'done');
+                  if (mounted) {
+                    setState(() => _activeCycleDiary = null);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(tr('cycle_report_saved')),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ));
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.edit_note, color: Colors.red, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('cycle_report_fill'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.red)),
+                      const SizedBox(height: 2),
+                      Text(tr('cycle_report_fill_sub'), style: TextStyle(fontSize: 12, color: Colors.red.shade300)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Colors.red.shade300),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSplitLayout(ColorScheme colorScheme) {
     final eventsForSelectedDay = _selectedDay != null
         ? _getEventsForDay(_selectedDay!)
@@ -5095,6 +5271,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
         ),
         const SizedBox.shrink(),
+        if (_activeCycleDiary != null) _buildCycleDiaryBanner(colorScheme),
         const SizedBox(height: 8),
         if (_selectedDay != null) ...[
           Expanded(
@@ -5543,6 +5720,7 @@ class _CalendarPageState extends State<CalendarPage> {
       children: [
         Column(
           children: [
+            if (_activeCycleDiary != null) _buildCycleDiaryBanner(colorScheme),
             Expanded(
               child: isWeek
                   ? _buildCustomWeekView(colorScheme)
@@ -5555,7 +5733,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         } else {
                           final first = DateTime(_focusedDay.year, _focusedDay.month, 1);
                           final daysInMonth = DateTime(_focusedDay.year, _focusedDay.month + 1, 0).day;
-                          final firstWeekday = first.weekday % 7; // Sunday=0
+                          final firstWeekday = first.weekday - 1; // Monday=0
                           displayRows = ((firstWeekday + daysInMonth) / 7).ceil();
                         }
                         // Header ~56, day-of-week row ~28 = ~84 total chrome
@@ -7520,6 +7698,366 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─── Cycle Diary Interactive Questionnaire ────────────────────────────────────
+
+class CycleDiaryPage extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final Future<void> Function(Map<String, dynamic>) onSave;
+  final Future<void> Function(Map<String, dynamic>) onComplete;
+
+  const CycleDiaryPage({super.key, required this.data, required this.onSave, required this.onComplete});
+
+  @override
+  State<CycleDiaryPage> createState() => _CycleDiaryPageState();
+}
+
+class _CycleDiaryPageState extends State<CycleDiaryPage> {
+  late String? _timing;
+  late String? _flow;
+  late Set<String> _symptoms;
+  late String? _energy;
+  late Set<String> _cravings;
+  late TextEditingController _cravingsCustomCtrl;
+  late String? _sleep;
+  late TextEditingController _sleepCustomCtrl;
+  late Set<String> _emotions;
+  late TextEditingController _emotionsCustomCtrl;
+  late TextEditingController _notesCtrl;
+
+  static const _symptomOptions = [
+    'Crampi addominali',
+    'Mal di testa',
+    'Mal di schiena',
+    'Gonfiore',
+    'Stanchezza',
+    'Nausea',
+    'Acne',
+    'Dolore al seno',
+    'Sbalzi d\'umore',
+    'Vertigini',
+  ];
+
+  static const _cravingOptions = [
+    'Dolce', 'Salato', 'Cioccolato', 'Verdure', 'Carne', 'Carboidrati', 'Frutta',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _timing = widget.data['timing'] as String?;
+    _flow = widget.data['flow'] as String?;
+    _symptoms = Set<String>.from((widget.data['symptoms'] as List?)?.cast<String>() ?? []);
+    _energy = widget.data['energy'] as String?;
+    _cravings = Set<String>.from((widget.data['cravings'] as List?)?.cast<String>() ?? []);
+    _cravingsCustomCtrl = TextEditingController(text: widget.data['cravingsCustom'] as String? ?? '');
+    _sleep = widget.data['sleep'] as String?;
+    _sleepCustomCtrl = TextEditingController(text: widget.data['sleepCustom'] as String? ?? '');
+    _emotions = Set<String>.from((widget.data['emotions'] as List?)?.cast<String>() ?? []);
+    _emotionsCustomCtrl = TextEditingController(text: widget.data['emotionsCustom'] as String? ?? '');
+    _notesCtrl = TextEditingController(text: widget.data['notes'] as String? ?? '');
+  }
+
+  @override
+  void dispose() {
+    _cravingsCustomCtrl.dispose();
+    _sleepCustomCtrl.dispose();
+    _emotionsCustomCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  Map<String, dynamic> _collectData() {
+    final data = Map<String, dynamic>.from(widget.data);
+    data['timing'] = _timing;
+    data['flow'] = _flow;
+    data['symptoms'] = _symptoms.toList();
+    data['energy'] = _energy;
+    data['cravings'] = _cravings.toList();
+    data['cravingsCustom'] = _cravingsCustomCtrl.text;
+    data['sleep'] = _sleep;
+    data['sleepCustom'] = _sleepCustomCtrl.text;
+    data['emotions'] = _emotions.toList();
+    data['emotionsCustom'] = _emotionsCustomCtrl.text;
+    data['notes'] = _notesCtrl.text;
+    return data;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final month = widget.data['month'] as String? ?? '';
+
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) widget.onSave(_collectData());
+      },
+      child: Scaffold(
+      appBar: AppBar(
+        title: Text('${tr('cycle_report')} $month', style: const TextStyle(fontWeight: FontWeight.bold)),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await widget.onComplete(_collectData());
+              if (mounted) Navigator.pop(context);
+            },
+            icon: const Icon(Icons.check, size: 18),
+            label: Text(tr('save')),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        children: [
+          // 1. Timing
+          _buildSectionCard(
+            number: '1',
+            title: tr('cycle_q_timing'),
+            child: _buildSingleChoice(
+              options: [tr('cycle_q_timing_early'), tr('cycle_q_timing_ontime'), tr('cycle_q_timing_late')],
+              selected: _timing,
+              onChanged: (v) => setState(() => _timing = v),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 2. Flow
+          _buildSectionCard(
+            number: '2',
+            title: tr('cycle_q_flow'),
+            child: _buildSingleChoice(
+              options: [tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')],
+              selected: _flow,
+              onChanged: (v) => setState(() => _flow = v),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 3. Symptoms
+          _buildSectionCard(
+            number: '3',
+            title: tr('cycle_q_symptoms'),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: _symptomOptions.map((s) => FilterChip(
+                label: Text(s, style: const TextStyle(fontSize: 13)),
+                selected: _symptoms.contains(s),
+                selectedColor: Colors.red.withValues(alpha: 0.15),
+                checkmarkColor: Colors.red,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                onSelected: (v) => setState(() => v ? _symptoms.add(s) : _symptoms.remove(s)),
+              )).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 4. Energy
+          _buildSectionCard(
+            number: '4',
+            title: tr('cycle_q_energy'),
+            child: _buildSingleChoice(
+              options: [tr('cycle_q_energy_low'), tr('cycle_q_energy_normal'), tr('cycle_q_energy_high')],
+              selected: _energy,
+              onChanged: (v) => setState(() => _energy = v),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 5. Cravings
+          _buildSectionCard(
+            number: '5',
+            title: tr('cycle_q_cravings'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: _cravingOptions.map((c) => FilterChip(
+                    label: Text(c, style: const TextStyle(fontSize: 13)),
+                    selected: _cravings.contains(c),
+                    selectedColor: Colors.red.withValues(alpha: 0.15),
+                    checkmarkColor: Colors.red,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    onSelected: (v) => setState(() => v ? _cravings.add(c) : _cravings.remove(c)),
+                  )).toList(),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _cravingsCustomCtrl,
+                  decoration: InputDecoration(
+                    hintText: tr('cycle_q_cravings_other'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: colorScheme.surfaceContainerLowest,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 6. Sleep
+          _buildSectionCard(
+            number: '6',
+            title: tr('cycle_q_sleep'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSingleChoice(
+                  options: [tr('cycle_q_sleep_normal'), tr('cycle_q_sleep_deep'), tr('cycle_q_sleep_restless'), tr('cycle_q_sleep_insomnia')],
+                  selected: _sleep,
+                  onChanged: (v) => setState(() => _sleep = v),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _sleepCustomCtrl,
+                  decoration: InputDecoration(
+                    hintText: tr('cycle_q_cravings_other'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: colorScheme.surfaceContainerLowest,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 7. Emotions
+          _buildSectionCard(
+            number: '7',
+            title: tr('cycle_q_emotions'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    tr('cycle_q_emotions_calm'),
+                    tr('cycle_q_emotions_irritable'),
+                    tr('cycle_q_emotions_sensitive'),
+                    tr('cycle_q_emotions_sad'),
+                  ].map((e) => FilterChip(
+                    label: Text(e, style: const TextStyle(fontSize: 13)),
+                    selected: _emotions.contains(e),
+                    selectedColor: Colors.red.withValues(alpha: 0.15),
+                    checkmarkColor: Colors.red,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    onSelected: (v) => setState(() => v ? _emotions.add(e) : _emotions.remove(e)),
+                  )).toList(),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _emotionsCustomCtrl,
+                  decoration: InputDecoration(
+                    hintText: tr('cycle_q_cravings_other'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: colorScheme.surfaceContainerLowest,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 8. Notes
+          _buildSectionCard(
+            number: '8',
+            title: tr('cycle_q_notes'),
+            child: TextField(
+              controller: _notesCtrl,
+              maxLines: 5,
+              decoration: InputDecoration(
+                hintText: tr('cycle_q_notes_hint'),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: colorScheme.surfaceContainerLowest,
+                contentPadding: const EdgeInsets.all(14),
+              ),
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await widget.onComplete(_collectData());
+          if (mounted) Navigator.pop(context);
+        },
+        backgroundColor: Colors.red,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.check),
+        label: Text(tr('save')),
+      ),
+    ),
+    );
+  }
+
+  Widget _buildSectionCard({required String number, required String title, required Widget child}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(child: Text(number, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red))),
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15))),
+              ],
+            ),
+            const SizedBox(height: 14),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSingleChoice({required List<String> options, required String? selected, required ValueChanged<String> onChanged}) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      children: options.map((opt) {
+        final isSelected = selected == opt;
+        return ChoiceChip(
+          label: Text(opt, style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
+          selected: isSelected,
+          selectedColor: Colors.red.withValues(alpha: 0.15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          showCheckmark: false,
+          onSelected: (_) => onChanged(opt),
+        );
+      }).toList(),
     );
   }
 }
@@ -15345,6 +15883,7 @@ class _NotesProPageState extends State<NotesProPage> {
     if (_selectedFolder == tr('all_items')) {
       notes = _proNotes.where((n) {
         if (n.folder == tr('private_folder')) return false;
+        if (n.folder == 'Diario del Ciclo') return false;
         final fs = _folders[n.folder];
         if (fs != null && fs.isPrivate) return false;
         return true;
