@@ -262,6 +262,12 @@ const _translations = <String, Map<String, String>>{
   'fertile_window': {'it': 'Finestra fertile', 'en': 'Fertile window', 'fr': 'Fenêtre de fertilité', 'es': 'Ventana fértil'},
   'predicted_period': {'it': 'Ciclo previsto', 'en': 'Predicted period', 'fr': 'Règles prévues', 'es': 'Periodo previsto'},
   'ovulation_day': {'it': 'Giorno ovulazione', 'en': 'Ovulation day', 'fr': 'Jour d\'ovulation', 'es': 'Día de ovulación'},
+  'cycle_duration_days': {'it': 'Durata media del flusso', 'en': 'Average flow duration', 'fr': 'Durée moyenne du flux', 'es': 'Duración media del flujo'},
+  'cycle_reminder': {'it': 'Promemoria giorno prima', 'en': 'Reminder day before', 'fr': 'Rappel la veille', 'es': 'Recordatorio el día antes'},
+  'cycle_reminder_sub': {'it': 'Notifica il giorno prima del ciclo previsto', 'en': 'Notification the day before the predicted period', 'fr': 'Notification la veille des règles prévues', 'es': 'Notificación el día antes del periodo previsto'},
+  'next_cycle_predicted': {'it': 'Prossimo ciclo previsto', 'en': 'Next predicted period', 'fr': 'Prochaines règles prévues', 'es': 'Próximo periodo previsto'},
+  'cycle_diary_created': {'it': 'Diario del ciclo creato automaticamente', 'en': 'Cycle diary created automatically', 'fr': 'Journal du cycle créé automatiquement', 'es': 'Diario del ciclo creado automáticamente'},
+  'no_cycle_data': {'it': 'Segna i giorni del ciclo nel calendario per attivare le previsioni', 'en': 'Mark period days on the calendar to enable predictions', 'fr': 'Marquez les jours de règles sur le calendrier pour activer les prévisions', 'es': 'Marca los días del periodo en el calendario para activar las predicciones'},
 
   // ── Deep Note ──
   'new_note': {'it': 'Nuova nota', 'en': 'New note', 'fr': 'Nouvelle note', 'es': 'Nueva nota'},
@@ -1144,7 +1150,7 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -1167,6 +1173,9 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE user_profile ADD COLUMN lock_deep_note INTEGER DEFAULT 0');
       await db.execute('ALTER TABLE user_profile ADD COLUMN lock_flash_notes INTEGER DEFAULT 0');
     }
+    if (oldVersion < 6) {
+      await db.execute('ALTER TABLE pro_notes ADD COLUMN image_base64 TEXT');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -1176,7 +1185,8 @@ class DatabaseHelper {
         title TEXT NOT NULL, content TEXT NOT NULL, content_delta TEXT,
         header_text TEXT, footer_text TEXT, template_preset TEXT,
         folder TEXT NOT NULL DEFAULT 'Generale',
-        linked_date INTEGER, created_at INTEGER NOT NULL
+        linked_date INTEGER, created_at INTEGER NOT NULL,
+        image_base64 TEXT
       )
     ''');
     await db.execute('CREATE INDEX idx_pro_notes_folder ON pro_notes(folder)');
@@ -1243,7 +1253,7 @@ class DatabaseHelper {
   // ── Pro Notes CRUD ──
 
   Future<int> insertProNote(ProNote note) async {
-    if (_webMode) { final id = _nextId(); _wProNotes.insert(0, ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, createdAt: note.createdAt)); return id; }
+    if (_webMode) { final id = _nextId(); _wProNotes.insert(0, ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, createdAt: note.createdAt)); return id; }
     final db = await database;
     return await db.insert('pro_notes', note.toDbMap());
   }
@@ -1256,7 +1266,7 @@ class DatabaseHelper {
   }
 
   Future<int> updateProNote(int id, ProNote note) async {
-    if (_webMode) { final i = _wProNotes.indexWhere((n) => n.id == id); if (i >= 0) _wProNotes[i] = ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, createdAt: note.createdAt); return 1; }
+    if (_webMode) { final i = _wProNotes.indexWhere((n) => n.id == id); if (i >= 0) _wProNotes[i] = ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, createdAt: note.createdAt); return 1; }
     final db = await database;
     return await db.update('pro_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
   }
@@ -3147,6 +3157,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   static const _shareChannel = MethodChannel('com.ethosnote.app/share');
   static const _deepLinkChannel = MethodChannel('com.ethosnote.app/deeplink');
   String? _pendingDeepLink;
+  DateTime? _lastDeepLinkTime;
   late final AnimationController _calIconController;
 
   @override
@@ -3199,6 +3210,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _handleDeepLink(String uri) {
+    // Throttle: ignore deep links arriving within 3 seconds of each other
+    final now = DateTime.now();
+    if (_lastDeepLinkTime != null && now.difference(_lastDeepLinkTime!).inSeconds < 3) return;
+    _lastDeepLinkTime = now;
     final parsed = Uri.tryParse(uri);
     if (parsed == null || parsed.scheme != 'ethosnote') return;
     final host = parsed.host;
@@ -3548,6 +3563,8 @@ class _CalendarPageState extends State<CalendarPage> {
       _cycleDays = days;
       _cycleDaysIntensity = intensityMap;
     });
+    _scheduleCycleReminder();
+    _checkAndCreateCycleDiary();
   }
 
   Future<void> _loadCompletedGoogleEventIds() async {
@@ -3587,6 +3604,7 @@ class _CalendarPageState extends State<CalendarPage> {
     if (adding && HealthService.isAuthorized) {
       HealthService.writeMenstruationFlow(day);
     }
+    _scheduleCycleReminder();
   }
 
   Future<void> _setCycleDayIntensity(DateTime day, String intensity) async {
@@ -3662,25 +3680,70 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  bool _isPredictedCycleDay(DateTime day) {
-    if (!_calSettings.showCycleTracking || _cycleDays.isEmpty) return false;
-    final period = _calSettings.cyclePeriodDays;
-    final today = DateTime.now();
-    // Find the most recent cycle day
-    DateTime? lastCycleStart;
+  /// Groups cycle days into consecutive periods (gap ≤ 1 day).
+  /// Returns list of (start, end) sorted chronologically.
+  List<(DateTime, DateTime)> _findCyclePeriods() {
+    if (_cycleDays.isEmpty) return [];
+    final dates = <DateTime>[];
     for (final k in _cycleDays) {
       final parts = k.split('-');
       if (parts.length == 3) {
-        final d = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
-        if (lastCycleStart == null || d.isAfter(lastCycleStart)) lastCycleStart = d;
+        dates.add(DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2])));
       }
     }
-    if (lastCycleStart == null) return false;
-    final daysSinceLast = day.difference(lastCycleStart).inDays;
-    if (daysSinceLast <= 0) return false;
-    // Predict next ~5 days of cycle starting at each period multiple
-    final remainder = daysSinceLast % period;
-    return remainder >= 0 && remainder < 5 && day.isAfter(today.subtract(const Duration(days: 1)));
+    if (dates.isEmpty) return [];
+    dates.sort();
+    final periods = <(DateTime, DateTime)>[];
+    var start = dates.first;
+    var end = dates.first;
+    for (int i = 1; i < dates.length; i++) {
+      if (dates[i].difference(end).inDays <= 1) {
+        end = dates[i];
+      } else {
+        periods.add((start, end));
+        start = dates[i];
+        end = dates[i];
+      }
+    }
+    periods.add((start, end));
+    return periods;
+  }
+
+  /// Calculates the next predicted cycle start date.
+  /// Returns null if not enough data.
+  DateTime? _getNextPredictedCycleStart() {
+    final periods = _findCyclePeriods();
+    if (periods.isEmpty) return null;
+    final lastStart = periods.last.$1;
+    final cyclePeriod = _calSettings.cyclePeriodDays;
+    final now = DateTime.now();
+    final todayNorm = DateTime(now.year, now.month, now.day);
+    // Find the next predicted start that is today or in the future
+    var predicted = lastStart.add(Duration(days: cyclePeriod));
+    // If predicted is in the past, advance by full cycles
+    while (predicted.isBefore(todayNorm)) {
+      predicted = predicted.add(Duration(days: cyclePeriod));
+    }
+    return predicted;
+  }
+
+  bool _isPredictedCycleDay(DateTime day) {
+    if (!_calSettings.showCycleTracking || _cycleDays.isEmpty) return false;
+    // Don't predict days that are already marked
+    if (_isCycleDay(day)) return false;
+    final periods = _findCyclePeriods();
+    if (periods.isEmpty) return false;
+    final lastStart = periods.last.$1;
+    final cyclePeriod = _calSettings.cyclePeriodDays;
+    final duration = _calSettings.cycleDurationDays;
+    final dayNorm = DateTime(day.year, day.month, day.day);
+    // Predict the next 3 cycles
+    for (int c = 1; c <= 3; c++) {
+      final predictedStart = lastStart.add(Duration(days: cyclePeriod * c));
+      final diff = dayNorm.difference(predictedStart).inDays;
+      if (diff >= 0 && diff < duration) return true;
+    }
+    return false;
   }
 
   Future<void> _initGoogleCalendar() async {
@@ -3771,16 +3834,16 @@ class _CalendarPageState extends State<CalendarPage> {
     final String label;
     switch (intensity) {
       case 'light':
-        progress = 0.33;
+        progress = 0.25;
         label = 'Leggero';
       case 'heavy':
-        progress = 1.0;
+        progress = 0.75;
         label = 'Forte';
       case 'very_heavy':
         progress = 1.0;
         label = 'Molto forte';
       default:
-        progress = 0.66;
+        progress = 0.50;
         label = 'Medio';
     }
     return Padding(
@@ -3816,6 +3879,87 @@ class _CalendarPageState extends State<CalendarPage> {
     });
     if (settings.showWeather && settings.weatherCity != null && settings.weatherCity!.isNotEmpty) {
       _loadWeather();
+    }
+    _scheduleCycleReminder();
+  }
+
+  void _scheduleCycleReminder() {
+    if (!_calSettings.showCycleTracking || !_calSettings.cycleReminder) {
+      NotificationService.cancelCycleReminder();
+      return;
+    }
+    final nextStart = _getNextPredictedCycleStart();
+    if (nextStart == null) {
+      NotificationService.cancelCycleReminder();
+      return;
+    }
+    final alertType = _calSettings.alertConfig.alertType;
+    NotificationService.scheduleCycleReminder(nextStart, alertType: alertType);
+  }
+
+  Future<void> _checkAndCreateCycleDiary() async {
+    if (!_calSettings.showCycleTracking) return;
+    final periods = _findCyclePeriods();
+    if (periods.isEmpty) return;
+    final now = DateTime.now();
+    final todayNorm = DateTime(now.year, now.month, now.day);
+    // Only check the last completed period (end ≥ 2 days ago)
+    final (start, end) = periods.last;
+    final daysSinceEnd = todayNorm.difference(end).inDays;
+    if (daysSinceEnd < 2) return; // period not yet completed or too recent
+    final cacheKey = 'cycle_diary_${start.year}-${start.month}-${start.day}';
+    final existing = await DatabaseHelper().getCache(cacheKey);
+    if (existing != null) return; // diary already created
+    // Ensure "Diario del Ciclo" folder exists
+    final folders = <String, FolderStyle>{'Generale': const FolderStyle(Icons.folder, Colors.blue)};
+    final customFolders = await DatabaseHelper().getAllFolders();
+    folders.addAll(customFolders);
+    const folderName = 'Diario del Ciclo';
+    if (!folders.containsKey(folderName)) {
+      customFolders[folderName] = const FolderStyle(Icons.water_drop, Colors.red, isCustom: true);
+      await DatabaseHelper().saveAllFolders(customFolders);
+    }
+    // Build diary content
+    final durationDays = end.difference(start).inDays + 1;
+    final startStr = '${start.day.toString().padLeft(2, '0')}/${start.month.toString().padLeft(2, '0')}';
+    final endStr = '${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')}';
+    final title = 'Ciclo $startStr - $endStr';
+    final contentDelta = json.encode([
+      {'insert': 'Diario del Ciclo\n', 'attributes': {'bold': true, 'size': 'large'}},
+      {'insert': '\n'},
+      {'insert': 'Periodo: $startStr - $endStr\n'},
+      {'insert': 'Durata: $durationDays giorni\n'},
+      {'insert': '\n'},
+      {'insert': 'Come ti sei sentita durante il ciclo?\n', 'attributes': {'bold': true}},
+      {'insert': '...\n\n'},
+      {'insert': 'Livello di dolore (1-10):\n', 'attributes': {'bold': true}},
+      {'insert': '...\n\n'},
+      {'insert': 'Sintomi:\n', 'attributes': {'bold': true}},
+      {'insert': '☐ Crampi\n☐ Mal di testa\n☐ Stanchezza\n☐ Gonfiore\n☐ Sbalzi d\'umore\n☐ Mal di schiena\n\n'},
+      {'insert': 'Flusso prevalente:\n', 'attributes': {'bold': true}},
+      {'insert': '...\n\n'},
+      {'insert': 'Note aggiuntive:\n', 'attributes': {'bold': true}},
+      {'insert': '...\n'},
+    ]);
+    final plainContent = 'Diario del Ciclo\nPeriodo: $startStr - $endStr\nDurata: $durationDays giorni';
+    final note = ProNote(
+      title: title,
+      content: plainContent,
+      contentDelta: contentDelta,
+      folder: folderName,
+      createdAt: DateTime.now(),
+    );
+    await DatabaseHelper().insertProNote(note);
+    await DatabaseHelper().saveCache(cacheKey, 'created');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('cycle_diary_created')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -6072,19 +6216,19 @@ class NotificationService {
     final bool enableVibration;
     switch (alertType) {
       case 'sound':
-        channelId = 'event_sound';
+        channelId = 'event_sound_v2';
         channelName = 'Promemoria (suono)';
         playSound = true;
         enableVibration = false;
         break;
       case 'vibration':
-        channelId = 'event_vibration';
+        channelId = 'event_vibration_v2';
         channelName = 'Promemoria (vibrazione)';
         playSound = false;
         enableVibration = true;
         break;
       default: // 'sound_vibration'
-        channelId = 'event_both';
+        channelId = 'event_both_v2';
         channelName = 'Promemoria (suono + vibrazione)';
         playSound = true;
         enableVibration = true;
@@ -6170,6 +6314,51 @@ class NotificationService {
     }
   }
 
+  /// Schedule a cycle reminder notification at 09:00 the day before predictedStart.
+  static Future<void> scheduleCycleReminder(DateTime predictedStart, {String alertType = 'sound_vibration'}) async {
+    if (kIsWeb || !_initialized) return;
+    await ensurePermissions();
+    if (!_permissionsGranted) return;
+    final reminderTime = DateTime(predictedStart.year, predictedStart.month, predictedStart.day, 9, 0).subtract(const Duration(days: 1));
+    if (reminderTime.isBefore(DateTime.now())) return;
+    final tzScheduled = tz.TZDateTime.from(reminderTime, tz.local);
+    final details = _buildNotifDetails(alertType);
+    const id = 999888;
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        'Promemoria Ciclo',
+        'Il ciclo è previsto per domani',
+        tzScheduled,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'cycle_reminder',
+      );
+      debugPrint('NotificationService: scheduled cycle reminder for $tzScheduled');
+    } catch (e) {
+      debugPrint('NotificationService cycle reminder error: $e');
+      try {
+        await _plugin.zonedSchedule(
+          id,
+          'Promemoria Ciclo',
+          'Il ciclo è previsto per domani',
+          tzScheduled,
+          details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+          payload: 'cycle_reminder',
+        );
+      } catch (_) {}
+    }
+  }
+
+  /// Cancel the cycle reminder notification.
+  static Future<void> cancelCycleReminder() async {
+    if (kIsWeb || !_initialized) return;
+    await _plugin.cancel(999888);
+  }
+
   static Future<void> cancelReminder(int id) async {
     if (kIsWeb || !_initialized) return;
     await _plugin.cancel(id);
@@ -6240,6 +6429,8 @@ class CalendarSettings {
   // Cycle tracking (private)
   final bool showCycleTracking;
   final int cyclePeriodDays; // default 28
+  final int cycleDurationDays; // average flow duration in days (default 5, range 2-10)
+  final bool cycleReminder; // auto-reminder the day before predicted start
 
   // Religion (for holidays)
   final bool showHolidays;
@@ -6268,6 +6459,8 @@ class CalendarSettings {
     this.calendarViewMode = 'month',
     this.showCycleTracking = false,
     this.cyclePeriodDays = 28,
+    this.cycleDurationDays = 5,
+    this.cycleReminder = true,
     this.showHolidays = true,
     this.religione = 'Cattolica',
   });
@@ -6300,6 +6493,8 @@ class CalendarSettings {
     String? calendarViewMode,
     bool? showCycleTracking,
     int? cyclePeriodDays,
+    int? cycleDurationDays,
+    bool? cycleReminder,
     bool? showHolidays,
     String? religione,
   }) {
@@ -6326,6 +6521,8 @@ class CalendarSettings {
       calendarViewMode: calendarViewMode ?? this.calendarViewMode,
       showCycleTracking: showCycleTracking ?? this.showCycleTracking,
       cyclePeriodDays: cyclePeriodDays ?? this.cyclePeriodDays,
+      cycleDurationDays: cycleDurationDays ?? this.cycleDurationDays,
+      cycleReminder: cycleReminder ?? this.cycleReminder,
       showHolidays: showHolidays ?? this.showHolidays,
       religione: religione ?? this.religione,
     );
@@ -6354,6 +6551,8 @@ class CalendarSettings {
     'calendarViewMode': calendarViewMode,
     'showCycleTracking': showCycleTracking,
     'cyclePeriodDays': cyclePeriodDays,
+    'cycleDurationDays': cycleDurationDays,
+    'cycleReminder': cycleReminder,
     'showHolidays': showHolidays,
     'religione': religione,
   };
@@ -6387,6 +6586,8 @@ class CalendarSettings {
         calendarViewMode: json['calendarViewMode'] ?? 'month',
         showCycleTracking: json['showCycleTracking'] ?? false,
         cyclePeriodDays: json['cyclePeriodDays'] ?? 28,
+        cycleDurationDays: json['cycleDurationDays'] ?? 5,
+        cycleReminder: json['cycleReminder'] ?? true,
         showHolidays: json['showHolidays'] ?? true,
         religione: json['religione'] ?? tr('catholic'),
       );
@@ -6426,6 +6627,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   List<WeatherCityResult> _citySuggestions = [];
   bool _isSearchingCity = false;
   Timer? _citySearchDebounce;
+  DateTime? _nextPredictedCycleStart;
 
   static final _availableAlertMinutes = <int, String>{
     5: tr('5_min_before'),
@@ -6451,6 +6653,47 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     super.initState();
     _settings = widget.settings;
     _weatherCityController = TextEditingController(text: _settings.weatherCity ?? '');
+    _loadCyclePrediction();
+  }
+
+  Future<void> _loadCyclePrediction() async {
+    if (!_settings.showCycleTracking) return;
+    final days = await DatabaseHelper().getCycleDays();
+    if (days.isEmpty || !mounted) return;
+    // Parse dates and find periods
+    final dates = <DateTime>[];
+    for (final k in days) {
+      final parts = k.split('-');
+      if (parts.length == 3) {
+        dates.add(DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2])));
+      }
+    }
+    if (dates.isEmpty) return;
+    dates.sort();
+    // Group into periods (gap ≤ 1 day)
+    var start = dates.first;
+    var end = dates.first;
+    DateTime? lastPeriodStart;
+    for (int i = 1; i < dates.length; i++) {
+      if (dates[i].difference(end).inDays <= 1) {
+        end = dates[i];
+      } else {
+        lastPeriodStart = start;
+        start = dates[i];
+        end = dates[i];
+      }
+    }
+    lastPeriodStart = start; // last period's start
+    final cyclePeriod = _settings.cyclePeriodDays;
+    final now = DateTime.now();
+    final todayNorm = DateTime(now.year, now.month, now.day);
+    var predicted = lastPeriodStart.add(Duration(days: cyclePeriod));
+    while (predicted.isBefore(todayNorm)) {
+      predicted = predicted.add(Duration(days: cyclePeriod));
+    }
+    if (mounted) {
+      setState(() => _nextPredictedCycleStart = predicted);
+    }
   }
 
   @override
@@ -7112,6 +7355,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   }
 
   Widget _buildCycleTrackingSettingsCard() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -7129,6 +7373,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               secondary: const Icon(Icons.water_drop, color: Colors.red),
               onChanged: (v) {
                 _updateSettings(_settings.copyWith(showCycleTracking: v));
+                if (v) _loadCyclePrediction();
               },
             ),
             if (_settings.showCycleTracking) ...[
@@ -7146,6 +7391,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   activeColor: Colors.red,
                   onChanged: (v) {
                     _updateSettings(_settings.copyWith(cyclePeriodDays: v.round()));
+                    _loadCyclePrediction();
                   },
                 ),
                 trailing: Text(
@@ -7153,16 +7399,94 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
                 ),
               ),
+              const Divider(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.water_drop_outlined, color: Colors.red),
+                title: Text(tr('cycle_duration_days')),
+                subtitle: Slider(
+                  value: _settings.cycleDurationDays.toDouble(),
+                  min: 2,
+                  max: 10,
+                  divisions: 8,
+                  label: '${_settings.cycleDurationDays} ${tr('days')}',
+                  activeColor: Colors.red,
+                  onChanged: (v) {
+                    _updateSettings(_settings.copyWith(cycleDurationDays: v.round()));
+                  },
+                ),
+                trailing: Text(
+                  '${_settings.cycleDurationDays}',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
+                ),
+              ),
+              const Divider(),
+              SwitchListTile(
+                title: Text(tr('cycle_reminder')),
+                subtitle: Text(tr('cycle_reminder_sub'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                value: _settings.cycleReminder,
+                activeColor: Colors.red,
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.notifications_outlined, color: Colors.red),
+                onChanged: (v) {
+                  _updateSettings(_settings.copyWith(cycleReminder: v));
+                },
+              ),
+              const Divider(),
+              // Prediction card
+              if (_nextPredictedCycleStart != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.event, color: Colors.red, size: 20),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(tr('next_cycle_predicted'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_nextPredictedCycleStart!.day.toString().padLeft(2, '0')}/${_nextPredictedCycleStart!.month.toString().padLeft(2, '0')}/${_nextPredictedCycleStart!.year}',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: colorScheme.onSurfaceVariant, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(tr('no_cycle_data'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))),
+                    ],
+                  ),
+                ),
             ],
+            const SizedBox(height: 8),
             const Divider(),
             Row(
               children: [
-                Icon(Icons.lock_outline, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                Icon(Icons.lock_outline, size: 16, color: colorScheme.onSurfaceVariant),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     tr('cycle_privacy'),
-                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                   ),
                 ),
               ],
@@ -11292,6 +11616,12 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   bool _hasChanges = false;
   String? _attachedImageBase64;
   String _prevText = '';
+  // Audio playback (for audio notes opened as text)
+  ap.AudioPlayer? _editorAudioPlayer;
+  bool _isPlayingAudio = false;
+  Duration _editorAudioPosition = Duration.zero;
+  Duration _editorAudioDuration = Duration.zero;
+  bool _imageExpanded = false;
 
   @override
   void initState() {
@@ -11310,6 +11640,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
 
   @override
   void dispose() {
+    _editorAudioPlayer?.dispose();
     _bodyController.removeListener(_handleListContinuation);
     _bodyController.dispose();
     _bodyFocusNode.dispose();
@@ -11448,6 +11779,13 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     } catch (_) {}
   }
 
+  String _formatDurationMs(int ms) {
+    final s = ms ~/ 1000;
+    final m = s ~/ 60;
+    final sec = s % 60;
+    return '${m.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -11519,6 +11857,126 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                       ),
                     ),
                   ),
+                // Audio player (for audio notes opened as text editor)
+                if (widget.existingNote?.audioPath != null && widget.existingNote!.audioPath!.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 16, 6),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: accentColor.withValues(alpha: 0.2)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () async {
+                                if (_isPlayingAudio) {
+                                  await _editorAudioPlayer?.pause();
+                                  if (mounted) setState(() => _isPlayingAudio = false);
+                                } else {
+                                  if (_editorAudioPlayer == null) {
+                                    _editorAudioPlayer = ap.AudioPlayer();
+                                    _editorAudioPlayer!.onPlayerComplete.listen((_) {
+                                      if (mounted) setState(() { _isPlayingAudio = false; _editorAudioPosition = Duration.zero; });
+                                    });
+                                    _editorAudioPlayer!.onPositionChanged.listen((p) {
+                                      if (mounted) setState(() => _editorAudioPosition = p);
+                                    });
+                                    _editorAudioPlayer!.onDurationChanged.listen((d) {
+                                      if (mounted) setState(() => _editorAudioDuration = d);
+                                    });
+                                  }
+                                  if (_editorAudioPosition > Duration.zero) {
+                                    await _editorAudioPlayer!.resume();
+                                  } else {
+                                    await _editorAudioPlayer!.play(ap.DeviceFileSource(widget.existingNote!.audioPath!));
+                                  }
+                                  if (mounted) setState(() => _isPlayingAudio = true);
+                                }
+                              },
+                              child: SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 44,
+                                      height: 44,
+                                      child: CircularProgressIndicator(
+                                        value: _editorAudioDuration.inMilliseconds > 0
+                                            ? (_editorAudioPosition.inMilliseconds / _editorAudioDuration.inMilliseconds).clamp(0.0, 1.0)
+                                            : 0.0,
+                                        strokeWidth: 2.5,
+                                        color: accentColor,
+                                        backgroundColor: accentColor.withValues(alpha: 0.15),
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: _isPlayingAudio ? accentColor : accentColor.withValues(alpha: 0.15),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        _isPlayingAudio ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                        color: _isPlayingAudio ? Colors.white : accentColor,
+                                        size: 22,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${_formatDurationMs(_editorAudioPosition.inMilliseconds)} / ${_formatDurationMs(_editorAudioDuration.inMilliseconds > 0 ? _editorAudioDuration.inMilliseconds : (widget.existingNote!.audioDurationMs ?? 0))}',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accentColor),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  SizedBox(
+                                    height: 16,
+                                    child: SliderTheme(
+                                      data: SliderThemeData(
+                                        trackHeight: 3,
+                                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                                        activeTrackColor: accentColor,
+                                        inactiveTrackColor: accentColor.withValues(alpha: 0.2),
+                                        thumbColor: accentColor,
+                                        overlayShape: SliderComponentShape.noOverlay,
+                                      ),
+                                      child: Slider(
+                                        value: _editorAudioDuration.inMilliseconds > 0
+                                            ? (_editorAudioPosition.inMilliseconds / _editorAudioDuration.inMilliseconds).clamp(0.0, 1.0)
+                                            : 0.0,
+                                        onChanged: (v) async {
+                                          if (_editorAudioDuration.inMilliseconds > 0) {
+                                            final newPos = Duration(milliseconds: (v * _editorAudioDuration.inMilliseconds).toInt());
+                                            await _editorAudioPlayer?.seek(newPos);
+                                            if (mounted) setState(() => _editorAudioPosition = newPos);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 // Attached image preview
                 if (_attachedImageBase64 != null) ...[
                   Stack(
@@ -11528,21 +11986,39 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                         borderRadius: BorderRadius.circular(12),
                         child: Image.memory(
                           base64Decode(_attachedImageBase64!),
-                          height: 160,
+                          height: _imageExpanded ? null : 160,
                           width: double.infinity,
-                          fit: BoxFit.cover,
+                          fit: _imageExpanded ? BoxFit.contain : BoxFit.cover,
                         ),
                       ),
                       Padding(
                         padding: const EdgeInsets.all(4),
-                        child: CircleAvatar(
-                          radius: 14,
-                          backgroundColor: Colors.black54,
-                          child: IconButton(
-                            icon: const Icon(Icons.close, size: 14, color: Colors.white),
-                            padding: EdgeInsets.zero,
-                            onPressed: () => setState(() => _attachedImageBase64 = null),
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: Colors.black54,
+                              child: IconButton(
+                                icon: Icon(
+                                  _imageExpanded ? Icons.close_fullscreen : Icons.open_in_full,
+                                  size: 14, color: Colors.white,
+                                ),
+                                padding: EdgeInsets.zero,
+                                onPressed: () => setState(() => _imageExpanded = !_imageExpanded),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: Colors.black54,
+                              child: IconButton(
+                                icon: const Icon(Icons.close, size: 14, color: Colors.white),
+                                padding: EdgeInsets.zero,
+                                onPressed: () => setState(() => _attachedImageBase64 = null),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -11707,9 +12183,15 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   // Audio playback
   ap.AudioPlayer? _audioPlayer;
   StreamSubscription? _playerSubscription;
+  StreamSubscription? _positionSub;
+  StreamSubscription? _durationSub;
   int? _playingNoteIndex;
+  Duration _audioPosition = Duration.zero;
+  Duration _audioDuration = Duration.zero;
   // AI availability
   bool _isAiAvailable = false;
+  // Guard: prevents double-opening audio sheet
+  bool _isAudioSheetOpen = false;
 
   @override
   void initState() {
@@ -11739,6 +12221,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   @override
   void dispose() {
     _playerSubscription?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
     _audioPlayer?.dispose();
     _controller.dispose();
     _searchController.dispose();
@@ -12190,6 +12674,89 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     );
   }
 
+  Future<void> _moveSelectedToDeepNote() async {
+    // Load folders
+    Map<String, FolderStyle> folders = {
+      'Generale': const FolderStyle(Icons.folder, Colors.blue),
+      tr('work'): const FolderStyle(Icons.work, Colors.orange),
+      tr('personal'): const FolderStyle(Icons.person, Colors.green),
+      'Flash Notes': const FolderStyle(Icons.flash_on, Color(0xFFFFA726)),
+      tr('private_folder'): const FolderStyle(Icons.lock, Color(0xFF7B1FA2)),
+    };
+    final customFolders = await DatabaseHelper().getAllFolders();
+    folders.addAll(customFolders);
+    if (!mounted) return;
+
+    String selectedFolder = 'Generale';
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text('Sposta in Deep Note'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: folders.length,
+              itemBuilder: (ctx, i) {
+                final name = folders.keys.elementAt(i);
+                final style = folders[name]!;
+                return RadioListTile<String>(
+                  value: name,
+                  groupValue: selectedFolder,
+                  onChanged: (v) => setDialogState(() => selectedFolder = v!),
+                  title: Text(name),
+                  secondary: style.buildIcon(size: 22),
+                  dense: true,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, selectedFolder),
+              child: Text('Sposta'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+
+    int count = 0;
+    for (final noteId in _selectedNoteIds) {
+      final note = _notes.firstWhere((n) => n.id == noteId, orElse: () => _notes.first);
+      final title = note.content.length > 40 ? note.content.substring(0, 40) : note.content;
+      final proNote = ProNote(
+        title: title,
+        content: note.content,
+        createdAt: note.createdAt,
+        folder: chosen,
+        imageBase64: note.imageBase64,
+      );
+      await DatabaseHelper().insertProNote(proNote);
+      await DatabaseHelper().deleteFlashNote(noteId);
+      count++;
+    }
+    if (!mounted) return;
+    setState(() {
+      _selectionMode = false;
+      _selectedNoteIds.clear();
+    });
+    await _loadNotes();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$count ${tr('notes')} spostate in "$chosen"'),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   void _showDeleteConfirmation(int index) {
     showDialog(
       context: context,
@@ -12635,10 +13202,6 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       _showAudioNoteViewer(note, originalIndex);
       return;
     }
-    if (note.isPhotoNote) {
-      _showPhotoNoteViewer(note);
-      return;
-    }
     final heroTag = 'flash_note_${note.createdAt.millisecondsSinceEpoch}';
     Navigator.push(
       context,
@@ -12652,37 +13215,6 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
             });
             _saveNotes();
           },
-        ),
-      ),
-    );
-  }
-
-  void _showPhotoNoteViewer(FlashNote note) {
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.memory(
-                base64Decode(note.imageBase64!),
-                fit: BoxFit.contain,
-              ),
-            ),
-            if (note.content.isNotEmpty && !note.content.startsWith('📷'))
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  note.content,
-                  style: TextStyle(color: Colors.white, fontSize: 15),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-          ],
         ),
       ),
     );
@@ -13093,14 +13625,15 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   },
                   child: Text(_selectedNoteIds.length == sortedNotes.length ? tr('deselect_all') : tr('select_all')),
                 ),
-                FilledButton.icon(
+                IconButton(
+                  onPressed: _selectedNoteIds.isEmpty ? null : () => _moveSelectedToDeepNote(),
+                  icon: const Icon(Icons.drive_file_move_rtl_outlined),
+                  tooltip: 'Sposta in Deep Note',
+                ),
+                IconButton(
                   onPressed: _selectedNoteIds.isEmpty ? null : () => _deleteSelectedNotes(),
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  label: Text(tr('delete')),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colorScheme.error,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
+                  icon: Icon(Icons.delete_outline, color: _selectedNoteIds.isEmpty ? null : colorScheme.error),
+                  tooltip: tr('delete'),
                 ),
               ],
             ),
@@ -13267,36 +13800,83 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                   const SizedBox(height: 6),
                                   Expanded(
                                     child: note.isAudioNote
-                                      ? Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            GestureDetector(
-                                              onTap: () => _playAudioNote(originalIndex, note.audioPath!),
-                                              child: Container(
-                                                width: 56,
-                                                height: 56,
-                                                decoration: BoxDecoration(
-                                                  color: _playingNoteIndex == originalIndex
-                                                      ? accentColor
-                                                      : accentColor.withValues(alpha: 0.12),
-                                                  shape: BoxShape.circle,
-                                                  boxShadow: _playingNoteIndex == originalIndex
-                                                      ? [BoxShadow(color: accentColor.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 3))]
-                                                      : null,
-                                                ),
-                                                child: Icon(
-                                                  _playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                                                  color: _playingNoteIndex == originalIndex ? Colors.white : accentColor,
-                                                  size: 30,
+                                      ? Center(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              GestureDetector(
+                                                onTap: () => _playAudioNote(originalIndex, note.audioPath!),
+                                                child: SizedBox(
+                                                  width: 60,
+                                                  height: 60,
+                                                  child: Stack(
+                                                    alignment: Alignment.center,
+                                                    children: [
+                                                      if (_playingNoteIndex == originalIndex)
+                                                        SizedBox(
+                                                          width: 60,
+                                                          height: 60,
+                                                          child: CircularProgressIndicator(
+                                                            value: _audioDuration.inMilliseconds > 0
+                                                                ? (_audioPosition.inMilliseconds / _audioDuration.inMilliseconds).clamp(0.0, 1.0)
+                                                                : 0.0,
+                                                            strokeWidth: 3,
+                                                            color: accentColor,
+                                                            backgroundColor: accentColor.withValues(alpha: 0.15),
+                                                          ),
+                                                        ),
+                                                      Container(
+                                                        width: 52,
+                                                        height: 52,
+                                                        decoration: BoxDecoration(
+                                                          color: _playingNoteIndex == originalIndex
+                                                              ? accentColor
+                                                              : accentColor.withValues(alpha: 0.12),
+                                                          shape: BoxShape.circle,
+                                                        ),
+                                                        child: Icon(
+                                                          _playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                                                          color: _playingNoteIndex == originalIndex ? Colors.white : accentColor,
+                                                          size: 28,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              _formatAudioDuration((note.audioDurationMs ?? 0) ~/ 1000),
-                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accentColor),
-                                            ),
-                                          ],
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                _playingNoteIndex == originalIndex
+                                                    ? _formatAudioDuration(_audioPosition.inSeconds)
+                                                    : _formatAudioDuration((note.audioDurationMs ?? 0) ~/ 1000),
+                                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accentColor),
+                                              ),
+                                              if (_playingNoteIndex == originalIndex) ...[
+                                                const SizedBox(height: 2),
+                                                SizedBox(
+                                                  width: 80,
+                                                  height: 16,
+                                                  child: SliderTheme(
+                                                    data: SliderThemeData(
+                                                      trackHeight: 2,
+                                                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 4),
+                                                      activeTrackColor: accentColor,
+                                                      inactiveTrackColor: accentColor.withValues(alpha: 0.2),
+                                                      thumbColor: accentColor,
+                                                      overlayShape: SliderComponentShape.noOverlay,
+                                                    ),
+                                                    child: Slider(
+                                                      value: _audioDuration.inMilliseconds > 0
+                                                          ? (_audioPosition.inMilliseconds / _audioDuration.inMilliseconds).clamp(0.0, 1.0)
+                                                          : 0.0,
+                                                      onChanged: _seekAudio,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
                                         )
                                       : note.isPhotoNote
                                         ? ClipRRect(
@@ -13431,19 +14011,41 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                     if (note.isAudioNote)
                                       GestureDetector(
                                         onTap: () => _playAudioNote(originalIndex, note.audioPath!),
-                                        child: Container(
-                                          width: 44,
-                                          height: 44,
-                                          decoration: BoxDecoration(
-                                            color: _playingNoteIndex == originalIndex
-                                                ? accentColor
-                                                : accentColor.withValues(alpha: 0.12),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            _playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                                            color: _playingNoteIndex == originalIndex ? Colors.white : accentColor,
-                                            size: 26,
+                                        child: SizedBox(
+                                          width: 48,
+                                          height: 48,
+                                          child: Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              if (_playingNoteIndex == originalIndex)
+                                                SizedBox(
+                                                  width: 48,
+                                                  height: 48,
+                                                  child: CircularProgressIndicator(
+                                                    value: _audioDuration.inMilliseconds > 0
+                                                        ? (_audioPosition.inMilliseconds / _audioDuration.inMilliseconds).clamp(0.0, 1.0)
+                                                        : 0.0,
+                                                    strokeWidth: 2.5,
+                                                    color: accentColor,
+                                                    backgroundColor: accentColor.withValues(alpha: 0.15),
+                                                  ),
+                                                ),
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  color: _playingNoteIndex == originalIndex
+                                                      ? accentColor
+                                                      : accentColor.withValues(alpha: 0.12),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Icon(
+                                                  _playingNoteIndex == originalIndex ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                                                  color: _playingNoteIndex == originalIndex ? Colors.white : accentColor,
+                                                  size: 24,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       )
@@ -13467,7 +14069,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          if (note.isAudioNote)
+                                          if (note.isAudioNote) ...[
                                             Row(
                                               children: [
                                                 Flexible(
@@ -13480,11 +14082,34 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                                 ),
                                                 const SizedBox(width: 8),
                                                 Text(
-                                                  _formatAudioDuration((note.audioDurationMs ?? 0) ~/ 1000),
+                                                  _playingNoteIndex == originalIndex
+                                                      ? '${_formatAudioDuration(_audioPosition.inSeconds)} / ${_formatAudioDuration(_audioDuration.inSeconds > 0 ? _audioDuration.inSeconds : (note.audioDurationMs ?? 0) ~/ 1000)}'
+                                                      : _formatAudioDuration((note.audioDurationMs ?? 0) ~/ 1000),
                                                   style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                                                 ),
                                               ],
-                                            )
+                                            ),
+                                            if (_playingNoteIndex == originalIndex)
+                                              SizedBox(
+                                                height: 20,
+                                                child: SliderTheme(
+                                                  data: SliderThemeData(
+                                                    trackHeight: 2,
+                                                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                                                    activeTrackColor: accentColor,
+                                                    inactiveTrackColor: accentColor.withValues(alpha: 0.2),
+                                                    thumbColor: accentColor,
+                                                    overlayShape: SliderComponentShape.noOverlay,
+                                                  ),
+                                                  child: Slider(
+                                                    value: _audioDuration.inMilliseconds > 0
+                                                        ? (_audioPosition.inMilliseconds / _audioDuration.inMilliseconds).clamp(0.0, 1.0)
+                                                        : 0.0,
+                                                    onChanged: _seekAudio,
+                                                  ),
+                                                ),
+                                              ),
+                                          ]
                                           else
                                             Text(
                                               note.content,
@@ -13716,16 +14341,24 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     // If same note is playing, stop it
     if (_playingNoteIndex == noteIndex) {
       await _audioPlayer?.stop();
-      setState(() => _playingNoteIndex = null);
+      setState(() { _playingNoteIndex = null; _audioPosition = Duration.zero; });
       return;
     }
     // Stop any current playback
     await _audioPlayer?.stop();
     _playerSubscription?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
     _audioPlayer?.dispose();
     _audioPlayer = ap.AudioPlayer();
     _playerSubscription = _audioPlayer!.onPlayerComplete.listen((_) {
-      if (mounted) setState(() => _playingNoteIndex = null);
+      if (mounted) setState(() { _playingNoteIndex = null; _audioPosition = Duration.zero; });
+    });
+    _positionSub = _audioPlayer!.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _audioPosition = p);
+    });
+    _durationSub = _audioPlayer!.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _audioDuration = d);
     });
     try {
       if (kIsWeb) {
@@ -13733,7 +14366,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       } else {
         await _audioPlayer!.play(ap.DeviceFileSource(audioPath));
       }
-      setState(() => _playingNoteIndex = noteIndex);
+      setState(() { _playingNoteIndex = noteIndex; _audioPosition = Duration.zero; });
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -13747,7 +14380,19 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     }
   }
 
+  Future<void> _seekAudio(double value) async {
+    if (_audioDuration.inMilliseconds > 0) {
+      final newPos = Duration(milliseconds: (value * _audioDuration.inMilliseconds).toInt());
+      await _audioPlayer?.seek(newPos);
+      setState(() => _audioPosition = newPos);
+    }
+  }
+
   void _showAudioSheet() async {
+    // Prevent double-opening (e.g. deep link re-delivery while recording)
+    if (_isAudioSheetOpen) return;
+    _isAudioSheetOpen = true;
+
     final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
     final colorScheme = Theme.of(context).colorScheme;
     final recorder = AudioRecorder();
@@ -13756,6 +14401,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
     if (!await recorder.hasPermission()) {
       recorder.dispose();
+      _isAudioSheetOpen = false;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -13775,8 +14421,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     bool isPlayingPreview = false;
     ap.AudioPlayer? previewPlayer;
     final voiceTitleController = TextEditingController();
+    StreamSubscription? recorderStateSub;
 
-    if (!mounted) return;
+    if (!mounted) { _isAudioSheetOpen = false; return; }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -13836,6 +14483,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                         onTap: () async {
                           if (isRecording) {
                             timer?.cancel();
+                            recorderStateSub?.cancel();
                             final path = await recorder.stop();
                             recordedPath = path;
                             setSheetState(() => isRecording = false);
@@ -13855,13 +14503,36 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                               sampleRate: 44100,
                             ), path: path);
                             elapsedSeconds = 0;
-                            timer = Timer.periodic(const Duration(seconds: 1), (_) {
+                            // Listen for unexpected recorder stops (OS killed MediaRecorder)
+                            recorderStateSub?.cancel();
+                            recorderStateSub = recorder.onStateChanged().listen((state) {
+                              if (state == RecordState.stop && isRecording) {
+                                timer?.cancel();
+                                debugPrint('Recorder stopped unexpectedly at ${elapsedSeconds}s');
+                                recordedPath = path;
+                                isRecording = false;
+                                setSheetState(() {});
+                              }
+                            });
+                            timer = Timer.periodic(const Duration(seconds: 1), (_) async {
                               elapsedSeconds++;
+                              // Periodic health check: verify recorder is still active
+                              if (elapsedSeconds % 10 == 0) {
+                                final stillRecording = await recorder.isRecording();
+                                if (!stillRecording && isRecording) {
+                                  timer?.cancel();
+                                  debugPrint('Recorder health check failed at ${elapsedSeconds}s');
+                                  recordedPath = path;
+                                  isRecording = false;
+                                  setSheetState(() {});
+                                  return;
+                                }
+                              }
                               setSheetState(() {});
                               if (elapsedSeconds >= maxDuration) {
                                 timer?.cancel();
-                                recorder.stop().then((path) {
-                                  recordedPath = path;
+                                recorder.stop().then((p) {
+                                  recordedPath = p;
                                   setSheetState(() => isRecording = false);
                                 });
                               }
@@ -14037,9 +14708,11 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       ),
     ).then((_) {
       timer?.cancel();
+      recorderStateSub?.cancel();
       recorder.dispose();
       previewPlayer?.dispose();
       voiceTitleController.dispose();
+      _isAudioSheetOpen = false;
     });
   }
 
@@ -14130,6 +14803,7 @@ class ProNote {
   final DateTime createdAt;
   final String folder;
   final DateTime? linkedDate;
+  final String? imageBase64;
 
   ProNote({
     this.id,
@@ -14141,6 +14815,7 @@ class ProNote {
     this.templatePreset,
     this.folder = 'Generale',
     this.linkedDate,
+    this.imageBase64,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -14154,6 +14829,7 @@ class ProNote {
     'folder': folder,
     'linkedDate': linkedDate?.toIso8601String(),
     'createdAt': createdAt.toIso8601String(),
+    'imageBase64': imageBase64,
   };
 
   factory ProNote.fromJson(Map<String, dynamic> json) => ProNote(
@@ -14166,6 +14842,7 @@ class ProNote {
     folder: json['folder'] ?? 'Generale',
     linkedDate: json['linkedDate'] != null ? DateTime.parse(json['linkedDate']) : null,
     createdAt: DateTime.parse(json['createdAt']),
+    imageBase64: json['imageBase64'],
   );
 
   Map<String, dynamic> toDbMap() => {
@@ -14178,6 +14855,7 @@ class ProNote {
     'folder': folder,
     'linked_date': linkedDate?.millisecondsSinceEpoch,
     'created_at': createdAt.millisecondsSinceEpoch,
+    'image_base64': imageBase64,
   };
 
   factory ProNote.fromDbMap(Map<String, dynamic> m) => ProNote(
@@ -14191,6 +14869,7 @@ class ProNote {
     folder: (m['folder'] as String?) ?? 'Generale',
     linkedDate: m['linked_date'] != null ? DateTime.fromMillisecondsSinceEpoch(m['linked_date'] as int) : null,
     createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
+    imageBase64: m['image_base64'] as String?,
   );
 }
 
@@ -16184,6 +16863,18 @@ class _NoteReadPageState extends State<NoteReadPage> {
               ),
             ),
             Divider(height: 24, thickness: 0.5, color: colorScheme.outlineVariant),
+            // Image (from flash note move)
+            if (_currentNote.imageBase64 != null && _currentNote.imageBase64!.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  base64Decode(_currentNote.imageBase64!),
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             // Header
             if (_currentNote.headerText != null && _currentNote.headerText!.isNotEmpty) ...[
               Container(
