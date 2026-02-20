@@ -23,11 +23,19 @@ class MainActivity : FlutterFragmentActivity() {
         // Create notification channel (required for Android 8+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "event_reminders",
+                "event_reminders_v2",
                 "Promemoria eventi",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Notifiche promemoria per gli eventi del calendario"
+                enableVibration(true)
+                setSound(
+                    android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION),
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
             }
             val notificationManager =
                 getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

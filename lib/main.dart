@@ -1070,6 +1070,12 @@ const _translations = <String, Map<String, String>>{
   },
   'general_settings': {'it': 'Impostazioni Generali', 'en': 'General Settings', 'fr': 'Paramètres généraux', 'es': 'Ajustes generales'},
   'biometric_lock': {'it': 'Blocco Biometrico', 'en': 'Biometric Lock', 'fr': 'Verrouillage biométrique', 'es': 'Bloqueo biométrico'},
+  'pin_and_biometric_lock': {'it': 'PIN e Blocco Biometrico', 'en': 'PIN & Biometric Lock', 'fr': 'PIN et verrouillage biométrique', 'es': 'PIN y bloqueo biométrico'},
+  'set_pin_to_enable': {'it': 'Imposta un PIN per attivare il blocco', 'en': 'Set a PIN to enable lock', 'fr': 'Définissez un PIN pour activer le verrouillage', 'es': 'Establece un PIN para activar el bloqueo'},
+  'enter_4_digit_pin': {'it': 'Inserisci PIN a 4 cifre', 'en': 'Enter 4-digit PIN', 'fr': 'Entrez un PIN à 4 chiffres', 'es': 'Introduce un PIN de 4 dígitos'},
+  'confirm_4_digit_pin': {'it': 'Conferma PIN a 4 cifre', 'en': 'Confirm 4-digit PIN', 'fr': 'Confirmez le PIN à 4 chiffres', 'es': 'Confirma el PIN de 4 dígitos'},
+  'pin_created': {'it': 'PIN creato', 'en': 'PIN created', 'fr': 'PIN créé', 'es': 'PIN creado'},
+  'authenticate_to_change': {'it': 'Autenticati per modificare', 'en': 'Authenticate to change', 'fr': 'Authentifiez-vous pour modifier', 'es': 'Autentícate para modificar'},
   'lock_deep_note': {'it': 'Blocca Deep Note', 'en': 'Lock Deep Note', 'fr': 'Verrouiller Deep Note', 'es': 'Bloquear Deep Note'},
   'lock_deep_note_desc': {'it': 'Richiedi autenticazione biometrica per accedere a Deep Note', 'en': 'Require biometric authentication to access Deep Note', 'fr': 'Exiger une authentification biométrique pour accéder à Deep Note', 'es': 'Requerir autenticación biométrica para acceder a Deep Note'},
   'lock_flash_notes': {'it': 'Blocca Flash Notes', 'en': 'Lock Flash Notes', 'fr': 'Verrouiller Flash Notes', 'es': 'Bloquear Flash Notes'},
@@ -3317,11 +3323,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // Resolve pending deep link parameters
     String? flashInitialMode;
     DateTime? calendarInitialDate;
+    String? calendarInitialAction;
     if (_pendingDeepLink != null) {
       final dl = _pendingDeepLink!;
       _pendingDeepLink = null;
       if (dl.startsWith('flashnote/')) {
         flashInitialMode = dl.substring('flashnote/'.length);
+      } else if (dl == 'calendar/new') {
+        calendarInitialAction = 'new';
       } else if (dl.startsWith('calendar/')) {
         final dateStr = dl.substring('calendar/'.length);
         final parts = dateStr.split('-');
@@ -3337,7 +3346,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     final pages = [
       const NotesProPage(),
-      CalendarPage(key: ValueKey('cal_$_refreshKey'), initialDate: calendarInitialDate),
+      CalendarPage(key: ValueKey('cal_$_refreshKey'), initialDate: calendarInitialDate, initialAction: calendarInitialAction),
       FlashNotesPage(key: ValueKey('flash_$_refreshKey'), initialMode: flashInitialMode),
     ];
 
@@ -3451,7 +3460,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
 class CalendarPage extends StatefulWidget {
   final DateTime? initialDate;
-  const CalendarPage({super.key, this.initialDate});
+  final String? initialAction;
+  const CalendarPage({super.key, this.initialDate, this.initialAction});
 
   @override
   State<CalendarPage> createState() => _CalendarPageState();
@@ -3480,6 +3490,8 @@ class _CalendarPageState extends State<CalendarPage> {
   // Google Calendar
   Map<String, List<CalendarEventFull>> _googleEvents = {};
   Set<String> _completedGoogleEventIds = {};
+  // Track locally-deleted events so matching Google duplicates stay hidden
+  final Set<String> _deletedEventSignatures = {};
 
   // Health
   HealthSnapshot? _healthSnapshot;
@@ -3501,6 +3513,12 @@ class _CalendarPageState extends State<CalendarPage> {
     _eventsScrollController.addListener(_onEventsScroll);
     // Request notification permissions now that Activity is ready
     NotificationService.ensurePermissions();
+    // Handle deep link action (e.g. create new event)
+    if (widget.initialAction == 'new') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _createEvent();
+      });
+    }
   }
 
   void _onEventsScroll() {
@@ -3941,10 +3959,21 @@ class _CalendarPageState extends State<CalendarPage> {
     final local = _events[_dateKey(day)] ?? [];
     final google = _googleEvents[_dateKey(day)] ?? [];
     // Filter out Google events that duplicate a local event (same title + close startTime)
-    final filtered = google.where((g) => !local.any((l) =>
-      l.title == g.title &&
-      l.startTime.difference(g.startTime).inMinutes.abs() < 2
-    )).map((g) {
+    // Also filter out events whose local counterpart was deleted this session
+    final filtered = google.where((g) {
+      // Duplicates a still-existing local event
+      if (local.any((l) => l.title == g.title && l.startTime.difference(g.startTime).inMinutes.abs() < 2)) return false;
+      // Was deleted locally (match within ±2 min)
+      if (_deletedEventSignatures.any((sig) {
+        final parts = sig.split('|');
+        if (parts.length != 2) return false;
+        final title = parts[0];
+        final ms = int.tryParse(parts[1]);
+        if (ms == null) return false;
+        return title == g.title && (g.startTime.millisecondsSinceEpoch - ms).abs() < 120000;
+      })) return false;
+      return true;
+    }).map((g) {
       // Apply persisted completion state for Google events
       if (g.googleEventId != null && _completedGoogleEventIds.contains(g.googleEventId)) {
         return g.copyWith(isCompleted: true);
@@ -4036,6 +4065,8 @@ class _CalendarPageState extends State<CalendarPage> {
       if (confirmed != true || !mounted) return;
       final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
       NotificationService.cancelReminder(notifId);
+      // Remember signature so matching Google duplicate stays hidden
+      _deletedEventSignatures.add('${event.title}|${event.startTime.millisecondsSinceEpoch}');
       setState(() {
         _events[key]?.removeAt(index);
         if (_events[key]?.isEmpty ?? false) _events.remove(key);
@@ -6056,7 +6087,7 @@ class NotificationService {
   }
 
   static const _androidDetails = AndroidNotificationDetails(
-    'event_reminders',
+    'event_reminders_v2',
     'Promemoria eventi',
     channelDescription: 'Notifiche promemoria per gli eventi del calendario',
     importance: Importance.max,
@@ -6091,15 +6122,17 @@ class NotificationService {
     required int minutesBefore,
   }) async {
     if (kIsWeb || !_initialized) return;
+    await ensurePermissions();
     final scheduledTime = eventTime.subtract(Duration(minutes: minutesBefore));
     if (scheduledTime.isBefore(DateTime.now())) return;
 
     final tzScheduled = tz.TZDateTime.from(scheduledTime, tz.local);
+    final body = _buildBody(title, minutesBefore);
     try {
       await _plugin.zonedSchedule(
         id,
         'Promemoria',
-        _buildBody(title, minutesBefore),
+        body,
         tzScheduled,
         _notifDetails,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -6114,7 +6147,7 @@ class NotificationService {
         await _plugin.zonedSchedule(
           id,
           'Promemoria',
-          _buildBody(title, minutesBefore),
+          body,
           tzScheduled,
           _notifDetails,
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -6124,6 +6157,11 @@ class NotificationService {
         debugPrint('NotificationService: scheduled #$id (inexact fallback)');
       } catch (e2) {
         debugPrint('NotificationService fallback error: $e2');
+        // Ultimate fallback: show immediately
+        try {
+          await _plugin.show(id, 'Promemoria', body, _notifDetails, payload: 'event_$id');
+          debugPrint('NotificationService: immediate show #$id as last resort');
+        } catch (_) {}
       }
     }
   }
@@ -8845,11 +8883,118 @@ class GeneralSettingsPage extends StatefulWidget {
 
 class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
   late UserProfile _profile;
+  String? _biometricPin;
 
   @override
   void initState() {
     super.initState();
     _profile = widget.profile;
+    _loadBiometricPin();
+  }
+
+  Future<void> _loadBiometricPin() async {
+    final pin = await DatabaseHelper().getCache('biometric_pin');
+    if (mounted) setState(() => _biometricPin = pin);
+  }
+
+  Future<void> _saveBiometricPin(String pin) async {
+    await DatabaseHelper().saveCache('biometric_pin', pin);
+    if (mounted) setState(() => _biometricPin = pin);
+  }
+
+  Future<bool> _authenticateBiometric() async {
+    final localAuth = LocalAuthentication();
+    final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
+    if (!canAuth) return false;
+    try {
+      return await localAuth.authenticate(
+        localizedReason: tr('authenticate_to_change'),
+        options: const AuthenticationOptions(biometricOnly: false),
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _showSetPinDialog() async {
+    final pinController = TextEditingController();
+    final confirmController = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('set_pin')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: pinController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: tr('enter_4_digit_pin'),
+                counterText: '',
+                prefixIcon: const Icon(Icons.pin),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirmController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: tr('confirm_4_digit_pin'),
+                counterText: '',
+                prefixIcon: const Icon(Icons.pin),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+          FilledButton(onPressed: () {
+            if (pinController.text.length == 4 && pinController.text == confirmController.text) {
+              Navigator.pop(ctx, pinController.text);
+            }
+          }, child: Text(tr('confirm'))),
+        ],
+      ),
+    );
+    if (result != null && result.length == 4) {
+      await _saveBiometricPin(result);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('pin_created')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleLock(bool value, bool Function() getCurrent, void Function(bool) setter) async {
+    if (value) {
+      // Activating: require PIN setup if no PIN, then set
+      if (_biometricPin == null || _biometricPin!.length != 4) {
+        await _showSetPinDialog();
+        if (_biometricPin == null || _biometricPin!.length != 4) return;
+      }
+      setter(value);
+      widget.onProfileChanged(_profile);
+    } else {
+      // Deactivating: require biometric auth
+      final authenticated = await _authenticateBiometric();
+      if (!authenticated) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(tr('auth_required')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          );
+        }
+        return;
+      }
+      setter(value);
+      widget.onProfileChanged(_profile);
+    }
   }
 
   @override
@@ -8987,14 +9132,14 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
           ),
           const SizedBox(height: 24),
 
-          // ── Blocco Biometrico ──
+          // ── PIN e Blocco Biometrico ──
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 6),
             child: Row(
               children: [
                 Icon(Icons.fingerprint, color: colorScheme.primary, size: 20),
                 const SizedBox(width: 8),
-                Text(tr('biometric_lock'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.primary)),
+                Text(tr('pin_and_biometric_lock'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.primary)),
               ],
             ),
           ),
@@ -9002,60 +9147,61 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             elevation: 0,
             color: colorScheme.surfaceContainerLowest,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Column(
-              children: [
-                SwitchListTile(
-                  secondary: const Icon(Icons.note),
-                  title: Text(tr('lock_deep_note'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(tr('lock_deep_note_desc')),
-                  value: _profile.lockDeepNote,
-                  onChanged: (value) async {
-                    if (value) {
-                      final localAuth = LocalAuthentication();
-                      final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
-                      if (!canAuth) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(tr('biometric_not_available')),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        );
-                        return;
-                      }
-                    }
-                    setState(() => _profile.lockDeepNote = value);
-                    widget.onProfileChanged(_profile);
-                  },
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  secondary: const Icon(Icons.flash_on),
-                  title: Text(tr('lock_flash_notes'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(tr('lock_flash_notes_desc')),
-                  value: _profile.lockFlashNotes,
-                  onChanged: (value) async {
-                    if (value) {
-                      final localAuth = LocalAuthentication();
-                      final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
-                      if (!canAuth) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(tr('biometric_not_available')),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        );
-                        return;
-                      }
-                    }
-                    setState(() => _profile.lockFlashNotes = value);
-                    widget.onProfileChanged(_profile);
-                  },
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // PIN status / set / change
+                  if (_biometricPin != null && _biometricPin!.length == 4) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.pin),
+                      title: Text('PIN: ****', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      trailing: OutlinedButton(
+                        onPressed: () async {
+                          final ok = await _authenticateBiometric();
+                          if (!ok || !mounted) return;
+                          _showSetPinDialog();
+                        },
+                        child: Text(tr('change_pin')),
+                      ),
+                    ),
+                  ] else ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.pin_outlined),
+                      title: Text(tr('set_pin_to_enable'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                      trailing: FilledButton.tonal(
+                        onPressed: () => _showSetPinDialog(),
+                        child: Text(tr('set_pin')),
+                      ),
+                    ),
+                  ],
+                  const Divider(),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.note),
+                    title: Text(tr('lock_deep_note'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(tr('lock_deep_note_desc')),
+                    value: _profile.lockDeepNote,
+                    onChanged: (value) {
+                      _toggleLock(value, () => _profile.lockDeepNote, (v) => setState(() => _profile.lockDeepNote = v));
+                    },
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.flash_on),
+                    title: Text(tr('lock_flash_notes'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(tr('lock_flash_notes_desc')),
+                    value: _profile.lockFlashNotes,
+                    onChanged: (value) {
+                      _toggleLock(value, () => _profile.lockFlashNotes, (v) => setState(() => _profile.lockFlashNotes = v));
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -10490,19 +10636,11 @@ class NoteProSettingsPage extends StatefulWidget {
 
 class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
   late NoteProSettings _settings;
-  late TextEditingController _pinController;
 
   @override
   void initState() {
     super.initState();
     _settings = widget.settings;
-    _pinController = TextEditingController(text: _settings.securityPin ?? '');
-  }
-
-  @override
-  void dispose() {
-    _pinController.dispose();
-    super.dispose();
   }
 
   void _updateSettings(NoteProSettings newSettings) {
@@ -10521,89 +10659,6 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
     );
   }
 
-  void _showChangePinDialog() {
-    final oldPinController = TextEditingController();
-    final newPinController = TextEditingController();
-    final confirmPinController = TextEditingController();
-    String? errorText;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Text(tr('change_pin')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: oldPinController,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                decoration: InputDecoration(
-                  labelText: tr('current_pin'),
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  counterText: '',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: newPinController,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                decoration: InputDecoration(
-                  labelText: tr('new_pin'),
-                  prefixIcon: const Icon(Icons.pin),
-                  counterText: '',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: confirmPinController,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                decoration: InputDecoration(
-                  labelText: tr('confirm_pin'),
-                  prefixIcon: const Icon(Icons.pin),
-                  counterText: '',
-                ),
-              ),
-              if (errorText != null) ...[
-                const SizedBox(height: 8),
-                Text(errorText!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
-            FilledButton(
-              onPressed: () {
-                if (oldPinController.text != _settings.securityPin) {
-                  setDialogState(() => errorText = tr('wrong_pin'));
-                  return;
-                }
-                if (newPinController.text.length != 4) {
-                  setDialogState(() => errorText = tr('pin_must_be_4'));
-                  return;
-                }
-                if (newPinController.text != confirmPinController.text) {
-                  setDialogState(() => errorText = tr('pins_dont_match'));
-                  return;
-                }
-                _updateSettings(_settings.copyWith(securityPin: newPinController.text));
-                _pinController.text = newPinController.text;
-                Navigator.pop(context);
-              },
-              child: Text(tr('confirm')),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Future<void> _importTemplate() async {
     try {
@@ -10757,84 +10812,34 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                   ),
                   if (_settings.showPrivateFolder) ...[
                     const SizedBox(height: 12),
-                    if (_settings.securityPin != null && _settings.securityPin!.length == 4) ...[
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.pin),
-                        title: Text('${tr('pin_set')} ****', style: const TextStyle(fontWeight: FontWeight.w600)),
-                        trailing: OutlinedButton(
-                          onPressed: () => _showChangePinDialog(),
-                          child: Text(tr('change_pin')),
-                        ),
-                      ),
-                    ] else ...[
-                      TextField(
-                        controller: _pinController,
-                        obscureText: true,
-                        keyboardType: TextInputType.number,
-                        maxLength: 4,
-                        decoration: InputDecoration(
-                          labelText: tr('security_pin'),
-                          hintText: tr('pin_exactly_4'),
-                          prefixIcon: const Icon(Icons.pin),
-                          counterText: '',
-                        ),
-                        onChanged: (value) {
-                          if (value.isEmpty) {
-                            _updateSettings(_settings.copyWith(clearPin: true, biometricEnabled: false));
-                          } else {
-                            _updateSettings(_settings.copyWith(securityPin: value));
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(tr('biometric_auth'),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(tr('biometric_desc')),
+                      secondary: const Icon(Icons.fingerprint),
+                      value: _settings.biometricEnabled,
+                      onChanged: (value) async {
+                        if (value) {
+                          final localAuth = LocalAuthentication();
+                          final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
+                          if (!canAuth) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(tr('biometric_not_available')),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            );
+                            return;
                           }
-                        },
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        tr('pin_exactly_4'),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      if (_settings.securityPin != null && _settings.securityPin!.isNotEmpty && _settings.securityPin!.length != 4) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          tr('pin_must_be_4'),
-                          style: TextStyle(fontSize: 12, color: colorScheme.error),
-                        ),
-                      ],
-                    ],
-                    if (_settings.securityPin != null && _settings.securityPin!.length == 4) ...[
-                      const SizedBox(height: 12),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(tr('biometric_auth'),
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
-                        subtitle: Text(tr('biometric_desc')),
-                        secondary: const Icon(Icons.fingerprint),
-                        value: _settings.biometricEnabled,
-                        onChanged: (value) async {
-                          if (value) {
-                            final localAuth = LocalAuthentication();
-                            final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
-                            if (!canAuth) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(tr('biometric_not_available')),
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                              );
-                              return;
-                            }
-                          }
-                          final newSettings = _settings.copyWith(biometricEnabled: value);
-                          setState(() => _settings = newSettings);
-                          newSettings.save();
-                        },
-                      ),
-                    ],
+                        }
+                        final newSettings = _settings.copyWith(biometricEnabled: value);
+                        setState(() => _settings = newSettings);
+                        newSettings.save();
+                      },
+                    ),
                   ],
                 ],
               ),
@@ -11346,6 +11351,32 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     super.dispose();
   }
 
+  void _confirmClose() async {
+    final content = _bodyController.text.trim();
+    if (!_hasChanges || content.isEmpty) {
+      Navigator.pop(context);
+      return;
+    }
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Modifiche non salvate'),
+        content: const Text('Vuoi salvare le modifiche?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: const Text('Scarta')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Salva')),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'save') {
+      _save();
+    } else if (action == 'discard') {
+      Navigator.pop(context);
+    }
+  }
+
   void _save() {
     final content = _bodyController.text.trim();
     if (content.isEmpty) return;
@@ -11458,12 +11489,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
 
     return PopScope(
-      canPop: !_hasChanges,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          _save();
-        }
-      },
+      canPop: true,
       child: Scaffold(
         backgroundColor: colorScheme.surface,
         appBar: AppBar(
@@ -11472,13 +11498,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
           backgroundColor: Colors.transparent,
           leading: IconButton(
             icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
-            onPressed: () {
-              if (_hasChanges) {
-                _save();
-              } else {
-                Navigator.pop(context);
-              }
-            },
+            onPressed: () => _confirmClose(),
           ),
           title: Text(
             widget.existingNote != null ? 'Flash Note' : tr('new_flash_note'),
@@ -12573,6 +12593,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         return;
       }
 
+      final titleController = TextEditingController();
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -12596,7 +12617,18 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                     const SizedBox(width: 8),
                     Text('Trascrizione audio', style: Theme.of(ctx).textTheme.titleLarge),
                   ]),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      hintText: 'Titolo (opzionale)',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      isDense: true,
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                  ),
+                  const SizedBox(height: 12),
                   Expanded(
                     child: SingleChildScrollView(
                       controller: scrollController,
@@ -12616,9 +12648,11 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                     width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: () {
+                        final title = titleController.text.trim();
+                        final finalContent = title.isNotEmpty ? '$title\n\n$result' : result;
                         setState(() {
                           _notes[index] = FlashNote(
-                            content: result,
+                            content: finalContent,
                             createdAt: note.createdAt,
                             audioPath: note.audioPath,
                             audioDurationMs: note.audioDurationMs,
@@ -12835,20 +12869,28 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                 const SizedBox(height: 16),
                 // Transcription section
                 if (transcription.isNotEmpty) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(tr('transcription'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
-                        const SizedBox(height: 4),
-                        Text(transcription, style: TextStyle(fontSize: 14, color: colorScheme.onSurface)),
-                      ],
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(tr('transcription'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                          const SizedBox(height: 4),
+                          Flexible(
+                            child: SingleChildScrollView(
+                              child: SelectableText(transcription, style: TextStyle(fontSize: 14, color: colorScheme.onSurface)),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -15810,6 +15852,8 @@ class _NotesProPageState extends State<NotesProPage> {
                                                     children: [
                                                       Expanded(
                                                         child: Text(note.title,
+                                                            maxLines: 1,
+                                                            overflow: TextOverflow.ellipsis,
                                                             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? const Color(0xFF800020).withValues(alpha: 0.85) : null)),
                                                       ),
                                                       if (note.linkedDate != null)
@@ -16062,25 +16106,17 @@ class _NoteReadPageState extends State<NoteReadPage> {
   final ScrollController _readScrollController = ScrollController();
 
   static final _googleFontBuilders = <String, TextStyle Function()>{
-    'Roboto': () => GoogleFonts.roboto(),
-    'Open Sans': () => GoogleFonts.openSans(),
-    'Lato': () => GoogleFonts.lato(),
+    'Press Start 2P': () => GoogleFonts.pressStart2p(),
+    'Dancing Script': () => GoogleFonts.dancingScript(),
     'Poppins': () => GoogleFonts.poppins(),
-    'Nunito': () => GoogleFonts.nunito(),
-    'Raleway': () => GoogleFonts.raleway(),
-    'Playfair Display': () => GoogleFonts.playfairDisplay(),
-    'Merriweather': () => GoogleFonts.merriweather(),
-    'EB Garamond': () => GoogleFonts.ebGaramond(),
-    'Courier Prime': () => GoogleFonts.courierPrime(),
   };
 
   TextStyle _customStyleBuilder(quill.Attribute attribute) {
     if (attribute.key == 'font' && attribute.value != null) {
       final fontValue = attribute.value as String;
       final builder = _googleFontBuilders[fontValue];
-      if (builder != null) {
-        return builder();
-      }
+      if (builder != null) return builder();
+      return TextStyle(fontFamily: fontValue);
     }
     return const TextStyle();
   }
@@ -16312,43 +16348,23 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
   static const _fontFamilies = {
     'Sans Serif': 'sans-serif',
-    'Serif': 'serif',
-    'Monospace': 'monospace',
-    'Roboto': 'Roboto',
-    'Open Sans': 'Open Sans',
-    'Lato': 'Lato',
+    'Arcade': 'Press Start 2P',
+    'Corsivo': 'Dancing Script',
     'Poppins': 'Poppins',
-    'Nunito': 'Nunito',
-    'Raleway': 'Raleway',
-    'Playfair': 'Playfair Display',
-    'Merriweather': 'Merriweather',
-    'Garamond': 'EB Garamond',
-    'Courier': 'Courier Prime',
-    'Times New Roman': 'Times New Roman',
-    'Georgia': 'Georgia',
-    'Arial': 'Arial',
   };
 
   static final _googleFontBuilders = <String, TextStyle Function()>{
-    'Roboto': () => GoogleFonts.roboto(),
-    'Open Sans': () => GoogleFonts.openSans(),
-    'Lato': () => GoogleFonts.lato(),
+    'Press Start 2P': () => GoogleFonts.pressStart2p(),
+    'Dancing Script': () => GoogleFonts.dancingScript(),
     'Poppins': () => GoogleFonts.poppins(),
-    'Nunito': () => GoogleFonts.nunito(),
-    'Raleway': () => GoogleFonts.raleway(),
-    'Playfair Display': () => GoogleFonts.playfairDisplay(),
-    'Merriweather': () => GoogleFonts.merriweather(),
-    'EB Garamond': () => GoogleFonts.ebGaramond(),
-    'Courier Prime': () => GoogleFonts.courierPrime(),
   };
 
   TextStyle _customStyleBuilder(quill.Attribute attribute) {
     if (attribute.key == 'font' && attribute.value != null) {
       final fontValue = attribute.value as String;
       final builder = _googleFontBuilders[fontValue];
-      if (builder != null) {
-        return builder();
-      }
+      if (builder != null) return builder();
+      return TextStyle(fontFamily: fontValue);
     }
     return const TextStyle();
   }
@@ -17350,8 +17366,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       child: ListView(
         shrinkWrap: true,
         children: _fontFamilies.entries.map((entry) {
+          final builder = _googleFontBuilders[entry.value];
+          final previewStyle = builder != null ? builder() : TextStyle(fontFamily: entry.value);
           return ListTile(
-            title: Text(entry.key, style: TextStyle(fontFamily: entry.value)),
+            title: Text(entry.key, style: previewStyle),
             selected: _selectedFontFamily == entry.key,
             onTap: () {
               setState(() => _selectedFontFamily = entry.key);

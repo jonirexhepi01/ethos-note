@@ -3,122 +3,136 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:gravity="center"
     android:background="@drawable/widget_background"
-    android:paddingTop="8dp"
-    android:paddingBottom="10dp"
-    android:paddingStart="12dp"
-    android:paddingEnd="12dp">
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
 
-    <!-- Header -->
-    <TextView
-        android:id="@+id/widget_header"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="⚡ Flash Notes"
-        android:textSize="12sp"
-        android:textColor="#99000000"
-        android:gravity="center"
-        android:layout_marginBottom="4dp" />
-
-    <!-- Buttons row -->
+    <!-- Text shortcut -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:id="@+id/btn_text"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center">
-
-        <!-- Text shortcut -->
-        <LinearLayout
-            android:id="@+id/btn_text"
-            android:layout_width="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true">
+        <FrameLayout
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/widget_icon_circle">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_widget_edit"
+                android:contentDescription="Scrivi" />
+        </FrameLayout>
+        <TextView
+            android:id="@+id/label_text"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true">
-            <FrameLayout
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@drawable/widget_icon_circle">
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_widget_edit"
-                    android:contentDescription="Scrivi" />
-            </FrameLayout>
-            <TextView
-                android:id="@+id/label_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Scrivi"
-                android:textSize="11sp"
-                android:textColor="#99000000" />
-        </LinearLayout>
+            android:text="Scrivi"
+            android:textSize="9sp"
+            android:textColor="#99000000" />
+    </LinearLayout>
 
-        <!-- Photo shortcut -->
-        <LinearLayout
-            android:id="@+id/btn_photo"
-            android:layout_width="0dp"
+    <!-- Photo shortcut -->
+    <LinearLayout
+        android:id="@+id/btn_photo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true">
+        <FrameLayout
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/widget_icon_circle">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_widget_camera"
+                android:contentDescription="Foto" />
+        </FrameLayout>
+        <TextView
+            android:id="@+id/label_photo"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true">
-            <FrameLayout
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@drawable/widget_icon_circle">
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_widget_camera"
-                    android:contentDescription="Foto" />
-            </FrameLayout>
-            <TextView
-                android:id="@+id/label_photo"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Foto"
-                android:textSize="11sp"
-                android:textColor="#99000000" />
-        </LinearLayout>
+            android:text="Foto"
+            android:textSize="9sp"
+            android:textColor="#99000000" />
+    </LinearLayout>
 
-        <!-- Voice shortcut -->
-        <LinearLayout
-            android:id="@+id/btn_voice"
-            android:layout_width="0dp"
+    <!-- Voice shortcut -->
+    <LinearLayout
+        android:id="@+id/btn_voice"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true">
+        <FrameLayout
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/widget_icon_circle">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_widget_mic"
+                android:contentDescription="Vocale" />
+        </FrameLayout>
+        <TextView
+            android:id="@+id/label_voice"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true">
-            <FrameLayout
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@drawable/widget_icon_circle">
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_widget_mic"
-                    android:contentDescription="Vocale" />
-            </FrameLayout>
-            <TextView
-                android:id="@+id/label_voice"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Vocale"
-                android:textSize="11sp"
-                android:textColor="#99000000" />
-        </LinearLayout>
+            android:text="Vocale"
+            android:textSize="9sp"
+            android:textColor="#99000000" />
+    </LinearLayout>
 
+    <!-- Separator -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="32dp"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
+        android:background="#33000000" />
+
+    <!-- Event shortcut -->
+    <LinearLayout
+        android:id="@+id/btn_event"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true">
+        <FrameLayout
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/widget_icon_circle">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_widget_calendar"
+                android:contentDescription="Evento" />
+        </FrameLayout>
+        <TextView
+            android:id="@+id/label_event"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Evento"
+            android:textSize="9sp"
+            android:textColor="#99000000" />
     </LinearLayout>
 
 </LinearLayout>

@@ -25,10 +25,10 @@ class FlashNotesShortcutsProvider : AppWidgetProvider() {
 
             // Apply text colors
             val textColor = if (isNightMode) 0x99FFFFFF.toInt() else 0x99000000.toInt()
-            views.setTextColor(R.id.widget_header, textColor)
             views.setTextColor(R.id.label_text, textColor)
             views.setTextColor(R.id.label_photo, textColor)
             views.setTextColor(R.id.label_voice, textColor)
+            views.setTextColor(R.id.label_event, textColor)
 
             // Text shortcut → ethosnote://flashnote/text
             views.setOnClickPendingIntent(R.id.btn_text,
@@ -41,6 +41,10 @@ class FlashNotesShortcutsProvider : AppWidgetProvider() {
             // Voice shortcut → ethosnote://flashnote/voice
             views.setOnClickPendingIntent(R.id.btn_voice,
                 buildDeepLinkIntent(context, "ethosnote://flashnote/voice", 2))
+
+            // Event shortcut → ethosnote://calendar/new
+            views.setOnClickPendingIntent(R.id.btn_event,
+                buildDeepLinkIntent(context, "ethosnote://calendar/new", 3))
 
             appWidgetManager.updateAppWidget(widgetId, views)
         }
