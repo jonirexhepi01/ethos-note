@@ -5173,6 +5173,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   ),
                   const Divider(height: 1),
                   _buildProgressBar(day),
+                  _buildCycleFlowBar(day),
                   Expanded(
                     child: currentEvents.isEmpty
                         ? Center(
@@ -7171,8 +7172,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ── SECTION: Segni Zodiacali e Oroscopo (merged) ──
-            _buildSectionHeader('${tr('show_zodiac')} & ${tr('horoscope')}', Icons.auto_awesome),
+            // ── SECTION: Segno Zodiacale ──
+            _buildSectionHeader(tr('show_zodiac'), Icons.auto_awesome),
             const SizedBox(height: 8),
             _buildZodiacAndHoroscopeCard(),
             const SizedBox(height: 24),
@@ -12414,6 +12415,8 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   late TextEditingController _bodyController;
   late FocusNode _bodyFocusNode;
   bool _hasChanges = false;
+  String? _attachedImageBase64;
+  String _prevText = '';
 
   @override
   void initState() {
@@ -12421,6 +12424,9 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     _bodyFocusNode = FocusNode();
     _bodyController = TextEditingController(text: widget.existingNote?.content ?? '');
     _bodyController.addListener(_onChanged);
+    _attachedImageBase64 = widget.existingNote?.imageBase64;
+    _prevText = _bodyController.text;
+    _bodyController.addListener(_handleListContinuation);
   }
 
   void _onChanged() {
@@ -12429,6 +12435,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
 
   @override
   void dispose() {
+    _bodyController.removeListener(_handleListContinuation);
     _bodyController.dispose();
     _bodyFocusNode.dispose();
     super.dispose();
@@ -12440,9 +12447,104 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     final note = FlashNote(
       content: content,
       createdAt: widget.existingNote?.createdAt ?? DateTime.now(),
+      imageBase64: _attachedImageBase64 ?? widget.existingNote?.imageBase64,
     );
     widget.onSave(note);
     Navigator.pop(context);
+  }
+
+  void _handleListContinuation() {
+    final text = _bodyController.text;
+    final sel = _bodyController.selection;
+    if (!sel.isValid || !sel.isCollapsed) { _prevText = text; return; }
+    final pos = sel.baseOffset;
+    if (text.length != _prevText.length + 1 || pos < 1 || text[pos - 1] != '\n') {
+      _prevText = text;
+      return;
+    }
+    final beforeNewline = text.substring(0, pos - 1);
+    final lastNewline = beforeNewline.lastIndexOf('\n');
+    final prevLine = beforeNewline.substring(lastNewline + 1);
+    final stripped = prevLine.trim();
+    if (stripped == '•' || stripped == '☐' || RegExp(r'^\d+\.\s*$').hasMatch(stripped)) {
+      final removeFrom = lastNewline + 1;
+      final newText = text.substring(0, removeFrom) + text.substring(pos);
+      _bodyController.text = newText;
+      _bodyController.selection = TextSelection.collapsed(offset: removeFrom);
+      _prevText = _bodyController.text;
+      return;
+    }
+    if (prevLine.startsWith('• ')) {
+      final insert = '• ';
+      final newText = text.substring(0, pos) + insert + text.substring(pos);
+      _bodyController.text = newText;
+      _bodyController.selection = TextSelection.collapsed(offset: pos + insert.length);
+      _prevText = _bodyController.text;
+      return;
+    }
+    if (prevLine.startsWith('☐ ') || prevLine.startsWith('☑ ')) {
+      final insert = '☐ ';
+      final newText = text.substring(0, pos) + insert + text.substring(pos);
+      _bodyController.text = newText;
+      _bodyController.selection = TextSelection.collapsed(offset: pos + insert.length);
+      _prevText = _bodyController.text;
+      return;
+    }
+    final numMatch = RegExp(r'^(\d+)\.\s').firstMatch(prevLine);
+    if (numMatch != null) {
+      final lines = beforeNewline.substring(0, lastNewline < 0 ? 0 : lastNewline).split('\n');
+      int count = 1;
+      for (final l in lines.reversed) {
+        if (RegExp(r'^\d+\.\s').hasMatch(l)) { count++; } else { break; }
+      }
+      final nextNum = count + 1;
+      final insert = '$nextNum. ';
+      final newText = text.substring(0, pos) + insert + text.substring(pos);
+      _bodyController.text = newText;
+      _bodyController.selection = TextSelection.collapsed(offset: pos + insert.length);
+      _prevText = _bodyController.text;
+      return;
+    }
+    _prevText = text;
+  }
+
+  Widget _flashFormatBtn({required IconData icon, required String label, required Color accentColor, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: accentColor.withValues(alpha: 0.08),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: accentColor),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(fontSize: 11, color: accentColor, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        if (!mounted) return;
+        setState(() => _attachedImageBase64 = base64Encode(bytes));
+      }
+    } catch (_) {}
   }
 
   @override
@@ -12527,6 +12629,36 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                       ),
                     ),
                   ),
+                // Attached image preview
+                if (_attachedImageBase64 != null) ...[
+                  Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(
+                          base64Decode(_attachedImageBase64!),
+                          height: 160,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: Colors.black54,
+                          child: IconButton(
+                            icon: const Icon(Icons.close, size: 14, color: Colors.white),
+                            padding: EdgeInsets.zero,
+                            onPressed: () => setState(() => _attachedImageBase64 = null),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 // Body field — infinite page
                 ConstrainedBox(
                   constraints: BoxConstraints(
@@ -12551,6 +12683,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                       focusedBorder: InputBorder.none,
                       contentPadding: EdgeInsets.zero,
                       isDense: true,
+                      filled: false,
                     ),
                     maxLines: null,
                     textCapitalization: TextCapitalization.sentences,
@@ -12566,6 +12699,82 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                         ],
                       );
                     },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              border: Border(top: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+            ),
+            child: Row(
+              children: [
+                _flashFormatBtn(
+                  icon: Icons.format_list_bulleted,
+                  label: tr('bullet_list'),
+                  accentColor: accentColor,
+                  onTap: () {
+                    final sel = _bodyController.selection;
+                    final pos = sel.isValid ? sel.baseOffset : _bodyController.text.length;
+                    final before = _bodyController.text.substring(0, pos);
+                    final after = _bodyController.text.substring(pos);
+                    final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                    final prefix = '${needsNewline ? '\n' : ''}• ';
+                    _bodyController.text = '$before$prefix$after';
+                    _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                  },
+                ),
+                const SizedBox(width: 8),
+                _flashFormatBtn(
+                  icon: Icons.format_list_numbered,
+                  label: tr('numbered_list'),
+                  accentColor: accentColor,
+                  onTap: () {
+                    final text = _bodyController.text;
+                    final sel = _bodyController.selection;
+                    final pos = sel.isValid ? sel.baseOffset : text.length;
+                    final before = text.substring(0, pos);
+                    final lines = before.split('\n');
+                    int num = 1;
+                    for (final l in lines.reversed) {
+                      if (l.trim().isEmpty) break;
+                      if (RegExp(r'^\d+\.\s').hasMatch(l)) { num++; } else { break; }
+                    }
+                    final after = text.substring(pos);
+                    final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                    final prefix = '${needsNewline ? '\n' : ''}$num. ';
+                    _bodyController.text = '$before$prefix$after';
+                    _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                  },
+                ),
+                const SizedBox(width: 8),
+                _flashFormatBtn(
+                  icon: Icons.checklist,
+                  label: 'Checklist',
+                  accentColor: accentColor,
+                  onTap: () {
+                    final sel = _bodyController.selection;
+                    final pos = sel.isValid ? sel.baseOffset : _bodyController.text.length;
+                    final before = _bodyController.text.substring(0, pos);
+                    final after = _bodyController.text.substring(pos);
+                    final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                    final prefix = '${needsNewline ? '\n' : ''}☐ ';
+                    _bodyController.text = '$before$prefix$after';
+                    _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                  },
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: _pickImage,
+                  icon: Icon(Icons.camera_alt, size: 20, color: accentColor),
+                  tooltip: tr('attach_photo'),
+                  style: IconButton.styleFrom(
+                    backgroundColor: accentColor.withValues(alpha: 0.1),
                   ),
                 ),
               ],
@@ -14592,271 +14801,15 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     );
   }
 
-  Widget _flashFormatBtn({required IconData icon, required String label, required Color accentColor, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: accentColor.withValues(alpha: 0.08),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: accentColor),
-            const SizedBox(width: 4),
-            Text(label, style: TextStyle(fontSize: 11, color: accentColor, fontWeight: FontWeight.w500)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _prevText = '';
-  void _handleListContinuation() {
-    final text = _controller.text;
-    final sel = _controller.selection;
-    if (!sel.isValid || !sel.isCollapsed) { _prevText = text; return; }
-    final pos = sel.baseOffset;
-    // Only trigger when a newline was just inserted
-    if (text.length != _prevText.length + 1 || pos < 1 || text[pos - 1] != '\n') {
-      _prevText = text;
-      return;
-    }
-    // Find the line before this newline
-    final beforeNewline = text.substring(0, pos - 1);
-    final lastNewline = beforeNewline.lastIndexOf('\n');
-    final prevLine = beforeNewline.substring(lastNewline + 1);
-
-    // Check for double-enter (previous line is empty or just a list prefix)
-    final stripped = prevLine.trim();
-    if (stripped == '•' || stripped == '☐' || RegExp(r'^\d+\.\s*$').hasMatch(stripped)) {
-      // Double-enter: remove the empty list prefix line
-      final removeFrom = lastNewline + 1;
-      final newText = text.substring(0, removeFrom) + text.substring(pos);
-      _controller.text = newText;
-      _controller.selection = TextSelection.collapsed(offset: removeFrom);
-      _prevText = _controller.text;
-      return;
-    }
-
-    // Bullet list continuation
-    if (prevLine.startsWith('• ')) {
-      final insert = '• ';
-      final newText = text.substring(0, pos) + insert + text.substring(pos);
-      _controller.text = newText;
-      _controller.selection = TextSelection.collapsed(offset: pos + insert.length);
-      _prevText = _controller.text;
-      return;
-    }
-    // Checklist continuation
-    if (prevLine.startsWith('☐ ') || prevLine.startsWith('☑ ')) {
-      final insert = '☐ ';
-      final newText = text.substring(0, pos) + insert + text.substring(pos);
-      _controller.text = newText;
-      _controller.selection = TextSelection.collapsed(offset: pos + insert.length);
-      _prevText = _controller.text;
-      return;
-    }
-    // Numbered list continuation
-    final numMatch = RegExp(r'^(\d+)\.\s').firstMatch(prevLine);
-    if (numMatch != null) {
-      // Count consecutive numbered lines in this block (stop at empty line)
-      final lines = beforeNewline.substring(0, lastNewline < 0 ? 0 : lastNewline).split('\n');
-      int count = 1; // current line is already a numbered line
-      for (final l in lines.reversed) {
-        if (RegExp(r'^\d+\.\s').hasMatch(l)) {
-          count++;
-        } else {
-          break;
-        }
-      }
-      final nextNum = count + 1;
-      final insert = '$nextNum. ';
-      final newText = text.substring(0, pos) + insert + text.substring(pos);
-      _controller.text = newText;
-      _controller.selection = TextSelection.collapsed(offset: pos + insert.length);
-      _prevText = _controller.text;
-      return;
-    }
-    _prevText = text;
-  }
-
   void _showWriteSheet() {
-    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
-    String? attachedImageBase64;
-    _prevText = _controller.text;
-    _controller.addListener(_handleListContinuation);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20, right: 20, top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _controller,
-                maxLines: 5,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: tr('new_flash_note'),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _flashFormatBtn(
-                    icon: Icons.format_list_bulleted,
-                    label: tr('bullet_list'),
-                    accentColor: accentColor,
-                    onTap: () {
-                      final sel = _controller.selection;
-                      final pos = sel.isValid ? sel.baseOffset : _controller.text.length;
-                      final before = _controller.text.substring(0, pos);
-                      final after = _controller.text.substring(pos);
-                      final needsNewline = before.isNotEmpty && !before.endsWith('\n');
-                      final prefix = '${needsNewline ? '\n' : ''}• ';
-                      _controller.text = '$before$prefix$after';
-                      _controller.selection = TextSelection.collapsed(offset: pos + prefix.length);
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _flashFormatBtn(
-                    icon: Icons.format_list_numbered,
-                    label: tr('numbered_list'),
-                    accentColor: accentColor,
-                    onTap: () {
-                      final text = _controller.text;
-                      final sel = _controller.selection;
-                      final pos = sel.isValid ? sel.baseOffset : text.length;
-                      final before = text.substring(0, pos);
-                      // Count consecutive numbered lines in current block (restart after empty line)
-                      final lines = before.split('\n');
-                      int num = 1;
-                      for (final l in lines.reversed) {
-                        if (l.trim().isEmpty) break;
-                        if (RegExp(r'^\d+\.\s').hasMatch(l)) { num++; } else { break; }
-                      }
-                      final after = text.substring(pos);
-                      final needsNewline = before.isNotEmpty && !before.endsWith('\n');
-                      final prefix = '${needsNewline ? '\n' : ''}$num. ';
-                      _controller.text = '$before$prefix$after';
-                      _controller.selection = TextSelection.collapsed(offset: pos + prefix.length);
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _flashFormatBtn(
-                    icon: Icons.checklist,
-                    label: 'Checklist',
-                    accentColor: accentColor,
-                    onTap: () {
-                      final sel = _controller.selection;
-                      final pos = sel.isValid ? sel.baseOffset : _controller.text.length;
-                      final before = _controller.text.substring(0, pos);
-                      final after = _controller.text.substring(pos);
-                      final needsNewline = before.isNotEmpty && !before.endsWith('\n');
-                      final prefix = '${needsNewline ? '\n' : ''}☐ ';
-                      _controller.text = '$before$prefix$after';
-                      _controller.selection = TextSelection.collapsed(offset: pos + prefix.length);
-                    },
-                  ),
-                ],
-              ),
-              if (attachedImageBase64 != null) ...[
-                const SizedBox(height: 12),
-                Stack(
-                  alignment: Alignment.topRight,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.memory(
-                        base64Decode(attachedImageBase64!),
-                        height: 120,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Colors.black54,
-                        child: IconButton(
-                          icon: const Icon(Icons.close, size: 14, color: Colors.white),
-                          padding: EdgeInsets.zero,
-                          onPressed: () => setSheetState(() => attachedImageBase64 = null),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  IconButton.filled(
-                    onPressed: () async {
-                      try {
-                        final picker = ImagePicker();
-                        final XFile? image = await picker.pickImage(
-                          source: ImageSource.gallery,
-                          maxWidth: 1024,
-                          maxHeight: 1024,
-                          imageQuality: 80,
-                        );
-                        if (image != null) {
-                          final bytes = await image.readAsBytes();
-                          setSheetState(() => attachedImageBase64 = base64Encode(bytes));
-                        }
-                      } catch (_) {}
-                    },
-                    icon: const Icon(Icons.camera_alt, size: 20),
-                    tooltip: tr('attach_photo'),
-                    style: IconButton.styleFrom(
-                      backgroundColor: accentColor.withValues(alpha: 0.15),
-                      foregroundColor: accentColor,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () async {
-                        if (_controller.text.isNotEmpty) {
-                          final note = FlashNote(content: _controller.text, imageBase64: attachedImageBase64);
-                          await DatabaseHelper().insertFlashNote(note);
-                          _controller.clear();
-                          await _loadNotes();
-                        }
-                        if (ctx.mounted) Navigator.pop(ctx);
-                      },
-                      icon: const Icon(Icons.check, size: 18),
-                      label: Text(tr('save')),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: accentColor,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => FlashNoteEditorPage(
+        onSave: (note) async {
+          await DatabaseHelper().insertFlashNote(note);
+          await _loadNotes();
+        },
       ),
-    ).then((_) {
-      _controller.removeListener(_handleListContinuation);
-    });
+    ));
   }
 
   String _formatAudioDuration(int totalSeconds) {
