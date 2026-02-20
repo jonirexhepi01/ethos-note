@@ -1664,528 +1664,6 @@ Future<void> _migrateSharedPrefsToSqlite() async {
   }
 }
 
-Future<void> _initDemoDataIfNeeded() async {
-  final prefs = await SharedPreferences.getInstance();
-  if (prefs.getBool('demo_data_loaded') == true) return;
-
-  // ── Demo Profile (full) ──
-  final avatarBase64 = _generateDemoAvatarBase64();
-  final profile = UserProfile(
-    nome: 'Marco',
-    cognome: 'Rossi',
-    email: 'utente@esempio.it',
-    dataNascita: DateTime(1992, 7, 15),
-    isPro: true,
-    photoBase64: avatarBase64,
-    religione: 'Cattolica',
-    telefono: '+39 000 0000000',
-    password: '',
-    googleCalendarConnected: true,
-    googleDriveConnected: true,
-    geminiConnected: true,
-    backupMode: 'drive',
-    socialLinks: [
-      'https://linkedin.com/in/demo',
-      'https://github.com/utente_demo',
-      'https://instagram.com/demo',
-    ],
-    friends: ['Giulia Bianchi', 'Luca Verdi', 'Anna Ferretti', 'Alessandro Conti', 'Sara Moretti'],
-    nickname: 'marco_r',
-    accounts: [
-      {'nome': 'Lavoro', 'email': 'utente@azienda.it'},
-      {'nome': 'Studio', 'email': 'utente@universita.it'},
-    ],
-    activeAccountIndex: 0,
-  );
-  final db = DatabaseHelper();
-  await db.saveProfile(profile);
-  await prefs.setBool('health_authorized', true);
-
-  // ── Demo Calendar Events (3+ months) ──
-  final now = DateTime.now();
-  final events = <String, List<Map<String, dynamic>>>{};
-
-  void addEvent(DateTime date, String title, int startH, int startM, int endH, int endM, {String calendar = 'Personale'}) {
-    final key = '${date.year}-${date.month}-${date.day}';
-    final event = CalendarEventFull(
-      title: title,
-      startTime: DateTime(date.year, date.month, date.day, startH, startM),
-      endTime: DateTime(date.year, date.month, date.day, endH, endM),
-      calendar: calendar,
-    ).toJson();
-    events.putIfAbsent(key, () => []).add(event);
-  }
-
-  // ── PAST MONTH (30-60 days ago) ──
-  addEvent(now.subtract(const Duration(days: 55)), 'Compleanno Giulia', 19, 0, 23, 30);
-  addEvent(now.subtract(const Duration(days: 52)), 'Riunione trimestrale', 9, 0, 12, 0, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 50)), 'Vernissage galleria', 18, 0, 21, 0);
-  addEvent(now.subtract(const Duration(days: 48)), 'Corso yoga', 7, 30, 8, 30);
-  addEvent(now.subtract(const Duration(days: 45)), 'Conferenza tech', 10, 0, 17, 0, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 45)), 'Cena networking', 20, 0, 22, 30, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 42)), 'Dentista pulizia', 15, 0, 16, 0);
-  addEvent(now.subtract(const Duration(days: 40)), 'Partita calcetto', 20, 0, 21, 30);
-  addEvent(now.subtract(const Duration(days: 38)), 'Pranzo famiglia', 12, 30, 15, 0);
-  addEvent(now.subtract(const Duration(days: 35)), 'Sprint planning', 9, 30, 11, 0, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 33)), 'Teatro con Anna', 20, 30, 23, 0);
-  addEvent(now.subtract(const Duration(days: 32)), 'Pilates', 18, 0, 19, 0);
-
-  // ── PAST 2 WEEKS - 1 MONTH ──
-  addEvent(now.subtract(const Duration(days: 28)), 'Taglio capelli', 11, 0, 12, 0);
-  addEvent(now.subtract(const Duration(days: 28)), 'Call cliente Torino', 14, 0, 15, 0, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 25)), 'Cena sushi con colleghi', 20, 0, 22, 0, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 24)), 'Revisione auto', 8, 30, 10, 30);
-  addEvent(now.subtract(const Duration(days: 22)), 'Demo prodotto', 15, 0, 16, 30, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 20)), 'Corso di cucina', 18, 30, 21, 0);
-  addEvent(now.subtract(const Duration(days: 18)), 'Visita nonna', 10, 0, 13, 0);
-  addEvent(now.subtract(const Duration(days: 16)), 'Presentazione Q4', 10, 0, 12, 0, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 15)), 'Nuoto', 7, 0, 8, 0);
-  addEvent(now.subtract(const Duration(days: 14)), 'Aperitivo Luca', 18, 30, 20, 0);
-  addEvent(now.subtract(const Duration(days: 12)), 'Spesa mercato', 9, 0, 10, 30);
-  addEvent(now.subtract(const Duration(days: 10)), 'Stand-up meeting', 9, 0, 9, 30, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 10)), 'Palestra', 18, 0, 19, 30);
-  addEvent(now.subtract(const Duration(days: 8)), 'Brunch domenicale', 11, 0, 13, 30);
-  addEvent(now.subtract(const Duration(days: 7)), 'Code review sprint', 14, 0, 16, 0, calendar: 'Lavoro');
-
-  // ── PAST WEEK ──
-  addEvent(now.subtract(const Duration(days: 6)), 'Colloquio candidato', 10, 0, 11, 0, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 5)), 'Pilates', 18, 0, 19, 0);
-  addEvent(now.subtract(const Duration(days: 4)), 'Chiamata cliente', 11, 0, 11, 45, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 3)), 'Pizza con amici', 20, 0, 22, 30);
-  addEvent(now.subtract(const Duration(days: 2)), 'Workshop design', 14, 0, 17, 0, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 1)), 'Consegna progetto', 14, 0, 16, 0, calendar: 'Lavoro');
-  addEvent(now.subtract(const Duration(days: 1)), 'Corsa al parco', 7, 0, 8, 0);
-
-  // ── TODAY ──
-  addEvent(now, 'Riunione di lavoro', 9, 30, 11, 0, calendar: 'Lavoro');
-  addEvent(now, 'Pranzo team', 12, 30, 13, 30, calendar: 'Lavoro');
-  addEvent(now, 'Palestra', 18, 0, 19, 30);
-
-  // ── TOMORROW + NEXT DAYS ──
-  final d1 = now.add(const Duration(days: 1));
-  addEvent(d1, 'Pranzo con Anna', 12, 30, 14, 0);
-  addEvent(d1, 'Dentista', 16, 0, 17, 0);
-  final d2 = now.add(const Duration(days: 2));
-  addEvent(d2, 'Call cliente Milano', 10, 0, 10, 45, calendar: 'Lavoro');
-  addEvent(d2, 'Yoga', 18, 0, 19, 0);
-  final d3 = now.add(const Duration(days: 3));
-  addEvent(d3, 'Corso di inglese', 17, 0, 18, 30);
-  addEvent(d3, 'Cena con amici', 20, 30, 23, 0);
-  final d4 = now.add(const Duration(days: 4));
-  addEvent(d4, 'Sprint retrospective', 10, 0, 11, 30, calendar: 'Lavoro');
-  final d5 = now.add(const Duration(days: 5));
-  addEvent(d5, 'Spesa settimanale', 10, 0, 11, 30);
-  addEvent(d5, 'Cinema: nuovo film', 21, 0, 23, 15);
-  final d6 = now.add(const Duration(days: 6));
-  addEvent(d6, 'Brunch famiglia', 11, 0, 14, 0);
-
-  // ── NEXT WEEK ──
-  final d7 = now.add(const Duration(days: 7));
-  addEvent(d7, 'Visita medica', 8, 30, 9, 30);
-  addEvent(d7, 'Aperitivo colleghi', 18, 30, 20, 0, calendar: 'Lavoro');
-  final d8 = now.add(const Duration(days: 8));
-  addEvent(d8, 'Planning meeting', 9, 0, 10, 30, calendar: 'Lavoro');
-  final d9 = now.add(const Duration(days: 9));
-  addEvent(d9, 'Palestra', 18, 0, 19, 30);
-  addEvent(d9, 'Lezione chitarra', 20, 0, 21, 0);
-  final d10 = now.add(const Duration(days: 10));
-  addEvent(d10, 'Pranzo colleghi', 12, 30, 14, 0, calendar: 'Lavoro');
-  final d12 = now.add(const Duration(days: 12));
-  addEvent(d12, 'Partita basket', 16, 0, 18, 0);
-  final d14 = now.add(const Duration(days: 14));
-  addEvent(d14, 'Cena romantica', 20, 0, 23, 0);
-
-  // ── NEXT 2-4 WEEKS ──
-  final d17 = now.add(const Duration(days: 17));
-  addEvent(d17, 'Colloquio lavoro', 10, 0, 11, 30, calendar: 'Lavoro');
-  addEvent(d17, 'Nuoto', 17, 0, 18, 0);
-  final d20 = now.add(const Duration(days: 20));
-  addEvent(d20, 'Compleanno Luca', 19, 0, 23, 59);
-  final d22 = now.add(const Duration(days: 22));
-  addEvent(d22, 'Conferenza Flutter', 9, 0, 18, 0, calendar: 'Lavoro');
-  addEvent(d22, 'Networking dinner', 19, 30, 22, 0, calendar: 'Lavoro');
-  final d25 = now.add(const Duration(days: 25));
-  addEvent(d25, 'Spesa al mercato', 9, 0, 10, 30);
-  addEvent(d25, 'Film con Sara', 21, 0, 23, 30);
-  final d28 = now.add(const Duration(days: 28));
-  addEvent(d28, 'Revisione trimestrale', 10, 0, 12, 0, calendar: 'Lavoro');
-
-  // ── MONTH +2 (30-60 days ahead) ──
-  final d35 = now.add(const Duration(days: 35));
-  addEvent(d35, 'Viaggio Roma - partenza', 6, 0, 8, 0);
-  addEvent(d35, 'Check-in hotel', 14, 0, 15, 0);
-  final d36 = now.add(const Duration(days: 36));
-  addEvent(d36, 'Riunione sede Roma', 9, 0, 17, 0, calendar: 'Lavoro');
-  final d37 = now.add(const Duration(days: 37));
-  addEvent(d37, 'Visita Colosseo', 10, 0, 13, 0);
-  addEvent(d37, 'Rientro Milano', 18, 0, 20, 0);
-  final d40 = now.add(const Duration(days: 40));
-  addEvent(d40, 'Hackathon aziendale', 9, 0, 18, 0, calendar: 'Lavoro');
-  final d42 = now.add(const Duration(days: 42));
-  addEvent(d42, 'Dermatologo', 10, 0, 11, 0);
-  final d45 = now.add(const Duration(days: 45));
-  addEvent(d45, 'Compleanno mamma', 12, 0, 15, 0);
-  addEvent(d45, 'Cena festa', 19, 30, 23, 0);
-  final d50 = now.add(const Duration(days: 50));
-  addEvent(d50, 'Sprint demo', 15, 0, 16, 30, calendar: 'Lavoro');
-  final d55 = now.add(const Duration(days: 55));
-  addEvent(d55, 'Concerto', 21, 0, 23, 30);
-
-  // ── MONTH +3 (60-90 days ahead) ──
-  final d65 = now.add(const Duration(days: 65));
-  addEvent(d65, 'Vacanza Sardegna - partenza', 7, 0, 12, 0);
-  final d66 = now.add(const Duration(days: 66));
-  addEvent(d66, 'Spiaggia Costa Smeralda', 9, 0, 18, 0);
-  final d67 = now.add(const Duration(days: 67));
-  addEvent(d67, 'Escursione barca', 10, 0, 16, 0);
-  final d70 = now.add(const Duration(days: 70));
-  addEvent(d70, 'Rientro da vacanza', 14, 0, 20, 0);
-  final d75 = now.add(const Duration(days: 75));
-  addEvent(d75, 'Ripresa lavoro', 9, 0, 18, 0, calendar: 'Lavoro');
-  final d80 = now.add(const Duration(days: 80));
-  addEvent(d80, 'Matrimonio Alessandro', 14, 0, 23, 59);
-  final d85 = now.add(const Duration(days: 85));
-  addEvent(d85, 'Esame certificazione', 9, 0, 12, 0, calendar: 'Lavoro');
-  final d90 = now.add(const Duration(days: 90));
-  addEvent(d90, 'Review semestrale', 10, 0, 12, 0, calendar: 'Lavoro');
-  addEvent(d90, 'Festa fine progetto', 19, 0, 23, 0, calendar: 'Lavoro');
-
-  // Save events to SQLite
-  for (final entry in events.entries) {
-    for (final e in entry.value) {
-      await db.insertEvent(CalendarEventFull.fromJson(e));
-    }
-  }
-
-  // ── Demo Pro Notes (12 notes across all folders) ──
-  final proNotes = <ProNote>[
-    ProNote(
-      title: 'Lista della spesa',
-      content: 'Pane integrale\nLatte fresco\nPomodori San Marzano\nMozzarella di bufala\nBasilico fresco\nPasta De Cecco\nOlio EVO\nParmigiano 24 mesi',
-      folder: 'Personale',
-      createdAt: now.subtract(const Duration(days: 2)),
-    ),
-    ProNote(
-      title: 'Idee progetto app',
-      content: 'Feature da implementare:\n- Sincronizzazione cloud\n- Notifiche push per eventi\n- Widget per la home screen\n- Tema personalizzabile con colori\n- Export PDF delle note\n- Integrazione con Google Calendar\n- Dark mode automatico\n- Backup incrementale',
-      folder: 'Lavoro',
-      createdAt: now.subtract(const Duration(days: 5)),
-    ),
-    ProNote(
-      title: 'Ricetta Carbonara',
-      content: 'Ingredienti (4 persone):\n- 400g spaghetti\n- 200g guanciale\n- 6 tuorli d\'uovo\n- 100g pecorino romano\n- Pepe nero q.b.\n\nPreparazione:\n1. Tagliare il guanciale a listarelle\n2. Rosolare in padella senza olio\n3. Mescolare tuorli, pecorino e pepe\n4. Cuocere la pasta al dente\n5. Mantecare fuori dal fuoco con la crema di uova',
-      folder: 'Personale',
-      createdAt: now.subtract(const Duration(days: 10)),
-    ),
-    ProNote(
-      title: 'Meeting notes - Q1 Review',
-      content: 'Partecipanti: Marco, Giulia, Alessandro, Sara\n\nPunti discussi:\n- Obiettivi Q1 raggiunti al 87%\n- Budget marketing da rivedere\n- Nuova campagna social media\n- Assunzione developer senior\n\nAction items:\n- Marco: preparare report vendite\n- Giulia: contattare agenzia PR\n- Alessandro: colloqui candidati entro venerdì',
-      folder: 'Lavoro',
-      createdAt: now.subtract(const Duration(days: 3)),
-    ),
-    ProNote(
-      title: 'Libri da leggere 2026',
-      content: '1. "Il nome della rosa" - Umberto Eco\n2. "Sapiens" - Yuval Noah Harari\n3. "Atomic Habits" - James Clear\n4. "L\'arte della guerra" - Sun Tzu\n5. "Clean Code" - Robert C. Martin\n6. "Il Piccolo Principe" - Saint-Exupéry\n7. "Thinking, Fast and Slow" - Kahneman\n8. "Deep Work" - Cal Newport',
-      folder: 'Generale',
-      createdAt: now.subtract(const Duration(days: 15)),
-    ),
-    ProNote(
-      title: 'Workout settimanale',
-      content: 'Lunedì - Petto e tricipiti\nMartedì - Schiena e bicipiti\nMercoledì - Riposo / Cardio leggero\nGiovedì - Spalle e addominali\nVenerdì - Gambe e glutei\nSabato - HIIT 30 min\nDomenica - Riposo completo\n\nNote: aumentare peso squat di 5kg la prossima settimana',
-      folder: 'Personale',
-      createdAt: now.subtract(const Duration(days: 1)),
-    ),
-    ProNote(
-      title: 'Architettura microservizi',
-      content: 'Componenti principali:\n- API Gateway (Kong)\n- Auth Service (JWT + OAuth2)\n- User Service (PostgreSQL)\n- Notification Service (Firebase)\n- File Storage (S3 + CloudFront)\n- Message Queue (RabbitMQ)\n\nPattern:\n- Event sourcing per ordini\n- CQRS per query complesse\n- Circuit breaker per resilienza\n- Rate limiting su gateway',
-      folder: 'Lavoro',
-      createdAt: now.subtract(const Duration(days: 20)),
-    ),
-    ProNote(
-      title: 'Viaggio Sardegna - Pianificazione',
-      content: 'Date: 20-27 Aprile\nVolo: Milano Malpensa → Olbia, Ryanair\nHotel: Resort Costa Smeralda (confermato)\n\nItinerario:\n- Giorno 1: Arrivo, check-in, spiaggia\n- Giorno 2: Costa Smeralda, Porto Cervo\n- Giorno 3: Escursione barca Arcipelago\n- Giorno 4: Nuraghe, cultura\n- Giorno 5: Relax, spa hotel\n- Giorno 6: Trekking Capo Testa\n- Giorno 7: Rientro\n\nBudget: €1.500 totali',
-      folder: 'Personale',
-      createdAt: now.subtract(const Duration(days: 8)),
-    ),
-    ProNote(
-      title: 'Diario personale',
-      content: 'Oggi è stata una giornata intensa ma produttiva. La presentazione del progetto è andata bene, il cliente era soddisfatto. Devo ricordarmi di prendermi più pause durante il lavoro.\n\nObiettivi per la prossima settimana:\n- Completare la documentazione\n- Iniziare il corso online di machine learning\n- Organizzare la cena con i vecchi amici del liceo',
-      folder: 'Privata',
-      createdAt: now.subtract(const Duration(days: 1)),
-    ),
-    ProNote(
-      title: 'Budget mensile Febbraio',
-      content: 'Entrate: €3.200\n\nUscite previste:\n- Affitto: €850\n- Bollette: €180\n- Spesa: €400\n- Trasporti: €120\n- Palestra: €45\n- Abbonamenti: €35\n- Uscite/svago: €300\n- Risparmio: €500\n- Imprevisti: €200\n\nRisparmiato fino ad oggi: €12.340',
-      folder: 'Privata',
-      createdAt: now.subtract(const Duration(days: 12)),
-    ),
-    ProNote(
-      title: 'Appunti corso Flutter avanzato',
-      content: 'Lezione 5 - State Management avanzato:\n- Provider vs Riverpod vs Bloc\n- Quando usare ChangeNotifier\n- Pattern repository\n- Dependency injection\n- Testing dei providers\n\nNote importanti:\n- Riverpod 2.0 preferito per nuovi progetti\n- Evitare setState per stato globale\n- Code generation con build_runner',
-      folder: 'Lavoro',
-      createdAt: now.subtract(const Duration(days: 25)),
-    ),
-    ProNote(
-      title: 'Regali di Natale - idee',
-      content: 'Mamma: Borsa in pelle (budget €100)\nPapà: Orologio Casio vintage (€80)\nGiulia: Profumo Chanel (€90)\nLuca: Libro + bottiglia vino (€50)\nAnna: Cuffia Bluetooth (€70)\nAlessandro: Gift card Steam (€50)\n\nTotale stimato: €440',
-      folder: 'Generale',
-      createdAt: now.subtract(const Duration(days: 45)),
-    ),
-  ];
-  for (final n in proNotes) {
-    await db.insertProNote(n);
-  }
-
-  // ── Demo Flash Notes (20+ notes spread across months) ──
-  final flashNotes = <FlashNote>[
-    FlashNote(content: 'Comprare regalo compleanno Laura - 20 febbraio', createdAt: now.subtract(const Duration(hours: 2))),
-    FlashNote(content: 'Chiamare idraulico per rubinetto cucina', createdAt: now.subtract(const Duration(hours: 5))),
-    FlashNote(content: 'Password WiFi ufficio: WiFiPassword123', createdAt: now.subtract(const Duration(days: 1))),
-    FlashNote(content: 'Palestra domani ore 18:30 - non dimenticare asciugamano', createdAt: now.subtract(const Duration(days: 1))),
-    FlashNote(content: 'Prenotare ristorante sabato sera per 6 persone', createdAt: now.subtract(const Duration(days: 2))),
-    FlashNote(content: 'IBAN Giulia: IT00X0000000000000000000', createdAt: now.subtract(const Duration(days: 3))),
-    FlashNote(content: 'Volo Roma-Milano 14 marzo - Alitalia AZ1020 ore 7:45', createdAt: now.subtract(const Duration(days: 3))),
-    FlashNote(content: 'Idea: app per tracciare consumi energia in casa', createdAt: now.subtract(const Duration(days: 4))),
-    FlashNote(content: 'Controllare scadenza assicurazione auto - fine marzo', createdAt: now.subtract(const Duration(days: 5))),
-    FlashNote(content: 'Film consigliato da Luca: "Perfect Days" di Wim Wenders', createdAt: now.subtract(const Duration(days: 7))),
-    FlashNote(content: 'Codice sconto Amazon: SPRING2026 - 15% elettronica', createdAt: now.subtract(const Duration(days: 8))),
-    FlashNote(content: 'Riunione condominiale giovedì 20:00 - portare preventivo', createdAt: now.subtract(const Duration(days: 10))),
-    FlashNote(content: 'Ricordarsi di rinnovare abbonamento palestra entro il 28', createdAt: now.subtract(const Duration(days: 14))),
-    FlashNote(content: 'Numero meccanico: 02 7654321 - chiedere preventivo freni', createdAt: now.subtract(const Duration(days: 18))),
-    FlashNote(content: 'Idea progetto: dashboard domotica con Raspberry Pi e Flutter', createdAt: now.subtract(const Duration(days: 22))),
-    FlashNote(content: 'Compleanno Alessandro 15 aprile - organizzare festa a sorpresa', createdAt: now.subtract(const Duration(days: 25))),
-    FlashNote(content: 'Comprare biglietti concerto Vasco Rossi - prevendita 1 marzo', createdAt: now.subtract(const Duration(days: 30))),
-    FlashNote(content: 'Tesi di Giulia: rileggere capitolo 3 entro lunedì', createdAt: now.subtract(const Duration(days: 35))),
-    FlashNote(content: 'Password Netflix nuova: Password123', createdAt: now.subtract(const Duration(days: 40))),
-    FlashNote(content: 'Ricetta tiramisù della nonna: mascarpone 500g, 6 uova, savoiardi 300g, caffè, cacao', createdAt: now.subtract(const Duration(days: 42))),
-    FlashNote(content: 'Podcast interessante: "Indagini" di Stefano Ferrario - episodio su cold cases', createdAt: now.subtract(const Duration(days: 50))),
-    FlashNote(content: 'Portare giacca in tintoria - macchia vino rosso', createdAt: now.subtract(const Duration(days: 55))),
-    FlashNote(content: 'Regalare i vecchi libri universitari a Chiara', createdAt: now.subtract(const Duration(days: 60))),
-  ];
-  for (final n in flashNotes) {
-    await db.insertFlashNote(n);
-  }
-
-  // ── Calendar Settings: full features enabled ──
-  final calSettings = const CalendarSettings(
-    showWeather: true,
-    weatherCity: 'Roma',
-    showHoroscope: false,
-    showZodiac: true,
-    zodiacDisplayMode: 'icon_and_text',
-    showNextMonthPreview: true,
-    showCycleTracking: true,
-    calendarLayout: 'split',
-    calendarViewMode: 'month',
-    religione: 'Cattolica',
-  );
-  await calSettings.save();
-
-  // ── Deep Note Settings: full features ──
-  final noteSettings = const NoteProSettings(
-    showPrivateFolder: true,
-    securityPin: '',
-    pdfSaveMode: 'google_drive',
-    trashEnabled: true,
-    trashRetentionDays: 30,
-    downloadedFonts: ['Playfair Display', 'Nunito', 'EB Garamond'],
-    customTemplates: [
-      {'name': 'Lettera formale', 'type': 'business'},
-      {'name': 'Report settimanale', 'type': 'report'},
-    ],
-  );
-  await noteSettings.save();
-
-  // ── Flash Notes Settings: Gemini + formatting ──
-  final flashSettings = const FlashNotesSettings(
-    geminiEnabled: true,
-    geminiApiKey: 'AIzaSyDemo_xxxx_not_real_key_xxxx',
-    autoSaveMode: 'weekly',
-    formattingPreset: 'simple',
-    aiCorrectionLevel: 0.5,
-    groupingMode: 'weekly',
-  );
-  await flashSettings.save();
-
-  // ── Demo Trashed Notes (Cestino) ──
-  final trashedNotes = <TrashedNote>[
-    TrashedNote(
-      type: 'pro',
-      noteJson: ProNote(
-        title: 'Appunti vecchia riunione',
-        content: 'Note riunione 5 gennaio - non più rilevanti\nPunti superati dal nuovo piano',
-        folder: 'Lavoro',
-        createdAt: now.subtract(const Duration(days: 30)),
-      ).toJson(),
-      deletedAt: now.subtract(const Duration(days: 5)),
-    ),
-    TrashedNote(
-      type: 'pro',
-      noteJson: ProNote(
-        title: 'Bozza email (scartata)',
-        content: 'Gentile Dott. Bianchi,\nLe scrivo per...\n\n[bozza incompleta]',
-        folder: 'Generale',
-        createdAt: now.subtract(const Duration(days: 20)),
-      ).toJson(),
-      deletedAt: now.subtract(const Duration(days: 3)),
-    ),
-    TrashedNote(
-      type: 'flash',
-      noteJson: FlashNote(
-        content: 'Numero vecchio ufficio: 02 9876543 (chiuso)',
-        createdAt: now.subtract(const Duration(days: 15)),
-      ).toJson(),
-      deletedAt: now.subtract(const Duration(days: 2)),
-    ),
-    TrashedNote(
-      type: 'flash',
-      noteJson: FlashNote(
-        content: 'Link promo scaduta: www.example.com/promo2025',
-        createdAt: now.subtract(const Duration(days: 25)),
-      ).toJson(),
-      deletedAt: now.subtract(const Duration(days: 1)),
-    ),
-    TrashedNote(
-      type: 'pro',
-      noteJson: ProNote(
-        title: 'Todo list completata',
-        content: '✅ Comprare latte\n✅ Pagare bolletta\n✅ Spedire pacco\n✅ Chiamare dentista',
-        folder: 'Personale',
-        createdAt: now.subtract(const Duration(days: 10)),
-      ).toJson(),
-      deletedAt: now.subtract(const Duration(days: 1)),
-    ),
-  ];
-  await TrashedNote.saveAll(trashedNotes);
-
-  // ── Demo Cycle Tracking Data ──
-  final cycleDays = <String>[];
-  // Simulate last 3 cycles (~28 day intervals, 5 days each)
-  for (final offset in [3, 31, 59]) {
-    for (int d = 0; d < 5; d++) {
-      final day = now.subtract(Duration(days: offset + d));
-      cycleDays.add('${day.year}-${day.month}-${day.day}');
-    }
-  }
-  await db.replaceAllCycleDays(cycleDays);
-
-  // ── Demo Old Photos (photo history) ──
-  // Reuse avatar with slight variation for history
-  final profile2 = await db.getProfile();
-  if (profile2 != null) {
-    profile2.oldPhotos = [avatarBase64, avatarBase64, avatarBase64];
-    await db.saveProfile(profile2);
-  }
-
-  await prefs.setBool('demo_data_loaded', true);
-}
-
-/// Generate a small 48x48 PNG avatar with initials "MR" as base64
-String _generateDemoAvatarBase64() {
-  // Minimal valid 1x1 indigo PNG - the app will show initials over it
-  // Using a pre-built tiny PNG (8x8 solid indigo color)
-  // For a real avatar we generate raw PNG bytes
-  final width = 8;
-  final height = 8;
-
-  // PNG file structure
-  final bytes = <int>[];
-
-  // PNG signature
-  bytes.addAll([137, 80, 78, 71, 13, 10, 26, 10]);
-
-  // IHDR chunk
-  final ihdr = <int>[
-    0, 0, 0, width, // width
-    0, 0, 0, height, // height
-    8, // bit depth
-    2, // color type (RGB)
-    0, 0, 0, // compression, filter, interlace
-  ];
-  bytes.addAll(_pngChunk('IHDR', ihdr));
-
-  // IDAT chunk - raw image data
-  // Each row: filter byte (0) + RGB pixels
-  final rawData = <int>[];
-  for (int y = 0; y < height; y++) {
-    rawData.add(0); // no filter
-    for (int x = 0; x < width; x++) {
-      // Indigo gradient
-      rawData.addAll([99, 102, 241]); // #6366F1
-    }
-  }
-
-  // Compress with zlib (deflate)
-  // Simple: store block (no compression)
-  final deflated = <int>[
-    0x78, 0x01, // zlib header
-  ];
-  // Split into blocks of max 65535
-  int offset = 0;
-  while (offset < rawData.length) {
-    final remaining = rawData.length - offset;
-    final blockSize = remaining > 65535 ? 65535 : remaining;
-    final isLast = (offset + blockSize) >= rawData.length;
-    deflated.add(isLast ? 0x01 : 0x00); // BFINAL + BTYPE=00 (stored)
-    deflated.add(blockSize & 0xFF);
-    deflated.add((blockSize >> 8) & 0xFF);
-    deflated.add((~blockSize) & 0xFF);
-    deflated.add(((~blockSize) >> 8) & 0xFF);
-    deflated.addAll(rawData.sublist(offset, offset + blockSize));
-    offset += blockSize;
-  }
-  // Adler32
-  int a = 1, b = 0;
-  for (final byte in rawData) {
-    a = (a + byte) % 65521;
-    b = (b + a) % 65521;
-  }
-  final adler = (b << 16) | a;
-  deflated.add((adler >> 24) & 0xFF);
-  deflated.add((adler >> 16) & 0xFF);
-  deflated.add((adler >> 8) & 0xFF);
-  deflated.add(adler & 0xFF);
-
-  bytes.addAll(_pngChunk('IDAT', deflated));
-
-  // IEND chunk
-  bytes.addAll(_pngChunk('IEND', []));
-
-  return base64Encode(Uint8List.fromList(bytes));
-}
-
-List<int> _pngChunk(String type, List<int> data) {
-  final chunk = <int>[];
-  // Length (4 bytes big-endian)
-  final len = data.length;
-  chunk.addAll([(len >> 24) & 0xFF, (len >> 16) & 0xFF, (len >> 8) & 0xFF, len & 0xFF]);
-  // Type
-  final typeBytes = type.codeUnits;
-  chunk.addAll(typeBytes);
-  // Data
-  chunk.addAll(data);
-  // CRC32
-  final crcData = [...typeBytes, ...data];
-  final crc = _crc32(crcData);
-  chunk.addAll([(crc >> 24) & 0xFF, (crc >> 16) & 0xFF, (crc >> 8) & 0xFF, crc & 0xFF]);
-  return chunk;
-}
-
-int _crc32(List<int> data) {
-  int crc = 0xFFFFFFFF;
-  for (final byte in data) {
-    crc ^= byte;
-    for (int i = 0; i < 8; i++) {
-      if ((crc & 1) != 0) {
-        crc = (crc >> 1) ^ 0xEDB88320;
-      } else {
-        crc >>= 1;
-      }
-    }
-  }
-  return crc ^ 0xFFFFFFFF;
-}
-
 class EthosNoteApp extends StatefulWidget {
   const EthosNoteApp({super.key});
 
@@ -3986,10 +3464,6 @@ class _CalendarPageState extends State<CalendarPage> {
   late Map<String, List<Holiday>> _holidays;
   CalendarSettings _calSettings = const CalendarSettings();
 
-  // Horoscope
-  HoroscopeData? _horoscopeData;
-  bool _isLoadingHoroscope = false;
-
   // Weather
   WeatherData? _weatherData;
   bool _isLoadingWeather = false;
@@ -3998,9 +3472,6 @@ class _CalendarPageState extends State<CalendarPage> {
   Set<String> _cycleDays = {};
   Map<String, String> _cycleDaysIntensity = {};
 
-  // Ethos Aura (premium)
-  EthosAuraSettings _auraSettings = const EthosAuraSettings();
-
   // Split layout: calendar compression on scroll
   bool _isCalendarCompact = false;
   bool _compactCooldown = false;
@@ -4008,14 +3479,10 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // Google Calendar
   Map<String, List<CalendarEventFull>> _googleEvents = {};
-  bool _isLoadingGoogle = false;
   Set<String> _completedGoogleEventIds = {};
 
   // Health
   HealthSnapshot? _healthSnapshot;
-
-  // User zodiac icon
-  String _zodiacIcon = '⭐';
 
   @override
   void initState() {
@@ -4031,7 +3498,6 @@ class _CalendarPageState extends State<CalendarPage> {
     _loadCompletedGoogleEventIds();
     _initGoogleCalendar();
     _initHealth();
-    _loadAuraSettings();
     _eventsScrollController.addListener(_onEventsScroll);
     // Request notification permissions now that Activity is ready
     NotificationService.ensurePermissions();
@@ -4057,11 +3523,6 @@ class _CalendarPageState extends State<CalendarPage> {
     _eventsScrollController.removeListener(_onEventsScroll);
     _eventsScrollController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadAuraSettings() async {
-    final s = await EthosAuraSettings.load();
-    if (mounted) setState(() => _auraSettings = s);
   }
 
   Future<void> _loadCycleDays() async {
@@ -4216,7 +3677,6 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _fetchGoogleEvents() async {
     if (!GoogleCalendarService.isSignedIn) return;
-    setState(() => _isLoadingGoogle = true);
     // Fetch 3 months of events
     final start = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
     final end = DateTime(_focusedDay.year, _focusedDay.month + 2, 0);
@@ -4229,7 +3689,6 @@ class _CalendarPageState extends State<CalendarPage> {
     if (mounted) {
       setState(() {
         _googleEvents = mapped;
-        _isLoadingGoogle = false;
       });
       // Schedule Ethos Note notifications for future Google events
       final now = DateTime.now();
@@ -4291,75 +3750,6 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  Widget _buildHealthProgressBar() {
-    final isEthos = _isEthosTheme(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final steps = _healthSnapshot?.stepsProgress ?? 0.0;
-    final cals = _healthSnapshot?.caloriesProgress ?? 0.0;
-    final water = _healthSnapshot?.waterProgress ?? 0.0;
-
-    // Colors for each section adapted to theme
-    final stepsColor = isEthos
-        ? const Color(0xFFB8566B) // bordeaux accent
-        : isDark ? const Color(0xFF4FC3F7) : const Color(0xFF039BE5);
-    final caloriesColor = isEthos
-        ? const Color(0xFFA3274F) // deep bordeaux
-        : isDark ? const Color(0xFFFFB74D) : const Color(0xFFEF6C00);
-    final waterColor = isEthos
-        ? const Color(0xFF7B1FA2) // purple-bordeaux
-        : isDark ? const Color(0xFF4DD0E1) : const Color(0xFF00897B);
-
-    final bgAlpha = isDark || isEthos ? 0.15 : 0.10;
-
-    Widget buildSection(double value, Color color, String label, IconData icon, String realValue) {
-      return Expanded(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icon, size: 10, color: color),
-                  const SizedBox(width: 3),
-                  Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: color)),
-                  const Spacer(),
-                  Text(realValue, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color.withValues(alpha: 0.8))),
-                ],
-              ),
-              const SizedBox(height: 3),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: value,
-                  minHeight: 5,
-                  backgroundColor: color.withValues(alpha: bgAlpha),
-                  valueColor: AlwaysStoppedAnimation<Color>(color),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final stepsReal = _healthSnapshot?.steps?.toString() ?? '--';
-    final calsReal = _healthSnapshot?.calories != null ? '${_healthSnapshot!.calories!.round()} kcal' : '--';
-    final waterReal = _healthSnapshot?.waterLiters != null ? '${_healthSnapshot!.waterLiters!.toStringAsFixed(1)}L' : '--';
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          buildSection(steps, stepsColor, tr('steps'), Icons.directions_walk, stepsReal),
-          buildSection(cals, caloriesColor, tr('calories'), Icons.local_fire_department, calsReal),
-          buildSection(water, waterColor, tr('water'), Icons.water_drop_outlined, waterReal),
-        ],
-      ),
-    );
-  }
-
   Widget _buildCycleFlowBar(DateTime day) {
     final intensity = _getCycleIntensity(day);
     final double progress;
@@ -4412,26 +3802,6 @@ class _CalendarPageState extends State<CalendarPage> {
     if (settings.showWeather && settings.weatherCity != null && settings.weatherCity!.isNotEmpty) {
       _loadWeather();
     }
-  }
-
-  Future<void> _loadHoroscope() async {
-    if (_isLoadingHoroscope) return;
-    setState(() => _isLoadingHoroscope = true);
-    try {
-      final profile = await DatabaseHelper().getProfile();
-      if (profile != null && profile.dataNascita != null) {
-        final segnoIcon = getZodiacSignFromDate(
-          profile.dataNascita!.month, profile.dataNascita!.day, mode: 'icon_only',
-        );
-        final segno = getZodiacSignFromDate(
-          profile.dataNascita!.month, profile.dataNascita!.day, mode: 'text_only',
-        );
-        if (mounted) setState(() => _zodiacIcon = segnoIcon);
-        final data = await fetchOroscopo(segno);
-        if (mounted) setState(() => _horoscopeData = data);
-      }
-    } catch (_) {}
-    if (mounted) setState(() => _isLoadingHoroscope = false);
   }
 
   Future<void> _loadWeather() async {
@@ -5434,64 +4804,6 @@ class _CalendarPageState extends State<CalendarPage> {
           Text(label, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
         ],
       ),
-    );
-  }
-
-  Widget _buildHoroscopeCard() {
-    if (!_calSettings.showHoroscope) return const SizedBox.shrink();
-    final colorScheme = Theme.of(context).colorScheme;
-
-    // Paywall: if not purchased, show locked card
-    if (!_auraSettings.oroscopoPurchased) {
-      return Card(
-        margin: const EdgeInsets.only(top: 12),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: const Text('🔒', style: TextStyle(fontSize: 22)),
-          title: Text(tr('horoscope_locked'), style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(tr('unlock_to_read'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-          trailing: FilledButton(
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const EthosAuraPage()))
-                  .then((_) => _loadAuraSettings());
-            },
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFAB47BC)),
-            child: const Text('€0,50'),
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(top: 12),
-      child: _isLoadingHoroscope
-          ? const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          : _horoscopeData != null
-              ? ExpansionTile(
-                  leading: Text(_zodiacIcon, style: const TextStyle(fontSize: 26)),
-                  title: Text(
-                    'Oroscopo ${_horoscopeData!.segno}',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, fontFamily: _isEthosTheme(context) ? 'Georgia' : null),
-                  ),
-                  subtitle: Text('Paolo Fox', style: TextStyle(fontSize: 12, color: _isEthosTheme(context) ? const Color(0xFF800020).withValues(alpha: 0.6) : null)),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Text(
-                        _horoscopeData!.testo,
-                        style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant, height: 1.5),
-                      ),
-                    ),
-                  ],
-                )
-              : ListTile(
-                  leading: Text(_zodiacIcon, style: const TextStyle(fontSize: 26)),
-                  title: Text(tr('horoscope_not_available')),
-                  subtitle: Text(tr('birth_date')),
-                ),
     );
   }
 
@@ -7101,12 +6413,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   };
 
 
-  static final _fontFamilies = [
-    'Default',
-    tr('italic_font'),
-    'Arcade',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -7146,10 +6452,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
 
   void _updateSettings(CalendarSettings newSettings) {
     setState(() => _settings = newSettings);
-  }
-
-  TextStyle _getCalendarFontStyle(String fontFamily, double fontSize, Color color) {
-    return getCalendarFontStyle(fontFamily, fontSize, color);
   }
 
   void _saveAndPop() {
@@ -7350,122 +6652,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             child: Text(tr('confirm')),
           ),
         ],
-      ),
-    );
-  }
-
-
-  Widget _buildFontCard() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(tr('font'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _settings.fontFamily,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-                prefixIcon: Icon(Icons.font_download, color: Color(_settings.calendarColorValue)),
-              ),
-              items: _fontFamilies.map((f) {
-                TextStyle style;
-                if (f == tr('italic_font')) {
-                  style = GoogleFonts.dancingScript();
-                } else if (f == 'Arcade') {
-                  style = GoogleFonts.pressStart2p(fontSize: 12);
-                } else {
-                  style = const TextStyle();
-                }
-                return DropdownMenuItem(
-                  value: f,
-                  child: Text(f, style: style),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  _updateSettings(_settings.copyWith(fontFamily: value));
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            // Preview
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  tr('font_preview'),
-                  style: _getCalendarFontStyle(_settings.fontFamily, _settings.dayFontSize, Color(_settings.calendarColorValue)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFontSizeCard() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(tr('header_font_size'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Text(tr('size'), style: const TextStyle(fontSize: 14)),
-                Expanded(
-                  child: Slider(
-                    value: _settings.dayFontSize,
-                    min: 10,
-                    max: 22,
-                    divisions: 12,
-                    activeColor: Color(_settings.calendarColorValue),
-                    label: '${_settings.dayFontSize.round()}',
-                    onChanged: (v) {
-                      _updateSettings(_settings.copyWith(dayFontSize: v));
-                    },
-                  ),
-                ),
-                Text('${_settings.dayFontSize.round()}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            Row(
-              children: [
-                Text(tr('header'), style: const TextStyle(fontSize: 14)),
-                Expanded(
-                  child: Slider(
-                    value: _settings.headerFontSize,
-                    min: 14,
-                    max: 28,
-                    divisions: 14,
-                    activeColor: Color(_settings.calendarColorValue),
-                    label: '${_settings.headerFontSize.round()}',
-                    onChanged: (v) {
-                      _updateSettings(_settings.copyWith(headerFontSize: v));
-                    },
-                  ),
-                ),
-                Text('${_settings.headerFontSize.round()}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -7980,194 +7166,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildHealthSettingsCard() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isConnected = HealthService.isAuthorized;
-    final platformName = !HealthService.isSupported
-        ? tr('not_available_web')
-        : defaultTargetPlatform == TargetPlatform.iOS
-            ? 'Apple Health'
-            : 'Health Connect';
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  isConnected ? Icons.monitor_heart : Icons.monitor_heart_outlined,
-                  color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isConnected ? '${tr('connected')} - $platformName' : platformName,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isConnected ? Colors.green : colorScheme.onSurface,
-                        ),
-                      ),
-                      Text(
-                        isConnected
-                            ? tr('health_connected_desc')
-                            : tr('health_connect_desc'),
-                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (!HealthService.isSupported)
-              Text(
-                'L\'integrazione salute funziona su iOS (Apple Health) e Android (Health Connect). Esegui l\'app su un dispositivo mobile per abilitarla.',
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-              )
-            else
-              SizedBox(
-                width: double.infinity,
-                child: isConnected
-                    ? OutlinedButton.icon(
-                        onPressed: () async {
-                          await HealthService.disconnect();
-                          setState(() {});
-                        },
-                        icon: const Icon(Icons.link_off, size: 18),
-                        label: Text(tr('disconnect')),
-                        style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
-                      )
-                    : FilledButton.icon(
-                        onPressed: () async {
-                          final ok = await HealthService.requestAuthorization();
-                          setState(() {});
-                          if (mounted) {
-                            String msg;
-                            if (ok) {
-                              msg = '$platformName ${tr('connected_success')}';
-                            } else if (HealthService.lastError == 'health_connect_not_installed') {
-                              msg = tr('health_connect_not_installed');
-                            } else if (HealthService.lastError == 'auth_denied') {
-                              msg = tr('auth_denied_msg');
-                            } else {
-                              msg = tr('health_error_generic');
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(msg),
-                                duration: const Duration(seconds: 5),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.link, size: 18),
-                        label: Text('${tr('connect')} $platformName'),
-                      ),
-              ),
-            // Samsung Health guide (Android only)
-            if (HealthService.isSupported && defaultTargetPlatform == TargetPlatform.android) ...[
-              const Divider(height: 24),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                leading: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1428A0).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.phone_android, color: Color(0xFF1428A0), size: 20),
-                ),
-                title: Text(tr('samsung_health_guide'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: Text(tr('samsung_health_guide_desc'), style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
-                childrenPadding: const EdgeInsets.only(bottom: 8),
-                children: [
-                  _buildGuideStep(Icons.open_in_new, tr('samsung_step_1'), const Color(0xFF1428A0)),
-                  _buildGuideStep(Icons.settings, tr('samsung_step_2'), const Color(0xFF1428A0)),
-                  _buildGuideStep(Icons.sync_alt, tr('samsung_step_3'), const Color(0xFF1428A0)),
-                  _buildGuideStep(Icons.toggle_on, tr('samsung_step_4'), const Color(0xFF1428A0)),
-                  _buildGuideStep(Icons.checklist, tr('samsung_step_5'), const Color(0xFF1428A0)),
-                  _buildGuideStep(Icons.arrow_back, tr('samsung_step_6'), Colors.green),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.info_outline, size: 16, color: Colors.amber),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(tr('samsung_note_install'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                              const SizedBox(height: 4),
-                              Text(tr('samsung_note_sync'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const Divider(height: 24),
-            Row(
-              children: [
-                Icon(Icons.lock_outline, size: 16, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    tr('health_privacy'),
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGuideStep(IconData icon, String text, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 14, color: color),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(text, style: const TextStyle(fontSize: 13, height: 1.4)),
-          ),
-        ],
       ),
     );
   }
@@ -8860,12 +7858,10 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late UserProfile _profile;
-  EthosAuraSettings _auraSettings = const EthosAuraSettings();
 
   @override
   void initState() {
     super.initState();
-    _loadAuraSettings();
     _profile = UserProfile(
       nome: widget.userProfile.nome,
       cognome: widget.userProfile.cognome,
@@ -8890,11 +7886,6 @@ class _SettingsPageState extends State<SettingsPage> {
       lockDeepNote: widget.userProfile.lockDeepNote,
       lockFlashNotes: widget.userProfile.lockFlashNotes,
     );
-  }
-
-  Future<void> _loadAuraSettings() async {
-    final s = await EthosAuraSettings.load();
-    if (mounted) setState(() => _auraSettings = s);
   }
 
   void _saveProfile() {
@@ -10619,102 +9610,6 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
     );
   }
 
-  // ── Health (Samsung Health / Apple Health) ──
-  Widget _buildHealthSection(ColorScheme colorScheme) {
-    final isConnected = HealthService.isAuthorized;
-    final isSupported = HealthService.isSupported;
-
-    String statusText;
-    if (!isSupported) {
-      statusText = tr('available_ios_android');
-    } else if (isConnected) {
-      statusText = defaultTargetPlatform == TargetPlatform.iOS
-          ? 'Apple Health ${tr('connected')}'
-          : 'Health Connect ${tr('connected')}';
-    } else {
-      statusText = tr('not_connected');
-    }
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: colorScheme.surfaceContainerLowest,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.shade600.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.monitor_heart, color: Colors.red.shade600, size: 28),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(tr('health'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(
-                    statusText,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: isConnected,
-              onChanged: !isSupported
-                  ? null
-                  : (val) async {
-                      if (val) {
-                        final ok = await HealthService.requestAuthorization();
-                        if (mounted) setState(() {});
-                        if (mounted) {
-                          String msg;
-                          if (ok) {
-                            msg = tr('health_connected');
-                          } else if (HealthService.lastError == 'health_connect_not_installed') {
-                            msg = tr('health_connect_not_installed');
-                          } else if (HealthService.lastError == 'auth_denied') {
-                            msg = tr('auth_denied_msg');
-                          } else {
-                            msg = tr('health_error_generic');
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(msg),
-                              duration: const Duration(seconds: 5),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          );
-                        }
-                      } else {
-                        await HealthService.disconnect();
-                        if (mounted) {
-                          setState(() {});
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('${tr('health')} - ${tr('disconnect')}'),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          );
-                        }
-                      }
-                    },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // FLASH NOTES
