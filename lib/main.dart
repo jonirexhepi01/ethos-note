@@ -50,6 +50,13 @@ String _appLocale = 'it';
 
 String tr(String key) => _translations[key]?[_appLocale] ?? _translations[key]?['it'] ?? key;
 
+/// Translate folder names for display (DB stores Italian keys).
+String folderLabel(String folder) {
+  const map = {'Generale': 'general', 'Diario del Ciclo': 'cycle_diary_folder'};
+  final key = map[folder];
+  return key != null ? tr(key) : folder;
+}
+
 List<String> localizedMonths() => [
   '', tr('january'), tr('february'), tr('march'), tr('april'), tr('may'), tr('june'),
   tr('july'), tr('august'), tr('september'), tr('october'), tr('november'), tr('december'),
@@ -328,10 +335,12 @@ const _translations = <String, Map<String, String>>{
   'new_folder': {'it': 'Nuova Cartella', 'en': 'New Folder', 'fr': 'Nouveau dossier', 'es': 'Nueva carpeta'},
   'folder_name': {'it': 'Nome cartella', 'en': 'Folder name', 'fr': 'Nom du dossier', 'es': 'Nombre de la carpeta'},
   'move_to_folder': {'it': 'Sposta in cartella', 'en': 'Move to folder', 'fr': 'Déplacer vers le dossier', 'es': 'Mover a carpeta'},
+  'change_folder': {'it': 'Cambia cartella', 'en': 'Change folder', 'fr': 'Changer de dossier', 'es': 'Cambiar carpeta'},
+  'account': {'it': 'Account', 'en': 'Account', 'fr': 'Compte', 'es': 'Cuenta'},
   'untitled': {'it': 'Senza titolo', 'en': 'Untitled', 'fr': 'Sans titre', 'es': 'Sin título'},
   'title': {'it': 'Titolo', 'en': 'Title', 'fr': 'Titre', 'es': 'Título'},
   'content': {'it': 'Contenuto', 'en': 'Content', 'fr': 'Contenu', 'es': 'Contenido'},
-  'search_notes': {'it': 'Cerca note...', 'en': 'Search notes...', 'fr': 'Rechercher des notes...', 'es': 'Buscar notas...'},
+  'search_notes': {'it': 'Cerca deep note...', 'en': 'Search deep notes...', 'fr': 'Rechercher deep notes...', 'es': 'Buscar deep notes...'},
   'delete_note_confirm': {'it': 'Eliminare questa nota?', 'en': 'Delete this note?', 'fr': 'Supprimer cette note ?', 'es': '¿Eliminar esta nota?'},
   'note_deleted': {'it': 'Nota eliminata', 'en': 'Note deleted', 'fr': 'Note supprimée', 'es': 'Nota eliminada'},
   'note_moved_to_trash': {'it': 'Nota spostata nel cestino', 'en': 'Note moved to trash', 'fr': 'Note déplacée dans la corbeille', 'es': 'Nota movida a la papelera'},
@@ -1198,7 +1207,7 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -1224,6 +1233,9 @@ class DatabaseHelper {
     if (oldVersion < 6) {
       await db.execute('ALTER TABLE pro_notes ADD COLUMN image_base64 TEXT');
     }
+    if (oldVersion < 7) {
+      await db.execute('ALTER TABLE pro_notes ADD COLUMN updated_at INTEGER');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -1234,7 +1246,7 @@ class DatabaseHelper {
         header_text TEXT, footer_text TEXT, template_preset TEXT,
         folder TEXT NOT NULL DEFAULT 'Generale',
         linked_date INTEGER, created_at INTEGER NOT NULL,
-        image_base64 TEXT
+        image_base64 TEXT, updated_at INTEGER
       )
     ''');
     await db.execute('CREATE INDEX idx_pro_notes_folder ON pro_notes(folder)');
@@ -3229,6 +3241,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _checkSharedFile();
     _checkDeepLink();
     _refreshWidgets();
+    NotificationService.onNotificationTap = _handleNotificationPayload;
     // Listen for deep links pushed from native (warm start)
     _deepLinkChannel.setMethodCallHandler((call) async {
       if (call.method == 'onDeepLink') {
@@ -3244,7 +3257,66 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     _deepLinkChannel.setMethodCallHandler(null);
     _calIconController.dispose();
+    NotificationService.onNotificationTap = null;
     super.dispose();
+  }
+
+  void _handleNotificationPayload(String payload) {
+    if (payload == 'cycle_diary' && mounted) {
+      setState(() {
+        _selectedIndex = 0;
+        _calIconController.reverse();
+      });
+      _openLatestCycleDiary();
+    }
+  }
+
+  Future<void> _openLatestCycleDiary() async {
+    final notes = await DatabaseHelper().getAllProNotes();
+    final diaryNotes = notes.where((n) {
+      if (n.folder != 'Diario del Ciclo' || n.contentDelta == null) return false;
+      try {
+        final data = json.decode(n.contentDelta!) as Map<String, dynamic>;
+        return data['type'] == 'cycle_diary' || data['type'] == 'cycle_missing';
+      } catch (_) {
+        return false;
+      }
+    }).toList();
+    if (diaryNotes.isEmpty || !mounted) return;
+    diaryNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final latest = diaryNotes.first;
+    final data = json.decode(latest.contentDelta!) as Map<String, dynamic>;
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => CycleDiaryPage(
+        data: data,
+        noteId: latest.id,
+        onSave: (updatedData) async {
+          if (latest.id != null) {
+            final updated = ProNote(
+              title: latest.title,
+              content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
+              contentDelta: json.encode(updatedData),
+              folder: 'Diario del Ciclo',
+              createdAt: latest.createdAt,
+            );
+            await DatabaseHelper().updateProNote(latest.id!, updated);
+          }
+        },
+        onComplete: (updatedData) async {
+          if (latest.id != null) {
+            final updated = ProNote(
+              title: latest.title,
+              content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
+              contentDelta: json.encode(updatedData),
+              folder: 'Diario del Ciclo',
+              createdAt: latest.createdAt,
+            );
+            await DatabaseHelper().updateProNote(latest.id!, updated);
+            await DatabaseHelper().deleteCache('cycle_diary_active');
+          }
+        },
+      ),
+    ));
   }
 
   Future<void> _checkCycleDiaryBadge() async {
@@ -3382,9 +3454,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     Color(0xFF1E88E5), // Calendar - blue
     Color(0xFFFFA726), // Flash Notes - amber
   ];
-  // Ethos Bordeaux family
+  // Ethos Bordeaux family (brightened for dark-mode contrast)
   static const _sectionColorsEthos = [
-    Color(0xFF800020), // Deep Note  — bordeaux pieno
+    Color(0xFFC0364D), // Deep Note  — bordeaux luminoso
     Color(0xFFA3274F), // Calendario — bordeaux chiaro
     Color(0xFFB8566B), // Flash Notes — rosé caldo
   ];
@@ -6354,6 +6426,7 @@ class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
   static bool _permissionsGranted = false;
+  static void Function(String payload)? onNotificationTap;
 
   /// Basic init — call from main(). Does NOT request permissions.
   static Future<void> init() async {
@@ -6371,7 +6444,9 @@ class NotificationService {
       await _plugin.initialize(
         settings,
         onDidReceiveNotificationResponse: (NotificationResponse response) {
-          debugPrint('Notification tapped: ${response.payload}');
+          if (response.payload != null && response.payload!.isNotEmpty) {
+            onNotificationTap?.call(response.payload!);
+          }
         },
       );
       _initialized = true;
@@ -9824,47 +9899,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       side: BorderSide.none,
                     ),
                   ],
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(tr('profile'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
-                  if (GoogleCalendarService.isSignedIn) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.check_circle, size: 16, color: Colors.green.shade400),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              '${tr('signed_in_as')} ${GoogleCalendarService.userEmail ?? ''}',
-                              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () async {
-                        await GoogleCalendarService.signOut();
-                        _profile.googleCalendarConnected = false;
-                        widget.onSave(_profile);
-                        setState(() {});
-                      },
-                      icon: const Icon(Icons.logout, size: 16),
-                      label: Text(tr('sign_out')),
-                      style: TextButton.styleFrom(
-                        foregroundColor: colorScheme.error,
-                        textStyle: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -10077,6 +10113,52 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
+          if (GoogleCalendarService.isSignedIn) ...[
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 6),
+              child: Text(tr('account'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+            ),
+            Card(
+              elevation: 0,
+              color: colorScheme.surfaceContainerLowest,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.account_circle, color: Colors.green.shade600, size: 22),
+                    ),
+                    title: Text('${tr('signed_in_as')}', style: const TextStyle(fontSize: 13)),
+                    subtitle: Text(GoogleCalendarService.userEmail ?? '', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: colorScheme.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.logout, color: colorScheme.error, size: 22),
+                    ),
+                    title: Text(tr('sign_out'), style: TextStyle(color: colorScheme.error, fontWeight: FontWeight.w600)),
+                    onTap: () async {
+                      await GoogleCalendarService.signOut();
+                      _profile.googleCalendarConnected = false;
+                      widget.onSave(_profile);
+                      setState(() {});
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 40),
         ],
       ),
@@ -12412,7 +12494,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildTrashList(proNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFF800020) : const Color(0xFFE53935)),
+          _buildTrashList(proNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFFC0364D) : const Color(0xFFE53935)),
           _buildTrashList(flashNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726)),
         ],
       ),
@@ -15736,6 +15818,7 @@ class ProNote {
   final String? footerText;
   final String? templatePreset;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final String folder;
   final DateTime? linkedDate;
   final String? imageBase64;
@@ -15751,8 +15834,12 @@ class ProNote {
     this.folder = 'Generale',
     this.linkedDate,
     this.imageBase64,
+    this.updatedAt,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
+
+  /// The effective sort date: updatedAt if available, otherwise createdAt.
+  DateTime get sortDate => updatedAt ?? createdAt;
 
   Map<String, dynamic> toJson() => {
     'title': title,
@@ -15764,6 +15851,7 @@ class ProNote {
     'folder': folder,
     'linkedDate': linkedDate?.toIso8601String(),
     'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt?.toIso8601String(),
     'imageBase64': imageBase64,
   };
 
@@ -15777,6 +15865,7 @@ class ProNote {
     folder: json['folder'] ?? 'Generale',
     linkedDate: json['linkedDate'] != null ? DateTime.parse(json['linkedDate']) : null,
     createdAt: DateTime.parse(json['createdAt']),
+    updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
     imageBase64: json['imageBase64'],
   );
 
@@ -15790,6 +15879,7 @@ class ProNote {
     'folder': folder,
     'linked_date': linkedDate?.millisecondsSinceEpoch,
     'created_at': createdAt.millisecondsSinceEpoch,
+    'updated_at': updatedAt?.millisecondsSinceEpoch,
     'image_base64': imageBase64,
   };
 
@@ -15804,6 +15894,7 @@ class ProNote {
     folder: (m['folder'] as String?) ?? 'Generale',
     linkedDate: m['linked_date'] != null ? DateTime.fromMillisecondsSinceEpoch(m['linked_date'] as int) : null,
     createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
+    updatedAt: m['updated_at'] != null ? DateTime.fromMillisecondsSinceEpoch(m['updated_at'] as int) : null,
     imageBase64: m['image_base64'] as String?,
   );
 }
@@ -15978,7 +16069,6 @@ class _NotesProPageState extends State<NotesProPage> {
   String _searchQuery = '';
   bool _isGridView = false;
   bool _showFolderSidebar = false;
-  bool _isAiAvailable = false;
   bool _cycleDiaryBadge = false;
 
   static const _availableIcons = [
@@ -16000,7 +16090,6 @@ class _NotesProPageState extends State<NotesProPage> {
     _loadCustomFolders();
     _loadSettings();
     _loadViewMode();
-    _loadAiAvailability();
     _checkCycleDiaryBadge();
   }
 
@@ -16015,181 +16104,11 @@ class _NotesProPageState extends State<NotesProPage> {
     setState(() => _isGridView = prefs.getBool('notes_view_mode_grid') ?? false);
   }
 
-  Future<void> _loadAiAvailability() async {
-    final settings = await FlashNotesSettings.load();
-    if (mounted) {
-      setState(() => _isAiAvailable = settings.geminiEnabled && settings.geminiApiKey.isNotEmpty);
-    }
-  }
-
   Future<void> _checkCycleDiaryBadge() async {
     final val = await DatabaseHelper().getCache('cycle_diary_active');
     final active = val != null && val.isNotEmpty;
     if (mounted && active != _cycleDiaryBadge) {
       setState(() => _cycleDiaryBadge = active);
-    }
-  }
-
-  void _showDeepNoteAIOptions(ProNote note, int noteIndex) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) {
-        final colorScheme = Theme.of(ctx).colorScheme;
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 16),
-              Text('Gemini AI', style: Theme.of(ctx).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.auto_awesome, color: Colors.purple),
-                title: const Text('Riassunto intelligente'),
-                subtitle: const Text('Crea un riassunto breve della nota'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _callDeepNoteAI(note, noteIndex, 'riassumi');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.spellcheck, color: Colors.purple),
-                title: const Text('Correggi e formatta'),
-                subtitle: const Text('Correggi errori e migliora il testo'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _callDeepNoteAI(note, noteIndex, 'correggi');
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _callDeepNoteAI(ProNote note, int noteIndex, String action) async {
-    final settings = await FlashNotesSettings.load();
-    final apiKey = settings.geminiApiKey;
-    if (apiKey.isEmpty) return;
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(children: [
-          const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-          const SizedBox(width: 12),
-          const Text('AI in corso...'),
-        ]),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 15),
-      ),
-    );
-
-    try {
-      final text = note.content;
-      if (text.isEmpty) return;
-
-      final String prompt;
-      final String title;
-      if (action == 'riassumi') {
-        prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
-        title = 'Riassunto intelligente';
-      } else {
-        prompt = 'Correggi errori ortografici, grammaticali e di punteggiatura nel seguente testo italiano. Migliora la formattazione mantenendo il significato originale:\n\n$text';
-        title = 'Correggi e formatta';
-      }
-
-      final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
-      final response = await model.generateContent([gemini.Content.text(prompt)]);
-      final result = response.text ?? '';
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (ctx) {
-          final colorScheme = Theme.of(ctx).colorScheme;
-          return DraggableScrollableSheet(
-            initialChildSize: 0.5,
-            minChildSize: 0.3,
-            maxChildSize: 0.85,
-            expand: false,
-            builder: (_, scrollController) => Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)))),
-                  const SizedBox(height: 16),
-                  Row(children: [
-                    const Icon(Icons.auto_awesome, color: Colors.purple),
-                    const SizedBox(width: 8),
-                    Text(title, style: Theme.of(ctx).textTheme.titleLarge),
-                  ]),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      child: Card(
-                        elevation: 0,
-                        color: colorScheme.surfaceContainerLowest,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: SelectableText(result, style: const TextStyle(height: 1.6)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: result));
-                            Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: const Text('Copiato'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                            );
-                          },
-                          icon: const Icon(Icons.copy, size: 18),
-                          label: const Text('Copia'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            // Open editor with the AI result
-                            _editNote(noteIndex);
-                          },
-                          icon: const Icon(Icons.edit, size: 18),
-                          label: const Text('Modifica nota'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-      );
     }
   }
 
@@ -16329,10 +16248,23 @@ class _NotesProPageState extends State<NotesProPage> {
           note: note,
           folders: _folders,
           onSave: (updatedNote) async {
+            final withTimestamp = ProNote(
+              title: updatedNote.title,
+              content: updatedNote.content,
+              contentDelta: updatedNote.contentDelta,
+              headerText: updatedNote.headerText,
+              footerText: updatedNote.footerText,
+              templatePreset: updatedNote.templatePreset,
+              folder: updatedNote.folder,
+              linkedDate: updatedNote.linkedDate,
+              imageBase64: updatedNote.imageBase64,
+              createdAt: note.createdAt,
+              updatedAt: DateTime.now(),
+            );
             if (note.id != null) {
-              await DatabaseHelper().updateProNote(note.id!, updatedNote);
+              await DatabaseHelper().updateProNote(note.id!, withTimestamp);
             } else {
-              await DatabaseHelper().insertProNote(updatedNote);
+              await DatabaseHelper().insertProNote(withTimestamp);
             }
             await _loadNotes();
           },
@@ -16355,6 +16287,7 @@ class _NotesProPageState extends State<NotesProPage> {
               contentDelta: json.encode(updatedData),
               folder: 'Diario del Ciclo',
               createdAt: note.createdAt,
+              updatedAt: DateTime.now(),
             );
             await DatabaseHelper().updateProNote(note.id!, updated);
             await _loadNotes();
@@ -16368,6 +16301,7 @@ class _NotesProPageState extends State<NotesProPage> {
               contentDelta: json.encode(updatedData),
               folder: 'Diario del Ciclo',
               createdAt: note.createdAt,
+              updatedAt: DateTime.now(),
             );
             await DatabaseHelper().updateProNote(note.id!, updated);
             await DatabaseHelper().deleteCache('cycle_diary_active');
@@ -16417,6 +16351,7 @@ class _NotesProPageState extends State<NotesProPage> {
         n.content.toLowerCase().contains(q)
       ).toList();
     }
+    notes.sort((a, b) => b.sortDate.compareTo(a.sortDate));
     return notes;
   }
 
@@ -16621,45 +16556,6 @@ class _NotesProPageState extends State<NotesProPage> {
         ],
       ),
     );
-  }
-
-  Future<void> _moveToPrivate(int noteIndex) async {
-    // Reload settings from DB to pick up any biometric changes
-    final freshSettings = await NoteProSettings.load();
-    setState(() => _settings = freshSettings);
-
-    void doMove() {
-      setState(() {
-        final note = _proNotes[noteIndex];
-        _proNotes[noteIndex] = ProNote(
-          title: note.title,
-          content: note.content,
-          contentDelta: note.contentDelta,
-          headerText: note.headerText,
-          footerText: note.footerText,
-          templatePreset: note.templatePreset,
-          folder: tr('private_folder'),
-          linkedDate: note.linkedDate,
-          createdAt: note.createdAt,
-        );
-      });
-      _saveNotes();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('note_moved_to_trash')),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-    }
-
-    if (_settings.securityPin == null) {
-      _showCreatePinDialog(onSuccess: doMove);
-    } else if (_settings.biometricEnabled) {
-      _authenticateWithBiometric(onSuccess: doMove);
-    } else {
-      _showEnterPinDialog(onSuccess: doMove);
-    }
   }
 
   void _showFolderOptionsSheet(String folderName) {
@@ -17267,7 +17163,7 @@ class _NotesProPageState extends State<NotesProPage> {
     final colorScheme = Theme.of(context).colorScheme;
     final visibleFolders = _visibleFolders;
 
-    final accentColor = _isEthosTheme(context) ? const Color(0xFF800020) : const Color(0xFFE53935);
+    final accentColor = _isEthosTheme(context) ? const Color(0xFFC0364D) : const Color(0xFFE53935);
 
     return Scaffold(
       body: Stack(
@@ -17287,19 +17183,36 @@ class _NotesProPageState extends State<NotesProPage> {
                           isLabelVisible: _cycleDiaryBadge,
                           backgroundColor: Colors.red,
                           smallSize: 8,
-                          child: FloatingActionButton.small(
-                            heroTag: 'deep_note_folder_fab',
-                            elevation: _selectedFolder != tr('all_items') ? 2 : 1,
-                            backgroundColor: _selectedFolder != tr('all_items') ? accentColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            onPressed: () => setState(() => _showFolderSidebar = !_showFolderSidebar),
-                            tooltip: tr('folders'),
-                            child: Icon(
-                              _selectedFolder != tr('all_items') ? (_folders[_selectedFolder]?.icon ?? Icons.folder) : Icons.folder_outlined,
-                              size: 20,
-                              color: _selectedFolder != tr('all_items') ? accentColor : colorScheme.onSurfaceVariant,
-                            ),
-                          ),
+                          child: () {
+                            final folderColor = _selectedFolder != tr('all_items')
+                                ? (_folders[_selectedFolder]?.color ?? accentColor)
+                                : colorScheme.onSurfaceVariant;
+                            final isActive = _selectedFolder != tr('all_items');
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isActive ? folderColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () => setState(() => _showFolderSidebar = !_showFolderSidebar),
+                                  child: Center(
+                                    child: Icon(
+                                      isActive ? (_folders[_selectedFolder]?.icon ?? Icons.folder) : Icons.folder_outlined,
+                                      size: 20,
+                                      color: isActive ? folderColor : colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }(),
                         ),
                       ),
                       Expanded(
@@ -17416,7 +17329,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                                       fontWeight: FontWeight.w600,
                                                       fontSize: 13,
                                                       fontFamily: _isEthosTheme(context) ? 'Georgia' : null,
-                                                      color: _isEthosTheme(context) ? const Color(0xFF800020).withValues(alpha: 0.85) : colorScheme.onSurface,
+                                                      color: _isEthosTheme(context) ? const Color(0xFFC0364D) : colorScheme.onSurface,
                                                     )),
                                               ),
                                             ],
@@ -17442,54 +17355,13 @@ class _NotesProPageState extends State<NotesProPage> {
                                                   color: folderColor.withValues(alpha: 0.08),
                                                   borderRadius: BorderRadius.circular(8),
                                                 ),
-                                                child: Text(note.folder,
+                                                child: Text(folderLabel(note.folder),
                                                     style: TextStyle(fontSize: 9, color: folderColor, fontWeight: FontWeight.w600)),
                                               ),
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  GestureDetector(
-                                                    onTap: () async {
-                                                      final pdfBytes = await generateNotePdfFromProNote(note);
-                                                      if (!context.mounted) return;
-                                                      Navigator.push(context, MaterialPageRoute(builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '${note.title}.pdf')));
-                                                    },
-                                                    child: Container(
-                                                      padding: const EdgeInsets.all(4),
-                                                      decoration: BoxDecoration(
-                                                        color: colorScheme.primary.withValues(alpha: 0.08),
-                                                        borderRadius: BorderRadius.circular(8),
-                                                      ),
-                                                      child: Icon(Icons.picture_as_pdf, size: 15, color: colorScheme.primary),
-                                                    ),
-                                                  ),
-                                                  if (_isAiAvailable && note.folder != 'Diario del Ciclo') ...[
-                                                    const SizedBox(width: 4),
-                                                    GestureDetector(
-                                                      onTap: () => _showDeepNoteAIOptions(note, noteIndex),
-                                                      child: Container(
-                                                        padding: const EdgeInsets.all(4),
-                                                        decoration: BoxDecoration(
-                                                          color: Colors.purple.withValues(alpha: 0.08),
-                                                          borderRadius: BorderRadius.circular(8),
-                                                        ),
-                                                        child: const Icon(Icons.psychology, size: 15, color: Colors.purple),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                  const SizedBox(width: 4),
-                                                  GestureDetector(
-                                                    onTap: () => _deleteNote(noteIndex),
-                                                    child: Container(
-                                                      padding: const EdgeInsets.all(4),
-                                                      decoration: BoxDecoration(
-                                                        color: colorScheme.error.withValues(alpha: 0.08),
-                                                        borderRadius: BorderRadius.circular(8),
-                                                      ),
-                                                      child: Icon(Icons.delete_outline, size: 15, color: colorScheme.error),
-                                                    ),
-                                                  ),
-                                                ],
+                                              const Spacer(),
+                                              Text(
+                                                '${note.createdAt.day.toString().padLeft(2, '0')}/${note.createdAt.month.toString().padLeft(2, '0')}/${note.createdAt.year}',
+                                                style: TextStyle(fontSize: 9, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                                               ),
                                             ],
                                           ),
@@ -17542,7 +17414,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                                         child: Text(note.title,
                                                             maxLines: 1,
                                                             overflow: TextOverflow.ellipsis,
-                                                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? const Color(0xFF800020).withValues(alpha: 0.85) : null)),
+                                                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? const Color(0xFFC0364D) : null)),
                                                       ),
                                                       if (note.linkedDate != null)
                                                         Padding(
@@ -17568,7 +17440,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                                           children: [
                                                             _folders[note.folder]?.buildIcon(size: 12, iconColor: folderColor) ?? Icon(Icons.folder, size: 12, color: folderColor),
                                                             const SizedBox(width: 4),
-                                                            Text(note.folder,
+                                                            Text(folderLabel(note.folder),
                                                                 style: TextStyle(fontSize: 11, color: folderColor, fontWeight: FontWeight.w600)),
                                                           ],
                                                         ),
@@ -17580,36 +17452,17 @@ class _NotesProPageState extends State<NotesProPage> {
                                                           style: TextStyle(fontSize: 11, color: colorScheme.primary),
                                                         ),
                                                       ],
+                                                      const Spacer(),
+                                                      Text(
+                                                        '${tr('created_on')} ${note.createdAt.day.toString().padLeft(2, '0')}/${note.createdAt.month.toString().padLeft(2, '0')}/${note.createdAt.year}',
+                                                        style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                                                      ),
                                                     ],
                                                   ),
                                                 ],
                                               ),
                                             ),
-                                            if (_isAiAvailable && note.folder != 'Diario del Ciclo')
-                                              IconButton(
-                                                icon: const Icon(Icons.psychology),
-                                                color: Colors.purple,
-                                                iconSize: 22,
-                                                tooltip: 'AI',
-                                                onPressed: () => _showDeepNoteAIOptions(note, noteIndex),
-                                              ),
-                                            IconButton(
-                                              icon: const Icon(Icons.picture_as_pdf),
-                                              color: colorScheme.primary,
-                                              iconSize: 22,
-                                              tooltip: tr('export_note_pdf'),
-                                              onPressed: () async {
-                                                final pdfBytes = await generateNotePdfFromProNote(note);
-                                                if (!context.mounted) return;
-                                                Navigator.push(context, MaterialPageRoute(builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '${note.title}.pdf')));
-                                              },
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(Icons.delete_outline),
-                                              color: colorScheme.error,
-                                              iconSize: 22,
-                                              onPressed: () => _deleteNote(noteIndex),
-                                            ),
+                                            Icon(Icons.more_horiz, size: 18, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
                                           ],
                                         ),
                                       ),
@@ -17660,7 +17513,7 @@ class _NotesProPageState extends State<NotesProPage> {
                           padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
                           child: Row(
                             children: [
-                              Icon(Icons.folder_outlined, size: 20, color: accentColor),
+                              Icon(Icons.folder_outlined, size: 20, color: colorScheme.primary),
                               const SizedBox(width: 8),
                               Expanded(child: Text(tr('folders'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                               IconButton(
@@ -17675,11 +17528,11 @@ class _NotesProPageState extends State<NotesProPage> {
                         // "Tutte" item
                         ListTile(
                           dense: true,
-                          leading: Icon(Icons.apps, size: 20, color: _selectedFolder == tr('all_items') ? accentColor : colorScheme.onSurfaceVariant),
-                          title: Text(tr('all_items'), style: TextStyle(fontWeight: _selectedFolder == tr('all_items') ? FontWeight.w700 : FontWeight.normal, color: _selectedFolder == tr('all_items') ? accentColor : null)),
+                          leading: Icon(Icons.apps, size: 20, color: _selectedFolder == tr('all_items') ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                          title: Text(tr('all_items'), style: TextStyle(fontWeight: _selectedFolder == tr('all_items') ? FontWeight.w700 : FontWeight.normal, color: _selectedFolder == tr('all_items') ? colorScheme.primary : null)),
                           trailing: Text('${_proNotes.length}', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                           selected: _selectedFolder == tr('all_items'),
-                          selectedTileColor: accentColor.withValues(alpha: 0.08),
+                          selectedTileColor: colorScheme.primary.withValues(alpha: 0.08),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           onTap: () => setState(() { _selectedFolder = tr('all_items'); _showFolderSidebar = false; }),
                         ),
@@ -17701,7 +17554,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                   smallSize: 8,
                                   child: entry.value.buildIcon(size: 20, iconColor: isSelected ? entry.value.color : colorScheme.onSurfaceVariant),
                                 ),
-                                title: Text(entry.key, style: TextStyle(fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal, color: isSelected ? entry.value.color : null)),
+                                title: Text(folderLabel(entry.key), style: TextStyle(fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal, color: isSelected ? entry.value.color : null)),
                                 trailing: (entry.value.isPrivate || entry.key == tr('private_folder'))
                                     ? Row(mainAxisSize: MainAxisSize.min, children: [
                                         Icon(Icons.lock, size: 14, color: colorScheme.onSurfaceVariant),
@@ -17752,6 +17605,8 @@ class _NotesProPageState extends State<NotesProPage> {
   }
 
   void _showLongPressMenu(int noteIndex) {
+    final note = _proNotes[noteIndex];
+    final colorScheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -17763,18 +17618,192 @@ class _NotesProPageState extends State<NotesProPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Text(note.title.isNotEmpty ? note.title : tr('untitled'),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 8),
+            // Change folder
             ListTile(
-              leading: const Icon(Icons.lock_outline),
-              title: Text('${tr('move')} → ${tr('private')}'),
-              subtitle: Text(tr('pin_security')),
+              leading: Icon(Icons.folder_outlined, color: colorScheme.primary),
+              title: Text(tr('change_folder')),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               onTap: () {
                 Navigator.pop(ctx);
-                _moveToPrivate(noteIndex);
+                _showChangeFolderSheet(noteIndex);
+              },
+            ),
+            // Export PDF
+            ListTile(
+              leading: Icon(Icons.picture_as_pdf, color: colorScheme.primary),
+              title: Text(tr('export_pdf')),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _exportNotePdf(note);
+              },
+            ),
+            // Delete
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: colorScheme.error),
+              title: Text(tr('delete'), style: TextStyle(color: colorScheme.error)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmDeleteNote(noteIndex);
               },
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _exportNotePdf(ProNote note) async {
+    // Cycle diary notes use questionnaire PDF format
+    if (_isCycleDiaryNote(note)) {
+      final data = json.decode(note.contentDelta!) as Map<String, dynamic>;
+      final isMissing = data['type'] == 'cycle_missing';
+      final pdf = pw.Document();
+      pdf.addPage(pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
+        build: (ctx) {
+          final title = isMissing
+              ? '${tr('cycle_missing')} ${data['month'] ?? ''}'
+              : '${tr('cycle_report')} ${data['month'] ?? ''}';
+          final sections = <pw.Widget>[
+            pw.Text('Ethos Note', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+            pw.SizedBox(height: 8),
+            pw.Text(title, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.red)),
+            pw.Divider(color: PdfColors.red100),
+            pw.SizedBox(height: 12),
+          ];
+          pw.Widget pdfRow(String label, String value) => pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 10),
+            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text(label, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.grey800)),
+              pw.SizedBox(height: 2),
+              pw.Text(value.isEmpty ? '—' : value, style: const pw.TextStyle(fontSize: 13)),
+            ]),
+          );
+          if (isMissing) {
+            sections.add(pdfRow(tr('cycle_missing_why'), data['missingReason'] ?? '—'));
+            if ((data['missingReasonCustom'] as String?)?.isNotEmpty == true) {
+              sections.add(pdfRow(tr('cycle_missing_other'), data['missingReasonCustom']));
+            }
+          } else {
+            sections.add(pdfRow(tr('cycle_q_timing'), data['timing'] ?? '—'));
+            sections.add(pdfRow(tr('cycle_q_flow'), data['flow'] ?? '—'));
+            final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
+            sections.add(pdfRow(tr('cycle_q_symptoms'), symptoms.isNotEmpty ? symptoms.join(', ') : '—'));
+            sections.add(pdfRow(tr('cycle_q_energy'), data['energy'] ?? '—'));
+            final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
+            final cravCustom = data['cravingsCustom'] as String? ?? '';
+            sections.add(pdfRow(tr('cycle_q_cravings'), [...cravings, if (cravCustom.isNotEmpty) cravCustom].join(', ')));
+            final sleepVal = data['sleep'] as String? ?? '';
+            final sleepCust = data['sleepCustom'] as String? ?? '';
+            sections.add(pdfRow(tr('cycle_q_sleep'), [sleepVal, if (sleepCust.isNotEmpty) sleepCust].where((s) => s.isNotEmpty).join(' — ')));
+            final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
+            final emoCust = data['emotionsCustom'] as String? ?? '';
+            sections.add(pdfRow(tr('cycle_q_emotions'), [...emotions, if (emoCust.isNotEmpty) emoCust].join(', ')));
+            sections.add(pdfRow(tr('cycle_q_notes'), (data['notes'] as String?)?.isNotEmpty == true ? data['notes'] : '—'));
+          }
+          return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: sections);
+        },
+      ));
+      final pdfBytes = await pdf.save();
+      if (!mounted) return;
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '${note.title}.pdf'),
+      ));
+    } else {
+      final pdfBytes = await generateNotePdfFromProNote(note);
+      if (!mounted) return;
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '${note.title}.pdf'),
+      ));
+    }
+  }
+
+  void _showChangeFolderSheet(int noteIndex) {
+    final note = _proNotes[noteIndex];
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            Text(tr('change_folder'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            ..._folders.entries.where((e) => e.key != note.folder).map((entry) => ListTile(
+              leading: entry.value.buildIcon(size: 20, iconColor: entry.value.color),
+              title: Text(folderLabel(entry.key)),
+              selected: false,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final updated = ProNote(
+                  title: note.title,
+                  content: note.content,
+                  contentDelta: note.contentDelta,
+                  headerText: note.headerText,
+                  footerText: note.footerText,
+                  templatePreset: note.templatePreset,
+                  folder: entry.key,
+                  createdAt: note.createdAt,
+                  updatedAt: DateTime.now(),
+                  linkedDate: note.linkedDate,
+                  imageBase64: note.imageBase64,
+                );
+                if (note.id != null) {
+                  await DatabaseHelper().updateProNote(note.id!, updated);
+                  await _loadNotes();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${tr('move_to_folder')}: ${folderLabel(entry.key)}'),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+                  }
+                }
+              },
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteNote(int noteIndex) {
+    final colorScheme = Theme.of(context).colorScheme;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('delete_note_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(tr('cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deleteNote(noteIndex);
+            },
+            style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
+            child: Text(tr('delete')),
+          ),
+        ],
       ),
     );
   }
