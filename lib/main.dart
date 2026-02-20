@@ -1532,6 +1532,12 @@ class DatabaseHelper {
     return maps.first['value'] as String;
   }
 
+  Future<void> deleteCache(String key) async {
+    if (_webMode) { _wCache.remove(key); return; }
+    final db = await database;
+    await db.delete('cache', where: 'key = ?', whereArgs: [key]);
+  }
+
   // ── Cycle Days ──
 
   Future<Set<String>> getCycleDays() async {
@@ -4020,6 +4026,7 @@ class _CalendarPageState extends State<CalendarPage> {
             month: month,
           );
           await DatabaseHelper().saveCache(doneKey, 'done');
+          await DatabaseHelper().saveCache('cycle_diary_active', DateTime.now().toIso8601String());
           // Schedule notification immediately (for today at 9:00 or now if past 9)
           final notifTime = DateTime(now.year, now.month, now.day, 9, 0);
           if (notifTime.isAfter(now)) {
@@ -4062,9 +4069,19 @@ class _CalendarPageState extends State<CalendarPage> {
               month: month,
             );
             await DatabaseHelper().saveCache(missKey, 'done');
+            await DatabaseHelper().saveCache('cycle_diary_active', DateTime.now().toIso8601String());
             NotificationService.showCycleDiaryNotification(alertType: _calSettings.alertConfig.alertType);
           }
         }
+      }
+    }
+
+    // 3) Auto-expire badge after 1 day
+    final badgeJson = await DatabaseHelper().getCache('cycle_diary_active');
+    if (badgeJson != null && badgeJson.isNotEmpty) {
+      final badgeTime = DateTime.tryParse(badgeJson);
+      if (badgeTime != null && todayNorm.difference(DateTime(badgeTime.year, badgeTime.month, badgeTime.day)).inDays >= 1) {
+        await DatabaseHelper().deleteCache('cycle_diary_active');
       }
     }
   }
@@ -7603,85 +7620,197 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerLowest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SwitchListTile(
-              title: Text(tr('cycle_tracking'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(tr('show_cycle_tracking')),
-              value: _settings.showCycleTracking,
-              activeColor: Colors.red,
-              contentPadding: EdgeInsets.zero,
-              secondary: const Icon(Icons.water_drop, color: Colors.red),
-              onChanged: (v) {
-                _updateSettings(_settings.copyWith(showCycleTracking: v));
-                if (v) _loadCyclePrediction();
-              },
+            // Header row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.water_drop, color: Colors.red, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('cycle_tracking'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 2),
+                      Text(tr('show_cycle_tracking'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _settings.showCycleTracking,
+                  activeColor: Colors.red,
+                  onChanged: (v) {
+                    _updateSettings(_settings.copyWith(showCycleTracking: v));
+                    if (v) _loadCyclePrediction();
+                  },
+                ),
+              ],
             ),
             if (_settings.showCycleTracking) ...[
-              const Divider(),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.calendar_month, color: Colors.red),
-                title: Text(tr('cycle_period_days')),
-                subtitle: Slider(
-                  value: _settings.cyclePeriodDays.toDouble(),
-                  min: 20,
-                  max: 45,
-                  divisions: 25,
-                  label: '${_settings.cyclePeriodDays} ${tr('days')}',
-                  activeColor: Colors.red,
-                  onChanged: (v) {
-                    _updateSettings(_settings.copyWith(cyclePeriodDays: v.round()));
-                    _loadCyclePrediction();
-                  },
+              const SizedBox(height: 16),
+              // Prediction card (prominent)
+              if (_nextPredictedCycleStart != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.red.withValues(alpha: 0.12), Colors.red.withValues(alpha: 0.04)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.red.withValues(alpha: 0.15)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.event, color: Colors.red, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(tr('next_cycle_predicted'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${_nextPredictedCycleStart!.day.toString().padLeft(2, '0')}/${_nextPredictedCycleStart!.month.toString().padLeft(2, '0')}/${_nextPredictedCycleStart!.year}',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: colorScheme.onSurfaceVariant, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(tr('no_cycle_data'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))),
+                    ],
+                  ),
                 ),
-                trailing: Text(
-                  '${_settings.cyclePeriodDays}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
-                ),
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+              // Cycle period (interval between cycles)
+              Text(tr('cycle_period_days'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text('21', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                  Expanded(
+                    child: Slider(
+                      value: _settings.cyclePeriodDays.toDouble().clamp(21, 40),
+                      min: 21,
+                      max: 40,
+                      divisions: 19,
+                      label: '${_settings.cyclePeriodDays} ${tr('days')}',
+                      activeColor: Colors.red,
+                      onChanged: (v) {
+                        _updateSettings(_settings.copyWith(cyclePeriodDays: v.round()));
+                        _loadCyclePrediction();
+                      },
+                    ),
+                  ),
+                  Text('40', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${_settings.cyclePeriodDays}',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red),
+                    ),
+                  ),
+                ],
               ),
-              const Divider(),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.water_drop_outlined, color: Colors.red),
-                title: Text(tr('cycle_duration_days')),
-                subtitle: Slider(
-                  value: _settings.cycleDurationDays.toDouble(),
-                  min: 2,
-                  max: 10,
-                  divisions: 8,
-                  label: '${_settings.cycleDurationDays} ${tr('days')}',
-                  activeColor: Colors.red,
-                  onChanged: (v) {
-                    _updateSettings(_settings.copyWith(cycleDurationDays: v.round()));
-                  },
-                ),
-                trailing: Text(
-                  '${_settings.cycleDurationDays}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
-                ),
+              const SizedBox(height: 4),
+              // Flow duration
+              Text(tr('cycle_duration_days'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text('2', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                  Expanded(
+                    child: Slider(
+                      value: _settings.cycleDurationDays.toDouble(),
+                      min: 2,
+                      max: 10,
+                      divisions: 8,
+                      label: '${_settings.cycleDurationDays} ${tr('days')}',
+                      activeColor: Colors.red,
+                      onChanged: (v) {
+                        _updateSettings(_settings.copyWith(cycleDurationDays: v.round()));
+                      },
+                    ),
+                  ),
+                  Text('10', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${_settings.cycleDurationDays}',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red),
+                    ),
+                  ),
+                ],
               ),
-              const Divider(),
+              const SizedBox(height: 8),
+              const Divider(height: 1),
+              const SizedBox(height: 4),
+              // Reminder toggle
               SwitchListTile(
-                title: Text(tr('cycle_reminder')),
+                title: Text(tr('cycle_reminder'), style: const TextStyle(fontSize: 14)),
                 subtitle: Text(tr('cycle_reminder_sub'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                 value: _settings.cycleReminder,
                 activeColor: Colors.red,
                 contentPadding: EdgeInsets.zero,
-                secondary: const Icon(Icons.notifications_outlined, color: Colors.red),
+                secondary: const Icon(Icons.notifications_outlined, color: Colors.red, size: 22),
                 onChanged: (v) {
                   _updateSettings(_settings.copyWith(cycleReminder: v));
                 },
               ),
-              const Divider(),
+              const Divider(height: 1),
               // Manual date picker
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.edit_calendar, color: Colors.red),
-                title: Text(tr('cycle_set_next_date')),
+                leading: const Icon(Icons.edit_calendar, color: Colors.red, size: 22),
+                title: Text(tr('cycle_set_next_date'), style: const TextStyle(fontSize: 14)),
                 subtitle: Text(
                   _settings.manualNextCycleDate != null
                       ? () {
@@ -7716,106 +7845,64 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   }
                 },
               ),
-              const Divider(),
-              // Prediction card
-              if (_nextPredictedCycleStart != null)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.event, color: Colors.red, size: 20),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(tr('next_cycle_predicted'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${_nextPredictedCycleStart!.day.toString().padLeft(2, '0')}/${_nextPredictedCycleStart!.month.toString().padLeft(2, '0')}/${_nextPredictedCycleStart!.year}',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                )
-              else
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: colorScheme.onSurfaceVariant, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(tr('no_cycle_data'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))),
-                    ],
-                  ),
-                ),
-            ],
-            if (_settings.showCycleTracking) ...[
+              const Divider(height: 1),
               const SizedBox(height: 8),
-              // Temporary test button
-              OutlinedButton.icon(
-                onPressed: () {
-                  final months = localizedMonths();
-                  final now = DateTime.now();
-                  final testData = <String, dynamic>{
-                    'periodStart': '${now.year}-${now.month}-${now.day}',
-                    'periodEnd': '${now.year}-${now.month}-${now.day}',
-                    'createdAt': now.toIso8601String(),
-                    'month': months[now.month] ?? '',
-                    'timing': null,
-                    'flow': null,
-                    'symptoms': <String>[],
-                    'energy': null,
-                    'cravings': <String>[],
-                    'cravingsCustom': '',
-                    'sleep': null,
-                    'sleepCustom': '',
-                    'emotions': <String>[],
-                    'emotionsCustom': '',
-                    'notes': '',
-                  };
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => CycleDiaryPage(
-                      data: testData,
-                      onSave: (_) async {},
-                      onComplete: (_) async {},
-                    ),
-                  ));
-                },
-                icon: const Icon(Icons.science_outlined, size: 18),
-                label: Text(tr('cycle_test_questionnaire')),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              // Test questionnaire button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    final months = localizedMonths();
+                    final now = DateTime.now();
+                    final testData = <String, dynamic>{
+                      'periodStart': '${now.year}-${now.month}-${now.day}',
+                      'periodEnd': '${now.year}-${now.month}-${now.day}',
+                      'createdAt': now.toIso8601String(),
+                      'month': months[now.month] ?? '',
+                      'timing': null,
+                      'flow': null,
+                      'symptoms': <String>[],
+                      'energy': null,
+                      'cravings': <String>[],
+                      'cravingsCustom': '',
+                      'sleep': null,
+                      'sleepCustom': '',
+                      'emotions': <String>[],
+                      'emotionsCustom': '',
+                      'notes': '',
+                    };
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => CycleDiaryPage(
+                        data: testData,
+                        onSave: (_) async {},
+                        onComplete: (_) async {},
+                      ),
+                    ));
+                  },
+                  icon: const Icon(Icons.science_outlined, size: 18),
+                  label: Text(tr('cycle_test_questionnaire')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
                 ),
               ),
-            ],
-            const SizedBox(height: 8),
-            const Divider(),
-            Row(
-              children: [
-                Icon(Icons.lock_outline, size: 16, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    tr('cycle_privacy'),
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(Icons.lock_outline, size: 14, color: colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      tr('cycle_privacy'),
+                      style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -7986,7 +8073,14 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
         return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: sections);
       },
     ));
-    await Printing.layoutPdf(onLayout: (_) => pdf.save());
+    final pdfBytes = await pdf.save();
+    if (!mounted) return;
+    final title = _isMissingType
+        ? '${tr('cycle_missing')} ${data['month'] ?? ''}'
+        : '${tr('cycle_report')} ${data['month'] ?? ''}';
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '$title.pdf'),
+    ));
   }
 
   pw.Widget _pdfRow(String label, String value) {
@@ -8352,12 +8446,12 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
       runSpacing: 6,
       children: options.map((opt) {
         final isSelected = selected == opt;
-        return ChoiceChip(
+        return FilterChip(
           label: Text(opt, style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
           selected: isSelected,
           selectedColor: Colors.red.withValues(alpha: 0.15),
+          checkmarkColor: Colors.red,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          showCheckmark: false,
           onSelected: (_) => onChanged(opt),
         );
       }).toList(),
@@ -15885,6 +15979,7 @@ class _NotesProPageState extends State<NotesProPage> {
   bool _isGridView = false;
   bool _showFolderSidebar = false;
   bool _isAiAvailable = false;
+  bool _cycleDiaryBadge = false;
 
   static const _availableIcons = [
     Icons.folder, Icons.work, Icons.person, Icons.school,
@@ -15906,6 +16001,7 @@ class _NotesProPageState extends State<NotesProPage> {
     _loadSettings();
     _loadViewMode();
     _loadAiAvailability();
+    _checkCycleDiaryBadge();
   }
 
   @override
@@ -15923,6 +16019,14 @@ class _NotesProPageState extends State<NotesProPage> {
     final settings = await FlashNotesSettings.load();
     if (mounted) {
       setState(() => _isAiAvailable = settings.geminiEnabled && settings.geminiApiKey.isNotEmpty);
+    }
+  }
+
+  Future<void> _checkCycleDiaryBadge() async {
+    final val = await DatabaseHelper().getCache('cycle_diary_active');
+    final active = val != null && val.isNotEmpty;
+    if (mounted && active != _cycleDiaryBadge) {
+      setState(() => _cycleDiaryBadge = active);
     }
   }
 
@@ -16194,6 +16298,7 @@ class _NotesProPageState extends State<NotesProPage> {
             createdAt: DateTime.now(),
           );
           await DatabaseHelper().insertProNote(note);
+          await DatabaseHelper().deleteCache('cycle_diary_active');
           await _loadNotes();
         },
       ),
@@ -16265,6 +16370,7 @@ class _NotesProPageState extends State<NotesProPage> {
               createdAt: note.createdAt,
             );
             await DatabaseHelper().updateProNote(note.id!, updated);
+            await DatabaseHelper().deleteCache('cycle_diary_active');
             await _loadNotes();
           }
         },
@@ -16299,7 +16405,7 @@ class _NotesProPageState extends State<NotesProPage> {
         if (fs != null && fs.isPrivate) return false;
         return true;
       }).toList();
-    } else if ((_selectedFolder == tr('private_folder') || (_folders[_selectedFolder]?.isPrivate ?? false)) && !_privateUnlocked) {
+    } else if ((_selectedFolder == tr('private_folder') || (_folders[_selectedFolder]?.isPrivate ?? false) || _selectedFolder == 'Diario del Ciclo') && !_privateUnlocked) {
       notes = [];
     } else {
       notes = _proNotes.where((note) => note.folder == _selectedFolder).toList();
@@ -16325,8 +16431,9 @@ class _NotesProPageState extends State<NotesProPage> {
   Future<void> _onFolderTap(String folder) async {
     final folderStyle = _folders[folder];
     final isPrivateFolder = folder == tr('private_folder') || (folderStyle?.isPrivate ?? false);
+    final isCycleDiaryFolder = folder == 'Diario del Ciclo';
 
-    if (isPrivateFolder) {
+    if (isPrivateFolder || isCycleDiaryFolder) {
       // Reload settings from DB to pick up any biometric changes
       final freshSettings = await NoteProSettings.load();
       setState(() => _settings = freshSettings);
@@ -17176,17 +17283,22 @@ class _NotesProPageState extends State<NotesProPage> {
                       // Folder sidebar toggle
                       Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: FloatingActionButton.small(
-                          heroTag: 'deep_note_folder_fab',
-                          elevation: _selectedFolder != tr('all_items') ? 2 : 1,
-                          backgroundColor: _selectedFolder != tr('all_items') ? accentColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          onPressed: () => setState(() => _showFolderSidebar = !_showFolderSidebar),
-                          tooltip: tr('folders'),
-                          child: Icon(
-                            _selectedFolder != tr('all_items') ? (_folders[_selectedFolder]?.icon ?? Icons.folder) : Icons.folder_outlined,
-                            size: 20,
-                            color: _selectedFolder != tr('all_items') ? accentColor : colorScheme.onSurfaceVariant,
+                        child: Badge(
+                          isLabelVisible: _cycleDiaryBadge,
+                          backgroundColor: Colors.red,
+                          smallSize: 8,
+                          child: FloatingActionButton.small(
+                            heroTag: 'deep_note_folder_fab',
+                            elevation: _selectedFolder != tr('all_items') ? 2 : 1,
+                            backgroundColor: _selectedFolder != tr('all_items') ? accentColor.withValues(alpha: 0.12) : colorScheme.surfaceContainerLowest,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            onPressed: () => setState(() => _showFolderSidebar = !_showFolderSidebar),
+                            tooltip: tr('folders'),
+                            child: Icon(
+                              _selectedFolder != tr('all_items') ? (_folders[_selectedFolder]?.icon ?? Icons.folder) : Icons.folder_outlined,
+                              size: 20,
+                              color: _selectedFolder != tr('all_items') ? accentColor : colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ),
@@ -17351,7 +17463,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                                       child: Icon(Icons.picture_as_pdf, size: 15, color: colorScheme.primary),
                                                     ),
                                                   ),
-                                                  if (_isAiAvailable) ...[
+                                                  if (_isAiAvailable && note.folder != 'Diario del Ciclo') ...[
                                                     const SizedBox(width: 4),
                                                     GestureDetector(
                                                       onTap: () => _showDeepNoteAIOptions(note, noteIndex),
@@ -17473,7 +17585,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                                 ],
                                               ),
                                             ),
-                                            if (_isAiAvailable)
+                                            if (_isAiAvailable && note.folder != 'Diario del Ciclo')
                                               IconButton(
                                                 icon: const Icon(Icons.psychology),
                                                 color: Colors.purple,
@@ -17580,9 +17692,15 @@ class _NotesProPageState extends State<NotesProPage> {
                             children: visibleFolders.entries.map((entry) {
                               final isSelected = _selectedFolder == entry.key;
                               final count = _proNotes.where((n) => n.folder == entry.key).length;
+                              final showDiaryBadge = entry.key == 'Diario del Ciclo' && _cycleDiaryBadge;
                               return ListTile(
                                 dense: true,
-                                leading: entry.value.buildIcon(size: 20, iconColor: isSelected ? entry.value.color : colorScheme.onSurfaceVariant),
+                                leading: Badge(
+                                  isLabelVisible: showDiaryBadge,
+                                  backgroundColor: Colors.red,
+                                  smallSize: 8,
+                                  child: entry.value.buildIcon(size: 20, iconColor: isSelected ? entry.value.color : colorScheme.onSurfaceVariant),
+                                ),
                                 title: Text(entry.key, style: TextStyle(fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal, color: isSelected ? entry.value.color : null)),
                                 trailing: (entry.value.isPrivate || entry.key == tr('private_folder'))
                                     ? Row(mainAxisSize: MainAxisSize.min, children: [
@@ -17590,7 +17708,13 @@ class _NotesProPageState extends State<NotesProPage> {
                                         const SizedBox(width: 4),
                                         Text('$count', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                                       ])
-                                    : Text('$count', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                                    : entry.key == 'Diario del Ciclo'
+                                        ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                            Icon(Icons.lock, size: 14, color: colorScheme.onSurfaceVariant),
+                                            const SizedBox(width: 4),
+                                            Text('$count', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                                          ])
+                                        : Text('$count', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                                 selected: isSelected,
                                 selectedTileColor: entry.value.color.withValues(alpha: 0.08),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
