@@ -410,6 +410,7 @@ const _translations = <String, Map<String, String>>{
   'delete_permanently': {'it': 'Elimina definitivamente', 'en': 'Delete permanently', 'fr': 'Supprimer définitivement', 'es': 'Eliminar permanentemente'},
   'deleted_on': {'it': 'Eliminata il', 'en': 'Deleted on', 'fr': 'Supprimé le', 'es': 'Eliminado el'},
   'note_restored': {'it': 'Nota ripristinata', 'en': 'Note restored', 'fr': 'Note restaurée', 'es': 'Nota restaurada'},
+  'event_restored': {'it': 'Evento ripristinato', 'en': 'Event restored', 'fr': 'Événement restauré', 'es': 'Evento restaurado'},
 
   // ── Dialogs & messages ──
   'error': {'it': 'Errore', 'en': 'Error', 'fr': 'Erreur', 'es': 'Error'},
@@ -4456,6 +4457,15 @@ class _CalendarPageState extends State<CalendarPage> {
         ),
       );
       if (confirmed != true || !mounted) return;
+      // Move to trash if enabled
+      final settings = await NoteProSettings.load();
+      if (settings.trashEnabled) {
+        await DatabaseHelper().insertTrashedNote(TrashedNote(
+          type: 'event',
+          noteJson: event.toJson(),
+          deletedAt: DateTime.now(),
+        ));
+      }
       final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
       NotificationService.cancelReminder(notifId);
       // Remember signature so matching Google duplicate stays hidden
@@ -8108,47 +8118,7 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
 
   Future<void> _exportPdf() async {
     final data = _collectData();
-    final pdf = pw.Document();
-    pdf.addPage(pw.Page(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(40),
-      build: (ctx) {
-        final title = _isMissingType
-            ? '${tr('cycle_missing')} ${data['month'] ?? ''}'
-            : '${tr('cycle_report')} ${data['month'] ?? ''}';
-        final sections = <pw.Widget>[
-          pw.Text('Ethos Note', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
-          pw.SizedBox(height: 8),
-          pw.Text(title, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.red)),
-          pw.Divider(color: PdfColors.red100),
-          pw.SizedBox(height: 12),
-        ];
-        if (_isMissingType) {
-          sections.add(_pdfRow(tr('cycle_missing_why'), data['missingReason'] ?? '—'));
-          if ((data['missingReasonCustom'] as String?)?.isNotEmpty == true) {
-            sections.add(_pdfRow(tr('cycle_missing_other'), data['missingReasonCustom']));
-          }
-        } else {
-          sections.add(_pdfRow(tr('cycle_q_timing'), data['timing'] ?? '—'));
-          sections.add(_pdfRow(tr('cycle_q_flow'), data['flow'] ?? '—'));
-          final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
-          sections.add(_pdfRow(tr('cycle_q_symptoms'), symptoms.isNotEmpty ? symptoms.join(', ') : '—'));
-          sections.add(_pdfRow(tr('cycle_q_energy'), data['energy'] ?? '—'));
-          final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
-          final cravCustom = data['cravingsCustom'] as String? ?? '';
-          sections.add(_pdfRow(tr('cycle_q_cravings'), [...cravings, if (cravCustom.isNotEmpty) cravCustom].join(', ')));
-          final sleepVal = data['sleep'] as String? ?? '';
-          final sleepCust = data['sleepCustom'] as String? ?? '';
-          sections.add(_pdfRow(tr('cycle_q_sleep'), [sleepVal, if (sleepCust.isNotEmpty) sleepCust].where((s) => s.isNotEmpty).join(' — ')));
-          final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
-          final emoCust = data['emotionsCustom'] as String? ?? '';
-          sections.add(_pdfRow(tr('cycle_q_emotions'), [...emotions, if (emoCust.isNotEmpty) emoCust].join(', ')));
-          sections.add(_pdfRow(tr('cycle_q_notes'), (data['notes'] as String?)?.isNotEmpty == true ? data['notes'] : '—'));
-        }
-        return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: sections);
-      },
-    ));
-    final pdfBytes = await pdf.save();
+    final pdfBytes = await _buildCycleDiaryPdf(data);
     if (!mounted) return;
     final title = _isMissingType
         ? '${tr('cycle_missing')} ${data['month'] ?? ''}'
@@ -8158,18 +8128,188 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     ));
   }
 
-  pw.Widget _pdfRow(String label, String value) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 10),
-      child: pw.Column(
+  static Future<Uint8List> _buildCycleDiaryPdf(Map<String, dynamic> data) async {
+    final isMissing = data['type'] == 'cycle_missing';
+    final pdf = pw.Document();
+
+    // Helper: numbered section card
+    pw.Widget pdfSection(String number, String title, pw.Widget content) {
+      return pw.Container(
+        margin: const pw.EdgeInsets.only(bottom: 10),
+        padding: const pw.EdgeInsets.all(14),
+        decoration: pw.BoxDecoration(
+          color: PdfColors.grey100,
+          borderRadius: pw.BorderRadius.circular(12),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Row(children: [
+              pw.Container(
+                width: 24, height: 24,
+                decoration: const pw.BoxDecoration(
+                  color: PdfColor.fromInt(0x1FE53935),
+                  shape: pw.BoxShape.circle,
+                ),
+                child: pw.Center(child: pw.Text(number, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.red))),
+              ),
+              pw.SizedBox(width: 8),
+              pw.Expanded(child: pw.Text(title, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13))),
+            ]),
+            pw.SizedBox(height: 10),
+            content,
+          ],
+        ),
+      );
+    }
+
+    // Helper: chip row (for single choice — shows selected with filled bg)
+    pw.Widget pdfChips(List<String> options, {String? selected, Set<String>? selectedSet}) {
+      return pw.Wrap(
+        spacing: 6,
+        runSpacing: 5,
+        children: options.map((opt) {
+          final isSelected = selected != null ? opt == selected : (selectedSet?.contains(opt) ?? false);
+          return pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: pw.BoxDecoration(
+              color: isSelected ? PdfColor.fromInt(0x26E53935) : PdfColors.white,
+              borderRadius: pw.BorderRadius.circular(14),
+              border: pw.Border.all(
+                color: isSelected ? PdfColors.red : PdfColors.grey400,
+                width: isSelected ? 1.2 : 0.6,
+              ),
+            ),
+            child: pw.Row(
+              mainAxisSize: pw.MainAxisSize.min,
+              children: [
+                if (isSelected) ...[
+                  pw.Container(
+                    width: 12, height: 12,
+                    decoration: const pw.BoxDecoration(color: PdfColors.red, shape: pw.BoxShape.circle),
+                    child: pw.Center(child: pw.Text('✓', style: pw.TextStyle(fontSize: 8, color: PdfColors.white, fontWeight: pw.FontWeight.bold))),
+                  ),
+                  pw.SizedBox(width: 4),
+                ],
+                pw.Text(opt, style: pw.TextStyle(fontSize: 10, fontWeight: isSelected ? pw.FontWeight.bold : pw.FontWeight.normal, color: isSelected ? PdfColors.red900 : PdfColors.grey800)),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+    }
+
+    // Helper: text note box
+    pw.Widget pdfTextBox(String text) {
+      if (text.isEmpty) return pw.SizedBox();
+      return pw.Container(
+        margin: const pw.EdgeInsets.only(top: 6),
+        padding: const pw.EdgeInsets.all(10),
+        width: double.infinity,
+        decoration: pw.BoxDecoration(
+          color: PdfColors.white,
+          borderRadius: pw.BorderRadius.circular(8),
+          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        ),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 11)),
+      );
+    }
+
+    final pageTitle = isMissing
+        ? '${tr('cycle_missing')} ${data['month'] ?? ''}'
+        : '${tr('cycle_report')} ${data['month'] ?? ''}';
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(36),
+      header: (ctx) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(label, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.grey800)),
-          pw.SizedBox(height: 2),
-          pw.Text(value.isEmpty ? '—' : value, style: const pw.TextStyle(fontSize: 13)),
+          pw.Text('Ethos Note', style: pw.TextStyle(fontSize: 9, color: PdfColors.grey500)),
+          pw.SizedBox(height: 4),
+          pw.Text(pageTitle, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.red)),
+          pw.Divider(color: PdfColor.fromInt(0x33E53935), thickness: 1),
+          pw.SizedBox(height: 8),
         ],
       ),
-    );
+      build: (ctx) {
+        final sections = <pw.Widget>[];
+
+        if (isMissing) {
+          final reason = data['missingReason'] as String? ?? '';
+          final reasonCustom = data['missingReasonCustom'] as String? ?? '';
+          sections.add(pdfSection('1', tr('cycle_missing_why'), pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pdfChips([tr('cycle_missing_arrived'), tr('cycle_missing_not_yet'), tr('cycle_missing_pregnant'), tr('cycle_missing_other')], selected: reason),
+              if (reasonCustom.isNotEmpty) pdfTextBox(reasonCustom),
+            ],
+          )));
+        } else {
+          // 1. Timing
+          sections.add(pdfSection('1', tr('cycle_q_timing'),
+            pdfChips([tr('cycle_q_timing_early'), tr('cycle_q_timing_ontime'), tr('cycle_q_timing_late')], selected: data['timing'] as String?),
+          ));
+
+          // 2. Flow
+          sections.add(pdfSection('2', tr('cycle_q_flow'),
+            pdfChips([tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')], selected: data['flow'] as String?),
+          ));
+
+          // 3. Symptoms
+          final symptoms = Set<String>.from((data['symptoms'] as List?)?.cast<String>() ?? []);
+          sections.add(pdfSection('3', tr('cycle_q_symptoms'),
+            pdfChips(_symptomOptions, selectedSet: symptoms),
+          ));
+
+          // 4. Energy
+          sections.add(pdfSection('4', tr('cycle_q_energy'),
+            pdfChips([tr('cycle_q_energy_low'), tr('cycle_q_energy_normal'), tr('cycle_q_energy_high')], selected: data['energy'] as String?),
+          ));
+
+          // 5. Cravings
+          final cravings = Set<String>.from((data['cravings'] as List?)?.cast<String>() ?? []);
+          final cravCustom = data['cravingsCustom'] as String? ?? '';
+          sections.add(pdfSection('5', tr('cycle_q_cravings'), pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pdfChips(_cravingOptions, selectedSet: cravings),
+              if (cravCustom.isNotEmpty) pdfTextBox(cravCustom),
+            ],
+          )));
+
+          // 6. Sleep
+          final sleepCustom = data['sleepCustom'] as String? ?? '';
+          sections.add(pdfSection('6', tr('cycle_q_sleep'), pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pdfChips([tr('cycle_q_sleep_normal'), tr('cycle_q_sleep_deep'), tr('cycle_q_sleep_restless'), tr('cycle_q_sleep_insomnia')], selected: data['sleep'] as String?),
+              if (sleepCustom.isNotEmpty) pdfTextBox(sleepCustom),
+            ],
+          )));
+
+          // 7. Emotions
+          final emotions = Set<String>.from((data['emotions'] as List?)?.cast<String>() ?? []);
+          final emoCustom = data['emotionsCustom'] as String? ?? '';
+          sections.add(pdfSection('7', tr('cycle_q_emotions'), pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pdfChips([tr('cycle_q_emotions_calm'), tr('cycle_q_emotions_irritable'), tr('cycle_q_emotions_sensitive'), tr('cycle_q_emotions_sad')], selectedSet: emotions),
+              if (emoCustom.isNotEmpty) pdfTextBox(emoCustom),
+            ],
+          )));
+
+          // 8. Notes
+          final notes = data['notes'] as String? ?? '';
+          sections.add(pdfSection('8', tr('cycle_q_notes'),
+            pdfTextBox(notes.isNotEmpty ? notes : '—'),
+          ));
+        }
+
+        return sections;
+      },
+    ));
+    return pdf.save();
   }
 
   Future<void> _handlePregnant() async {
@@ -12370,7 +12510,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadTrash();
   }
 
@@ -12394,6 +12534,12 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     final db = DatabaseHelper();
     if (trashed.type == 'pro') {
       await db.insertProNote(ProNote.fromJson(trashed.noteJson));
+    } else if (trashed.type == 'event') {
+      final event = CalendarEventFull.fromJson(trashed.noteJson);
+      final allEvents = await db.getAllEvents();
+      final key = event.dateKey;
+      allEvents.putIfAbsent(key, () => []).add(event);
+      await db.saveAllEvents(allEvents);
     } else {
       await db.insertFlashNote(FlashNote.fromJson(trashed.noteJson));
     }
@@ -12404,7 +12550,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tr('note_restored')),
+          content: Text(trashed.type == 'event' ? tr('event_restored') : tr('note_restored')),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -12443,6 +12589,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     final colorScheme = Theme.of(context).colorScheme;
     final proNotes = _trashedNotes.where((n) => n.type == 'pro').toList();
     final flashNotes = _trashedNotes.where((n) => n.type == 'flash').toList();
+    final eventNotes = _trashedNotes.where((n) => n.type == 'event').toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -12484,7 +12631,17 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
                 children: [
                   const Icon(Icons.flash_on, size: 18),
                   const SizedBox(width: 6),
-                  Text('Flash Notes (${flashNotes.length})'),
+                  Text('Flash (${flashNotes.length})'),
+                ],
+              ),
+            ),
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.calendar_today, size: 18),
+                  const SizedBox(width: 6),
+                  Text('${tr('calendar')} (${eventNotes.length})'),
                 ],
               ),
             ),
@@ -12496,6 +12653,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
         children: [
           _buildTrashList(proNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFFC0364D) : const Color(0xFFE53935)),
           _buildTrashList(flashNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726)),
+          _buildTrashList(eventNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFF1565C0) : const Color(0xFF1E88E5)),
         ],
       ),
     );
@@ -12529,12 +12687,24 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
         final trashed = notes[index];
         final globalIndex = _trashedNotes.indexOf(trashed);
         final daysLeft = trashed.daysRemaining(_retentionDays);
-        final title = trashed.type == 'pro'
-            ? (trashed.noteJson['title'] ?? tr('untitled'))
-            : (trashed.noteJson['content'] ?? '').toString();
-        final subtitle = trashed.type == 'pro'
-            ? (trashed.noteJson['content'] ?? '').toString()
-            : '';
+        final String title;
+        final String subtitle;
+        if (trashed.type == 'pro') {
+          title = (trashed.noteJson['title'] ?? tr('untitled')).toString();
+          subtitle = (trashed.noteJson['content'] ?? '').toString();
+        } else if (trashed.type == 'event') {
+          title = (trashed.noteJson['title'] ?? tr('untitled')).toString();
+          final startStr = trashed.noteJson['startTime'];
+          if (startStr != null) {
+            final dt = DateTime.tryParse(startStr.toString());
+            subtitle = dt != null ? '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}' : '';
+          } else {
+            subtitle = '';
+          }
+        } else {
+          title = (trashed.noteJson['content'] ?? '').toString();
+          subtitle = '';
+        }
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -12551,7 +12721,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
                     radius: 20,
                     backgroundColor: accentColor.withValues(alpha: 0.12),
                     child: Icon(
-                      trashed.type == 'pro' ? Icons.description : Icons.flash_on,
+                      trashed.type == 'pro' ? Icons.description : trashed.type == 'event' ? Icons.event : Icons.flash_on,
                       color: accentColor,
                       size: 20,
                     ),
@@ -16070,6 +16240,8 @@ class _NotesProPageState extends State<NotesProPage> {
   bool _isGridView = false;
   bool _showFolderSidebar = false;
   bool _cycleDiaryBadge = false;
+  bool _selectionMode = false;
+  Set<int> _selectedNoteIds = {};
 
   static const _availableIcons = [
     Icons.folder, Icons.work, Icons.person, Icons.school,
@@ -16310,23 +16482,6 @@ class _NotesProPageState extends State<NotesProPage> {
         },
       ),
     ));
-  }
-
-  Future<void> _deleteNote(int index) async {
-    final note = _proNotes[index];
-    // Move to trash if enabled
-    if (_settings.trashEnabled) {
-      final trashed = TrashedNote(
-        type: 'pro',
-        noteJson: note.toJson(),
-        deletedAt: DateTime.now(),
-      );
-      await DatabaseHelper().insertTrashedNote(trashed);
-    }
-    if (note.id != null) {
-      await DatabaseHelper().deleteProNote(note.id!);
-    }
-    await _loadNotes();
   }
 
   List<ProNote> get _filteredNotes {
@@ -17171,7 +17326,49 @@ class _NotesProPageState extends State<NotesProPage> {
           // MAIN CONTENT (full width)
           Column(
             children: [
-                // SEARCH BAR + VIEW TOGGLE
+              // SELECTION BAR
+              if (_selectionMode)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  color: accentColor.withValues(alpha: 0.08),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => setState(() { _selectionMode = false; _selectedNoteIds.clear(); }),
+                      ),
+                      Text(
+                        '${_selectedNoteIds.length} ${tr('selected')}',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: accentColor),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            if (_selectedNoteIds.length == _filteredNotes.length) {
+                              _selectedNoteIds.clear();
+                            } else {
+                              _selectedNoteIds = _filteredNotes.where((n) => n.id != null).map((n) => n.id!).toSet();
+                            }
+                          });
+                        },
+                        child: Text(_selectedNoteIds.length == _filteredNotes.length ? tr('deselect_all') : tr('select_all')),
+                      ),
+                      IconButton(
+                        onPressed: _selectedNoteIds.isEmpty ? null : () => _changeSelectedFolder(),
+                        icon: const Icon(Icons.folder_outlined),
+                        tooltip: tr('change_folder'),
+                      ),
+                      IconButton(
+                        onPressed: _selectedNoteIds.isEmpty ? null : () => _deleteSelectedNotes(),
+                        icon: Icon(Icons.delete_outline, color: _selectedNoteIds.isEmpty ? null : colorScheme.error),
+                        tooltip: tr('delete'),
+                      ),
+                    ],
+                  ),
+                ),
+              // SEARCH BAR + VIEW TOGGLE
+              if (!_selectionMode)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
                   child: Row(
@@ -17296,20 +17493,41 @@ class _NotesProPageState extends State<NotesProPage> {
                                 final note = _filteredNotes[index];
                                 final folderColor = _folders[note.folder]?.color ?? Colors.grey;
                                 final noteIndex = _proNotes.indexOf(note);
+                                final isSelected = note.id != null && _selectedNoteIds.contains(note.id);
                                 return GestureDetector(
-                                  onTap: () => _editNote(noteIndex),
-                                  onLongPress: note.folder != tr('private_folder')
-                                      ? () => _showLongPressMenu(noteIndex)
-                                      : null,
+                                  onTap: () {
+                                    if (_selectionMode) {
+                                      setState(() {
+                                        if (note.id != null) {
+                                          if (_selectedNoteIds.contains(note.id)) {
+                                            _selectedNoteIds.remove(note.id);
+                                            if (_selectedNoteIds.isEmpty) _selectionMode = false;
+                                          } else {
+                                            _selectedNoteIds.add(note.id!);
+                                          }
+                                        }
+                                      });
+                                    } else {
+                                      _editNote(noteIndex);
+                                    }
+                                  },
+                                  onLongPress: () {
+                                    if (!_selectionMode && note.folder != tr('private_folder')) {
+                                      setState(() {
+                                        _selectionMode = true;
+                                        if (note.id != null) _selectedNoteIds.add(note.id!);
+                                      });
+                                    }
+                                  },
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     margin: const EdgeInsets.all(2),
                                     decoration: BoxDecoration(
-                                      color: colorScheme.surfaceContainerLowest,
+                                      color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-                                        width: 1,
+                                        color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                        width: isSelected ? 2 : 1,
                                       ),
                                     ),
                                     child: Padding(
@@ -17379,22 +17597,45 @@ class _NotesProPageState extends State<NotesProPage> {
                                 final note = _filteredNotes[index];
                                 final folderColor = _folders[note.folder]?.color ?? Colors.grey;
                                 final noteIndex = _proNotes.indexOf(note);
+                                final isSelected = note.id != null && _selectedNoteIds.contains(note.id);
                                 return _SlideInItem(
                                   index: index,
                                   child: GestureDetector(
-                                    onLongPress: note.folder != tr('private_folder')
-                                        ? () => _showLongPressMenu(noteIndex)
-                                        : null,
-                                    child: GestureDetector(
-                                      onTap: () => _editNote(noteIndex),
-                                      child: AnimatedContainer(
+                                    onTap: () {
+                                      if (_selectionMode) {
+                                        setState(() {
+                                          if (note.id != null) {
+                                            if (_selectedNoteIds.contains(note.id)) {
+                                              _selectedNoteIds.remove(note.id);
+                                              if (_selectedNoteIds.isEmpty) _selectionMode = false;
+                                            } else {
+                                              _selectedNoteIds.add(note.id!);
+                                            }
+                                          }
+                                        });
+                                      } else {
+                                        _editNote(noteIndex);
+                                      }
+                                    },
+                                    onLongPress: () {
+                                      if (!_selectionMode && note.folder != tr('private_folder')) {
+                                        setState(() {
+                                          _selectionMode = true;
+                                          if (note.id != null) _selectedNoteIds.add(note.id!);
+                                        });
+                                      }
+                                    },
+                                    child: AnimatedContainer(
                                         duration: const Duration(milliseconds: 200),
                                         margin: const EdgeInsets.only(bottom: 8),
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
-                                          color: colorScheme.surfaceContainerLowest,
+                                          color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
                                           borderRadius: BorderRadius.circular(16),
-                                          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                          border: Border.all(
+                                            color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                            width: isSelected ? 2 : 1,
+                                          ),
                                         ),
                                         child: Row(
                                           children: [
@@ -17466,7 +17707,6 @@ class _NotesProPageState extends State<NotesProPage> {
                                           ],
                                         ),
                                       ),
-                                    ),
                                   ),
                                 );
                               },
@@ -17604,131 +17844,48 @@ class _NotesProPageState extends State<NotesProPage> {
     );
   }
 
-  void _showLongPressMenu(int noteIndex) {
-    final note = _proNotes[noteIndex];
-    final colorScheme = Theme.of(context).colorScheme;
-    showModalBottomSheet(
+  Future<void> _deleteSelectedNotes() async {
+    final count = _selectedNoteIds.length;
+    final confirmed = await showDialog<bool>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 12),
-            Text(note.title.isNotEmpty ? note.title : tr('untitled'),
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 8),
-            // Change folder
-            ListTile(
-              leading: Icon(Icons.folder_outlined, color: colorScheme.primary),
-              title: Text(tr('change_folder')),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showChangeFolderSheet(noteIndex);
-              },
-            ),
-            // Export PDF
-            ListTile(
-              leading: Icon(Icons.picture_as_pdf, color: colorScheme.primary),
-              title: Text(tr('export_pdf')),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              onTap: () async {
-                Navigator.pop(ctx);
-                await _exportNotePdf(note);
-              },
-            ),
-            // Delete
-            ListTile(
-              leading: Icon(Icons.delete_outline, color: colorScheme.error),
-              title: Text(tr('delete'), style: TextStyle(color: colorScheme.error)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _confirmDeleteNote(noteIndex);
-              },
-            ),
-          ],
-        ),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('delete_note_confirm')),
+        content: Text('${tr('delete')} $count ${tr('selected')}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            child: Text(tr('delete')),
+          ),
+        ],
       ),
     );
-  }
-
-  Future<void> _exportNotePdf(ProNote note) async {
-    // Cycle diary notes use questionnaire PDF format
-    if (_isCycleDiaryNote(note)) {
-      final data = json.decode(note.contentDelta!) as Map<String, dynamic>;
-      final isMissing = data['type'] == 'cycle_missing';
-      final pdf = pw.Document();
-      pdf.addPage(pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40),
-        build: (ctx) {
-          final title = isMissing
-              ? '${tr('cycle_missing')} ${data['month'] ?? ''}'
-              : '${tr('cycle_report')} ${data['month'] ?? ''}';
-          final sections = <pw.Widget>[
-            pw.Text('Ethos Note', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
-            pw.SizedBox(height: 8),
-            pw.Text(title, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.red)),
-            pw.Divider(color: PdfColors.red100),
-            pw.SizedBox(height: 12),
-          ];
-          pw.Widget pdfRow(String label, String value) => pw.Padding(
-            padding: const pw.EdgeInsets.only(bottom: 10),
-            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-              pw.Text(label, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.grey800)),
-              pw.SizedBox(height: 2),
-              pw.Text(value.isEmpty ? '—' : value, style: const pw.TextStyle(fontSize: 13)),
-            ]),
-          );
-          if (isMissing) {
-            sections.add(pdfRow(tr('cycle_missing_why'), data['missingReason'] ?? '—'));
-            if ((data['missingReasonCustom'] as String?)?.isNotEmpty == true) {
-              sections.add(pdfRow(tr('cycle_missing_other'), data['missingReasonCustom']));
-            }
-          } else {
-            sections.add(pdfRow(tr('cycle_q_timing'), data['timing'] ?? '—'));
-            sections.add(pdfRow(tr('cycle_q_flow'), data['flow'] ?? '—'));
-            final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
-            sections.add(pdfRow(tr('cycle_q_symptoms'), symptoms.isNotEmpty ? symptoms.join(', ') : '—'));
-            sections.add(pdfRow(tr('cycle_q_energy'), data['energy'] ?? '—'));
-            final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
-            final cravCustom = data['cravingsCustom'] as String? ?? '';
-            sections.add(pdfRow(tr('cycle_q_cravings'), [...cravings, if (cravCustom.isNotEmpty) cravCustom].join(', ')));
-            final sleepVal = data['sleep'] as String? ?? '';
-            final sleepCust = data['sleepCustom'] as String? ?? '';
-            sections.add(pdfRow(tr('cycle_q_sleep'), [sleepVal, if (sleepCust.isNotEmpty) sleepCust].where((s) => s.isNotEmpty).join(' — ')));
-            final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
-            final emoCust = data['emotionsCustom'] as String? ?? '';
-            sections.add(pdfRow(tr('cycle_q_emotions'), [...emotions, if (emoCust.isNotEmpty) emoCust].join(', ')));
-            sections.add(pdfRow(tr('cycle_q_notes'), (data['notes'] as String?)?.isNotEmpty == true ? data['notes'] : '—'));
-          }
-          return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: sections);
-        },
-      ));
-      final pdfBytes = await pdf.save();
-      if (!mounted) return;
-      Navigator.push(context, MaterialPageRoute(
-        builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '${note.title}.pdf'),
-      ));
-    } else {
-      final pdfBytes = await generateNotePdfFromProNote(note);
-      if (!mounted) return;
-      Navigator.push(context, MaterialPageRoute(
-        builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '${note.title}.pdf'),
-      ));
+    if (confirmed != true || !mounted) return;
+    final db = DatabaseHelper();
+    for (final noteId in _selectedNoteIds) {
+      final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
+      if (note.id == noteId) {
+        if (_settings.trashEnabled) {
+          await db.insertTrashedNote(TrashedNote(
+            type: 'pro',
+            noteJson: note.toJson(),
+            deletedAt: DateTime.now(),
+          ));
+        }
+        await db.deleteProNote(noteId);
+      }
     }
+    setState(() {
+      _selectionMode = false;
+      _selectedNoteIds.clear();
+    });
+    await _loadNotes();
   }
 
-  void _showChangeFolderSheet(int noteIndex) {
-    final note = _proNotes[noteIndex];
-    showModalBottomSheet(
+  Future<void> _changeSelectedFolder() async {
+    final targetFolder = await showModalBottomSheet<String>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -17742,70 +17899,51 @@ class _NotesProPageState extends State<NotesProPage> {
             const SizedBox(height: 12),
             Text(tr('change_folder'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            ..._folders.entries.where((e) => e.key != note.folder).map((entry) => ListTile(
+            ..._folders.entries.map((entry) => ListTile(
               leading: entry.value.buildIcon(size: 20, iconColor: entry.value.color),
               title: Text(folderLabel(entry.key)),
-              selected: false,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              onTap: () async {
-                Navigator.pop(ctx);
-                final updated = ProNote(
-                  title: note.title,
-                  content: note.content,
-                  contentDelta: note.contentDelta,
-                  headerText: note.headerText,
-                  footerText: note.footerText,
-                  templatePreset: note.templatePreset,
-                  folder: entry.key,
-                  createdAt: note.createdAt,
-                  updatedAt: DateTime.now(),
-                  linkedDate: note.linkedDate,
-                  imageBase64: note.imageBase64,
-                );
-                if (note.id != null) {
-                  await DatabaseHelper().updateProNote(note.id!, updated);
-                  await _loadNotes();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${tr('move_to_folder')}: ${folderLabel(entry.key)}'),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
-                  }
-                }
-              },
+              onTap: () => Navigator.pop(ctx, entry.key),
             )),
           ],
         ),
       ),
     );
-  }
-
-  void _confirmDeleteNote(int noteIndex) {
-    final colorScheme = Theme.of(context).colorScheme;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(tr('delete_note_confirm')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(tr('cancel')),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _deleteNote(noteIndex);
-            },
-            style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
-            child: Text(tr('delete')),
-          ),
-        ],
-      ),
-    );
+    if (targetFolder == null || !mounted) return;
+    final db = DatabaseHelper();
+    for (final noteId in _selectedNoteIds) {
+      final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
+      if (note.id == noteId) {
+        final updated = ProNote(
+          title: note.title,
+          content: note.content,
+          contentDelta: note.contentDelta,
+          headerText: note.headerText,
+          footerText: note.footerText,
+          templatePreset: note.templatePreset,
+          folder: targetFolder,
+          createdAt: note.createdAt,
+          updatedAt: DateTime.now(),
+          linkedDate: note.linkedDate,
+          imageBase64: note.imageBase64,
+        );
+        await db.updateProNote(noteId, updated);
+      }
+    }
+    setState(() {
+      _selectionMode = false;
+      _selectedNoteIds.clear();
+    });
+    await _loadNotes();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('move_to_folder')}: ${folderLabel(targetFolder)}'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 
 }
