@@ -164,6 +164,12 @@ const _translations = <String, Map<String, String>>{
   'local': {'it': 'Locale', 'en': 'Local', 'fr': 'Local', 'es': 'Local'},
   'save_on_device': {'it': 'Salva sul dispositivo', 'en': 'Save on device', 'fr': 'Enregistrer sur l\'appareil', 'es': 'Guardar en dispositivo'},
   'sync_to_cloud': {'it': 'Sincronizza su cloud', 'en': 'Sync to cloud', 'fr': 'Synchroniser sur le cloud', 'es': 'Sincronizar en la nube'},
+  'backup_export': {'it': 'Esporta Backup', 'en': 'Export Backup', 'fr': 'Exporter la sauvegarde', 'es': 'Exportar copia'},
+  'backup_import': {'it': 'Importa Backup', 'en': 'Import Backup', 'fr': 'Importer la sauvegarde', 'es': 'Importar copia'},
+  'backup_exported': {'it': 'Backup esportato con successo', 'en': 'Backup exported successfully', 'fr': 'Sauvegarde exportée avec succès', 'es': 'Copia exportada con éxito'},
+  'backup_imported': {'it': 'Backup importato. Riavvia l\'app.', 'en': 'Backup imported. Restart the app.', 'fr': 'Sauvegarde importée. Redémarrez l\'app.', 'es': 'Copia importada. Reinicia la app.'},
+  'backup_import_confirm': {'it': 'Importare il backup? I dati attuali verranno sostituiti.', 'en': 'Import backup? Current data will be replaced.', 'fr': 'Importer la sauvegarde ? Les données actuelles seront remplacées.', 'es': '¿Importar copia? Los datos actuales se reemplazarán.'},
+  'backup_error': {'it': 'Errore durante il backup', 'en': 'Backup error', 'fr': 'Erreur de sauvegarde', 'es': 'Error de copia'},
   'info': {'it': 'Informazioni', 'en': 'Information', 'fr': 'Informations', 'es': 'Información'},
   'version': {'it': 'Versione', 'en': 'Version', 'fr': 'Version', 'es': 'Versión'},
   'add_account': {'it': 'Aggiungi Account', 'en': 'Add Account', 'fr': 'Ajouter un compte', 'es': 'Añadir cuenta'},
@@ -633,6 +639,22 @@ const _translations = <String, Map<String, String>>{
   'key_points': {'it': 'Punti Chiave', 'en': 'Key Points', 'fr': 'Points clés', 'es': 'Puntos clave'},
 
   // --- Flash/Deep Note UI ---
+  'unsaved_changes': {'it': 'Modifiche non salvate', 'en': 'Unsaved changes', 'fr': 'Modifications non enregistrées', 'es': 'Cambios sin guardar'},
+  'save_changes_question': {'it': 'Vuoi salvare le modifiche?', 'en': 'Do you want to save the changes?', 'fr': 'Voulez-vous enregistrer les modifications ?', 'es': '¿Deseas guardar los cambios?'},
+  'discard': {'it': 'Scarta', 'en': 'Discard', 'fr': 'Annuler', 'es': 'Descartar'},
+  'transcribe_voice_note': {'it': 'Trascrivi nota vocale', 'en': 'Transcribe voice note', 'fr': 'Transcrire la note vocale', 'es': 'Transcribir nota de voz'},
+  'convert_audio_to_text': {'it': 'Converti l\'audio in testo', 'en': 'Convert audio to text', 'fr': 'Convertir l\'audio en texte', 'es': 'Convertir audio a texto'},
+  'smart_summary': {'it': 'Riassunto intelligente', 'en': 'Smart summary', 'fr': 'Résumé intelligent', 'es': 'Resumen inteligente'},
+  'create_brief_summary': {'it': 'Crea un riassunto breve del testo', 'en': 'Create a brief summary of the text', 'fr': 'Créer un bref résumé du texte', 'es': 'Crear un resumen breve del texto'},
+  'create_brief_content_summary': {'it': 'Crea un riassunto breve del contenuto', 'en': 'Create a brief summary of the content', 'fr': 'Créer un bref résumé du contenu', 'es': 'Crear un resumen breve del contenido'},
+  'no_text_recognized': {'it': 'Nessun testo riconosciuto', 'en': 'No text recognized', 'fr': 'Aucun texte reconnu', 'es': 'Ningún texto reconocido'},
+  'open_as_text_note': {'it': 'Apri come nota di testo', 'en': 'Open as text note', 'fr': 'Ouvrir comme note de texte', 'es': 'Abrir como nota de texto'},
+  'notification_denied': {'it': 'Permesso notifiche negato. Vai in Impostazioni → App → Ethos Note → Notifiche e attivale.', 'en': 'Notification permission denied. Go to Settings → App → Ethos Note → Notifications and enable them.', 'fr': 'Autorisation refusée. Allez dans Paramètres → App → Ethos Note → Notifications et activez-les.', 'es': 'Permiso de notificaciones denegado. Ve a Ajustes → App → Ethos Note → Notificaciones y actívalas.'},
+  'notification_sent': {'it': 'Notifica inviata! Controlla la barra notifiche.', 'en': 'Notification sent! Check the notification bar.', 'fr': 'Notification envoyée ! Vérifiez la barre de notifications.', 'es': '¡Notificación enviada! Revisa la barra de notificaciones.'},
+  'notification_error': {'it': 'Errore nell\'invio. Controlla le impostazioni del telefono.', 'en': 'Send error. Check phone settings.', 'fr': 'Erreur d\'envoi. Vérifiez les paramètres du téléphone.', 'es': 'Error de envío. Revisa los ajustes del teléfono.'},
+  'test_notifications': {'it': 'Testa notifiche', 'en': 'Test notifications', 'fr': 'Tester les notifications', 'es': 'Probar notificaciones'},
+  'show_holidays_subtitle': {'it': 'Mostra festività religiose nel calendario', 'en': 'Show religious holidays in the calendar', 'fr': 'Afficher les fêtes religieuses dans le calendrier', 'es': 'Mostrar festividades religiosas en el calendario'},
+  'city_not_found': {'it': 'non trovata', 'en': 'not found', 'fr': 'introuvable', 'es': 'no encontrada'},
   'stop': {'it': 'Ferma', 'en': 'Stop', 'fr': 'Arrêter', 'es': 'Detener'},
   'photo': {'it': 'Foto', 'en': 'Photo', 'fr': 'Photo', 'es': 'Foto'},
   'add_caption': {'it': 'Aggiungi didascalia...', 'en': 'Add caption...', 'fr': 'Ajouter une légende...', 'es': 'Añadir descripción...'},
@@ -1204,6 +1226,13 @@ class DatabaseHelper {
     return _database!;
   }
 
+  Future<void> close() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+  }
+
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
     final path = p.join(dbPath, 'ethos_note.db');
@@ -1692,13 +1721,13 @@ Future<void> _migrateSharedPrefsToSqlite() async {
     // ── Pro Notes ──
     final proNotesJson = prefs.getStringList('pro_notes') ?? [];
     for (final s in proNotesJson) {
-      try { await db.insertProNote(ProNote.fromJson(json.decode(s))); } catch (_) {}
+      try { await db.insertProNote(ProNote.fromJson(json.decode(s))); } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
     }
 
     // ── Flash Notes ──
     final flashNotesJson = prefs.getStringList('flash_notes_v2') ?? [];
     for (final s in flashNotesJson) {
-      try { await db.insertFlashNote(FlashNote.fromJson(json.decode(s))); } catch (_) {}
+      try { await db.insertFlashNote(FlashNote.fromJson(json.decode(s))); } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
     }
 
     // ── Calendar Events ──
@@ -1707,7 +1736,7 @@ Future<void> _migrateSharedPrefsToSqlite() async {
       final Map<String, dynamic> decoded = json.decode(eventsJsonStr);
       for (final entry in decoded.entries) {
         for (final e in (entry.value as List)) {
-          try { await db.insertEvent(CalendarEventFull.fromJson(e)); } catch (_) {}
+          try { await db.insertEvent(CalendarEventFull.fromJson(e)); } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
         }
       }
     }
@@ -1715,7 +1744,7 @@ Future<void> _migrateSharedPrefsToSqlite() async {
     // ── Trashed Notes ──
     final trashedJson = prefs.getStringList('trashed_notes') ?? [];
     for (final s in trashedJson) {
-      try { await db.insertTrashedNote(TrashedNote.fromJson(json.decode(s))); } catch (_) {}
+      try { await db.insertTrashedNote(TrashedNote.fromJson(json.decode(s))); } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
     }
 
     // ── Custom Folders ──
@@ -1723,7 +1752,7 @@ Future<void> _migrateSharedPrefsToSqlite() async {
     if (foldersJsonStr != null) {
       final Map<String, dynamic> decoded = json.decode(foldersJsonStr);
       for (final entry in decoded.entries) {
-        try { await db.saveFolder(entry.key, FolderStyle.fromJson(entry.value)); } catch (_) {}
+        try { await db.saveFolder(entry.key, FolderStyle.fromJson(entry.value)); } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
       }
     }
 
@@ -2232,10 +2261,11 @@ class _WelcomePageState extends State<WelcomePage> {
             if (response.statusCode == 200) {
               profile.photoBase64 = base64Encode(response.bodyBytes);
             }
-          } catch (_) {}
+          } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
         }
 
         await db.saveProfile(profile);
+        if (!mounted) return;
         widget.onComplete();
       } else {
         setState(() => _signingIn = false);
@@ -3019,7 +3049,7 @@ class WeatherService {
           )).toList();
         }
       }
-    } catch (_) {}
+    } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
     return [];
   }
 
@@ -3060,7 +3090,7 @@ class WeatherService {
         await weatherData.saveCache();
         return weatherData;
       }
-    } catch (_) {}
+    } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
     return null;
   }
 }
@@ -3335,7 +3365,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       await HomeWidget.updateWidget(
         androidName: 'com.ethosnote.app.widget.FlashNotesShortcutsProvider',
       );
-    } catch (_) {}
+    } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
   }
 
   Future<void> _checkDeepLink() async {
@@ -3345,7 +3375,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (link != null && link.isNotEmpty) {
         _handleDeepLink(link);
       }
-    } catch (_) {}
+    } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
   }
 
   void _handleDeepLink(String uri) {
@@ -3385,7 +3415,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (path != null && path.isNotEmpty) {
         await _handleSharedAudioFile(path);
       }
-    } catch (_) {}
+    } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
   }
 
   Future<void> _handleSharedAudioFile(String sourcePath) async {
@@ -3399,6 +3429,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         audioPath: destPath,
       );
       await DatabaseHelper().insertFlashNote(note);
+      if (!mounted) return;
       // Switch to Flash Notes tab and refresh
       setState(() { _selectedIndex = 2; _refreshKey++; });
       if (mounted) {
@@ -3410,7 +3441,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
         );
       }
-    } catch (_) {}
+    } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
   }
 
   Future<void> _loadUserProfile() async {
@@ -4263,7 +4294,7 @@ class _CalendarPageState extends State<CalendarPage> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('${tr('weather_city')}: "$city" non trovata'),
+                  content: Text('${tr('weather_city')}: "$city" ${tr('city_not_found')}'),
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -4272,7 +4303,7 @@ class _CalendarPageState extends State<CalendarPage> {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
     if (mounted) setState(() => _isLoadingWeather = false);
   }
 
@@ -6165,7 +6196,7 @@ class HealthService {
         if (!available) {
           lastError = 'health_connect_not_installed';
           if (kDebugMode) debugPrint('Health Connect not available');
-          try { await health.installHealthConnect(); } catch (_) {}
+          try { await health.installHealthConnect(); } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
           return false;
         }
       }
@@ -6202,7 +6233,7 @@ class HealthService {
     } on UnsupportedError {
       lastError = 'health_connect_not_installed';
       if (kDebugMode) debugPrint('Health Connect not installed');
-      try { await Health().installHealthConnect(); } catch (_) {}
+      try { await Health().installHealthConnect(); } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
       return false;
     } catch (e) {
       if (kDebugMode) debugPrint('Health auth error: $e');
@@ -6595,7 +6626,7 @@ class NotificationService {
         try {
           await _plugin.show(id, 'Promemoria', body, details, payload: 'event_$id');
           debugPrint('NotificationService: immediate show #$id as last resort');
-        } catch (_) {}
+        } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
       }
     }
   }
@@ -6635,7 +6666,7 @@ class NotificationService {
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           payload: 'cycle_reminder',
         );
-      } catch (_) {}
+      } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
     }
   }
 
@@ -6662,7 +6693,7 @@ class NotificationService {
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           payload: 'cycle_diary',
         );
-      } catch (_) {}
+      } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
     }
   }
 
@@ -6673,7 +6704,7 @@ class NotificationService {
     if (!_permissionsGranted) return;
     try {
       await _plugin.show(999777, 'Ethos Note', tr('cycle_ended_notif'), _buildNotifDetails(alertType), payload: 'cycle_diary');
-    } catch (_) {}
+    } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
   }
 
   /// Cancel the cycle reminder notification.
@@ -7501,7 +7532,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: const Text('Permesso notifiche negato. Vai in Impostazioni → App → Ethos Note → Notifiche e attivale.'),
+                        content: Text(tr('notification_denied')),
                         behavior: SnackBarBehavior.floating,
                         duration: const Duration(seconds: 5),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -7513,14 +7544,14 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(ok ? 'Notifica inviata! Controlla la barra notifiche.' : 'Errore nell\'invio. Controlla le impostazioni del telefono.'),
+                      content: Text(ok ? tr('notification_sent') : tr('notification_error')),
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   );
                 },
                 icon: const Icon(Icons.notifications_active, size: 18),
-                label: const Text('Testa notifiche'),
+                label: Text(tr('test_notifications')),
               ),
             ),
           ],
@@ -7662,7 +7693,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           children: [
             SwitchListTile(
               title: Text(tr('holidays'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Mostra festività religiose nel calendario'),
+              subtitle: Text(tr('show_holidays_subtitle')),
               value: _settings.showHolidays,
               activeColor: Color(_settings.calendarColorValue),
               contentPadding: EdgeInsets.zero,
@@ -9093,7 +9124,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
                         ],
                       ),
                     );
-                    if (minutes != null) {
+                    if (minutes != null && mounted) {
                       setState(() => _selectedReminder = '$minutes min');
                     }
                   },
@@ -10079,7 +10110,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       widget.onSave(p);
                     },
                   ),
-                )).then((_) => setState(() {}));
+                )).then((_) { if (mounted) setState(() {}); });
               },
             ),
           ),
@@ -10349,6 +10380,103 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     if (mounted) setState(() => _biometricPin = pin);
   }
 
+  Future<void> _exportBackup() async {
+    try {
+      final dbPath = await getDatabasesPath();
+      final sourcePath = p.join(dbPath, 'ethos_note.db');
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) return;
+
+      final now = DateTime.now();
+      final fileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.db';
+
+      final dir = await getApplicationDocumentsDirectory();
+      final backupFile = File(p.join(dir.path, fileName));
+      await sourceFile.copy(backupFile.path);
+
+      // Also try to save to Downloads via file picker
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: tr('backup_export'),
+        fileName: fileName,
+        bytes: await sourceFile.readAsBytes(),
+      );
+
+      if (!mounted) return;
+      if (result != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('backup_exported')),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('backup_error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _importBackup() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: tr('backup_import'),
+        type: FileType.any,
+      );
+      if (result == null || result.files.single.path == null) return;
+      if (!mounted) return;
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('backup_import')),
+          content: Text(tr('backup_import_confirm')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('backup_import'))),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      final pickedFile = File(result.files.single.path!);
+      final dbPath = await getDatabasesPath();
+      final targetPath = p.join(dbPath, 'ethos_note.db');
+
+      // Close the current database connection
+      await DatabaseHelper().close();
+
+      // Copy backup over existing database
+      await pickedFile.copy(targetPath);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('backup_imported')),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('backup_error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
   Future<bool> _authenticateBiometric() async {
     final localAuth = LocalAuthentication();
     final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
@@ -10527,54 +10655,49 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             elevation: 0,
             color: colorScheme.surfaceContainerLowest,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.teal.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.backup, color: Colors.teal, size: 22),
-              ),
-              title: Text(tr('backup')),
-              subtitle: Text(_profile.backupMode == 'local' ? tr('local') : 'Google Drive'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                    title: Text(tr('backup_mode')),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        RadioListTile(
-                          title: Text(tr('local')),
-                          subtitle: Text(tr('save_on_device')),
-                          value: 'local',
-                          groupValue: _profile.backupMode,
-                          onChanged: (value) {
-                            setState(() => _profile.backupMode = value!);
-                            widget.onProfileChanged(_profile);
-                            Navigator.pop(context);
-                          },
-                        ),
-                        RadioListTile(
-                          title: const Text('Google Drive'),
-                          subtitle: Text(tr('sync_to_cloud')),
-                          value: 'drive',
-                          groupValue: _profile.backupMode,
-                          onChanged: (value) {
-                            setState(() => _profile.backupMode = value!);
-                            widget.onProfileChanged(_profile);
-                            Navigator.pop(context);
-                          },
-                        ),
-                      ],
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
+                    child: const Icon(Icons.backup, color: Colors.teal, size: 22),
                   ),
-                );
-              },
+                  title: Text(tr('backup')),
+                  subtitle: Text(tr('save_on_device')),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _exportBackup,
+                          icon: const Icon(Icons.upload, size: 18),
+                          label: Text(tr('backup_export'), style: const TextStyle(fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _importBackup,
+                          icon: const Icon(Icons.download, size: 18),
+                          label: Text(tr('backup_import'), style: const TextStyle(fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -11961,6 +12084,7 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
         return;
     }
     await updated.save();
+    if (!mounted) return;
     setState(() => _auraSettings = updated);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -12861,11 +12985,11 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Modifiche non salvate'),
-        content: const Text('Vuoi salvare le modifiche?'),
+        title: Text(tr('unsaved_changes')),
+        content: Text(tr('save_changes_question')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: const Text('Scarta')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Salva')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: Text(tr('discard'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: Text(tr('save'))),
         ],
       ),
     );
@@ -12980,7 +13104,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
         if (!mounted) return;
         setState(() => _attachedImageBase64 = base64Encode(bytes));
       }
-    } catch (_) {}
+    } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
   }
 
   String _formatDurationMs(int ms) {
@@ -13664,11 +13788,11 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         ),
       );
 
-      if (saved == true) {
+      if (saved == true && mounted) {
         final caption = captionCtrl.text.isNotEmpty ? captionCtrl.text : '📷 ${tr('photo')}';
         final note = FlashNote(content: caption, imageBase64: base64Str);
         await DatabaseHelper().insertFlashNote(note);
-        await _loadNotes();
+        if (mounted) await _loadNotes();
       }
       captionCtrl.dispose();
     } catch (e) {
@@ -14088,8 +14212,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               if (note.isAudioNote) ...[
                 ListTile(
                   leading: const Icon(Icons.record_voice_over, color: Colors.purple),
-                  title: const Text('Trascrivi nota vocale'),
-                  subtitle: const Text('Converti l\'audio in testo'),
+                  title: Text(tr('transcribe_voice_note')),
+                  subtitle: Text(tr('convert_audio_to_text')),
                   onTap: () {
                     Navigator.pop(ctx);
                     _transcribeAudioNote(note, index);
@@ -14097,8 +14221,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.summarize, color: Colors.purple),
-                  title: const Text('Riassumi'),
-                  subtitle: const Text('Crea un riassunto breve del contenuto'),
+                  title: Text(tr('summarize')),
+                  subtitle: Text(tr('create_brief_content_summary')),
                   onTap: () {
                     Navigator.pop(ctx);
                     _callFlashGeminiAI(note, index, 'riassumi');
@@ -14107,8 +14231,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               ] else ...[
                 ListTile(
                   leading: const Icon(Icons.auto_awesome, color: Colors.purple),
-                  title: const Text('Riassunto intelligente'),
-                  subtitle: const Text('Crea un riassunto breve del testo'),
+                  title: Text(tr('smart_summary')),
+                  subtitle: Text(tr('create_brief_summary')),
                   onTap: () {
                     Navigator.pop(ctx);
                     _callFlashGeminiAI(note, index, 'riassumi');
@@ -14343,7 +14467,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
       if (result.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: const Text('Nessun testo riconosciuto'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          SnackBar(content: Text(tr('no_text_recognized')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         );
         return;
       }
@@ -14535,7 +14659,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                           }
                         }
                         setSheetState(() => isPlaying = true);
-                      } catch (_) {}
+                      } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
                     }
                   },
                   child: Container(
@@ -14651,7 +14775,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                         ));
                       },
                       icon: const Icon(Icons.edit_note, size: 18),
-                      label: const Text('Apri come nota di testo'),
+                      label: Text(tr('open_as_text_note')),
                       style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     ),
                   ),
@@ -15566,7 +15690,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       builder: (_) => FlashNoteEditorPage(
         onSave: (note) async {
           await DatabaseHelper().insertFlashNote(note);
-          await _loadNotes();
+          if (mounted) await _loadNotes();
         },
       ),
     ));
@@ -16390,7 +16514,7 @@ class _NotesProPageState extends State<NotesProPage> {
           folders: _folders,
           onSave: (note) async {
             await DatabaseHelper().insertProNote(note);
-            await _loadNotes();
+            if (mounted) await _loadNotes();
           },
         ),
       ),
@@ -16432,7 +16556,7 @@ class _NotesProPageState extends State<NotesProPage> {
             createdAt: DateTime.now(),
           );
           await DatabaseHelper().insertProNote(note);
-          await _loadNotes();
+          if (mounted) await _loadNotes();
         },
         onComplete: (updatedData) async {
           final note = ProNote(
@@ -16444,7 +16568,7 @@ class _NotesProPageState extends State<NotesProPage> {
           );
           await DatabaseHelper().insertProNote(note);
           await DatabaseHelper().deleteCache('cycle_diary_active');
-          await _loadNotes();
+          if (mounted) await _loadNotes();
         },
       ),
     ));
@@ -16492,7 +16616,7 @@ class _NotesProPageState extends State<NotesProPage> {
             } else {
               await DatabaseHelper().insertProNote(withTimestamp);
             }
-            await _loadNotes();
+            if (mounted) await _loadNotes();
           },
         ),
       ),
@@ -18069,7 +18193,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
           selection: const TextSelection.collapsed(offset: 0),
           readOnly: true,
         );
-      } catch (_) {}
+      } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
     }
   }
 
@@ -18659,7 +18783,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 child: pw.Image(pw.MemoryImage(imgBytes), width: 400),
               ));
             }
-          } catch (_) {}
+          } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
         }
       }
     }
@@ -19680,7 +19804,7 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
                     child: pw.Image(pw.MemoryImage(imgBytes), width: 400),
                   ));
                 }
-              } catch (_) {}
+              } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
             }
           }
         }
