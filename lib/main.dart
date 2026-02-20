@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
-import 'package:flutter_quill/quill_delta.dart' as quill_delta;
+// quill_delta import removed — access Delta via flutter_quill directly
 // pdf/printing used for PdfPreview viewer
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -354,6 +354,7 @@ const _translations = <String, Map<String, String>>{
   'warning': {'it': 'Attenzione', 'en': 'Warning', 'fr': 'Attention', 'es': 'Advertencia'},
   'loading': {'it': 'Caricamento...', 'en': 'Loading...', 'fr': 'Chargement...', 'es': 'Cargando...'},
   'no_results': {'it': 'Nessun risultato', 'en': 'No results', 'fr': 'Aucun résultat', 'es': 'Sin resultados'},
+  'file_too_large': {'it': 'File troppo grande (max 20MB)', 'en': 'File too large (max 20MB)', 'fr': 'Fichier trop volumineux (max 20Mo)', 'es': 'Archivo demasiado grande (máx 20MB)'},
   'copied_to_clipboard': {'it': 'Copiato negli appunti', 'en': 'Copied to clipboard', 'fr': 'Copié dans le presse-papiers', 'es': 'Copiado al portapapeles'},
   'photo_error': {'it': 'Errore nel caricamento della foto', 'en': 'Error loading photo', 'fr': 'Erreur de chargement de la photo', 'es': 'Error al cargar la foto'},
   'delete_all_data': {'it': 'Tutti i dati verranno eliminati', 'en': 'All data will be deleted', 'fr': 'Toutes les données seront supprimées', 'es': 'Todos los datos se eliminarán'},
@@ -1137,7 +1138,7 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -1155,6 +1156,10 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE calendar_events ADD COLUMN recurrence_end_date TEXT');
       await db.execute('ALTER TABLE cycle_days ADD COLUMN flow_intensity TEXT DEFAULT \'medium\'');
       await db.execute('ALTER TABLE custom_folders ADD COLUMN emoji_icon TEXT');
+    }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE user_profile ADD COLUMN lock_deep_note INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE user_profile ADD COLUMN lock_flash_notes INTEGER DEFAULT 0');
     }
   }
 
@@ -1202,7 +1207,8 @@ class DatabaseHelper {
         gemini_connected INTEGER DEFAULT 0, backup_mode TEXT DEFAULT 'local',
         religione TEXT DEFAULT 'Cattolica', telefono TEXT, password TEXT,
         social_links TEXT, friends TEXT, old_photos TEXT, accounts TEXT,
-        active_account_index INTEGER DEFAULT 0, nickname TEXT
+        active_account_index INTEGER DEFAULT 0, nickname TEXT,
+        lock_deep_note INTEGER DEFAULT 0, lock_flash_notes INTEGER DEFAULT 0
       )
     ''');
 
@@ -1499,12 +1505,14 @@ class DatabaseHelper {
   Future<void> replaceAllCycleDays(List<String> days) async {
     if (_webMode) { _wCycleDays.clear(); _wCycleDays.addAll(days); return; }
     final db = await database;
-    await db.delete('cycle_days');
-    final batch = db.batch();
-    for (final d in days) {
-      batch.insert('cycle_days', {'day_key': d});
-    }
-    await batch.commit(noResult: true);
+    await db.transaction((txn) async {
+      await txn.delete('cycle_days');
+      final batch = txn.batch();
+      for (final d in days) {
+        batch.insert('cycle_days', {'day_key': d});
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   // ── Utility ──
@@ -1564,15 +1572,15 @@ void main() async {
   }
   // await _initDemoDataIfNeeded(); // Demo data disabled
   // One-time DB wipe to start clean
-  final _prefs = await SharedPreferences.getInstance();
-  if (_prefs.getBool('db_wiped_v1') != true) {
+  final prefs = await SharedPreferences.getInstance();
+  if (prefs.getBool('db_wiped_v1') != true) {
     final db = await DatabaseHelper().database;
     await db.delete('pro_notes');
     await db.delete('flash_notes');
     await db.delete('calendar_events');
     await db.delete('trashed_notes');
     await db.delete('user_profile');
-    await _prefs.setBool('db_wiped_v1', true);
+    await prefs.setBool('db_wiped_v1', true);
   }
   await NotificationService.init();
   runApp(const EthosNoteApp());
@@ -2221,6 +2229,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _themeMode = prefs.getString('theme_mode') ?? 'ethos';
     });
@@ -2228,6 +2237,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
 
   Future<void> _loadLocale() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _appLocale = prefs.getString('app_locale') ?? 'it';
     });
@@ -2655,7 +2665,7 @@ class _WelcomePageState extends State<WelcomePage> {
         final photoUrl = GoogleCalendarService.userPhotoUrl;
         if (photoUrl != null && photoUrl.isNotEmpty) {
           try {
-            final response = await http.get(Uri.parse(photoUrl));
+            final response = await http.get(Uri.parse(photoUrl)).timeout(const Duration(seconds: 5));
             if (response.statusCode == 200) {
               profile.photoBase64 = base64Encode(response.bodyBytes);
             }
@@ -3392,7 +3402,7 @@ class WeatherData {
     city: json['city'],
     lat: (json['lat'] as num).toDouble(),
     lon: (json['lon'] as num).toDouble(),
-    forecast: (json['forecast'] as List).map((f) => DailyWeather.fromJson(f)).toList(),
+    forecast: (json['forecast'] as List?)?.map((f) => DailyWeather.fromJson(f)).toList() ?? [],
     fetchedAt: DateTime.parse(json['fetchedAt']),
   );
 
@@ -3462,12 +3472,14 @@ class WeatherService {
           '&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto';
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final daily = data['daily'];
-        final dates = (daily['time'] as List).cast<String>();
-        final codes = (daily['weather_code'] as List);
-        final maxTemps = (daily['temperature_2m_max'] as List);
-        final minTemps = (daily['temperature_2m_min'] as List);
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final daily = data['daily'] as Map<String, dynamic>?;
+        if (daily == null) return null;
+        final dates = (daily['time'] as List?)?.cast<String>() ?? [];
+        if (dates.isEmpty) return null;
+        final codes = (daily['weather_code'] as List?) ?? [];
+        final maxTemps = (daily['temperature_2m_max'] as List?) ?? [];
+        final minTemps = (daily['temperature_2m_min'] as List?) ?? [];
 
         final forecast = <DailyWeather>[];
         for (int i = 0; i < dates.length && i < 7; i++) {
@@ -3758,7 +3770,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _loadUserProfile() async {
     final profile = await DatabaseHelper().getProfile();
-    if (profile != null) {
+    if (profile != null && mounted) {
       setState(() {
         _userProfile = profile;
       });
@@ -4011,6 +4023,8 @@ class _CalendarPageState extends State<CalendarPage> {
     _initHealth();
     _loadAuraSettings();
     _eventsScrollController.addListener(_onEventsScroll);
+    // Request notification permissions now that Activity is ready
+    NotificationService.ensurePermissions();
   }
 
   void _onEventsScroll() {
@@ -4043,6 +4057,7 @@ class _CalendarPageState extends State<CalendarPage> {
   Future<void> _loadCycleDays() async {
     final days = await DatabaseHelper().getCycleDays();
     final intensityMap = await DatabaseHelper().getCycleDaysWithIntensity();
+    if (!mounted) return;
     setState(() {
       _cycleDays = days;
       _cycleDaysIntensity = intensityMap;
@@ -4051,7 +4066,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _loadCompletedGoogleEventIds() async {
     final cached = await DatabaseHelper().getCache('completed_google_events');
-    if (cached != null && cached.isNotEmpty) {
+    if (cached != null && cached.isNotEmpty && mounted) {
       setState(() {
         _completedGoogleEventIds = Set<String>.from(json.decode(cached) as List);
       });
@@ -4379,6 +4394,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _loadCalendarSettings() async {
     final settings = await CalendarSettings.load();
+    if (!mounted) return;
     setState(() {
       _calSettings = settings;
       _holidays = settings.showHolidays ? Holidays.getHolidays(settings.religione) : {};
@@ -4451,6 +4467,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _loadEvents() async {
     final events = await DatabaseHelper().getAllEvents();
+    if (!mounted) return;
     setState(() {
       _events = events;
     });
@@ -4476,7 +4493,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _syncCalendarEventsToWidget() async {
-    if (kIsWeb) return;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     try {
       // Build compact JSON: { "2026-2-19": [{"title":"...","calendar":"Personale"}], ... }
       final Map<String, dynamic> compact = {};
@@ -4622,8 +4639,21 @@ class _CalendarPageState extends State<CalendarPage> {
     final key = _dateKey(_selectedDay!);
     final localEvents = _events[key] ?? [];
     if (index < localEvents.length) {
-      // Local event
+      // Local event — ask confirmation
       final event = localEvents[index];
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('confirm_delete')),
+          content: Text('${tr('delete')} "${event.title}"?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('delete'))),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
       final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
       NotificationService.cancelReminder(notifId);
       setState(() {
@@ -4945,10 +4975,10 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Widget _buildFullScreenCell(DateTime day, DateTime focusedDay, {bool isOutsideMonth = false}) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isToday = isSameDay(day, DateTime.now());
+    final now = DateTime.now();
+    final isToday = isSameDay(day, now);
     final isSelected = isSameDay(day, _selectedDay);
     final events = isOutsideMonth ? <CalendarEventFull>[] : _getEventsForDay(day);
-    final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final dayStart = DateTime(day.year, day.month, day.day);
     final daysFromNow = dayStart.difference(todayStart).inDays;
@@ -6646,44 +6676,88 @@ class HealthService {
 class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
+  static bool _permissionsGranted = false;
 
+  /// Basic init — call from main(). Does NOT request permissions.
   static Future<void> init() async {
     if (_initialized || kIsWeb) return;
-    tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Europe/Rome'));
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
-    const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
-    await _plugin.initialize(
-      settings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Notification tapped — no-op for now, app opens automatically
-        debugPrint('Notification tapped: ${response.payload}');
-      },
-    );
-    _initialized = true;
-    // Request notification permission on Android 13+
-    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    await androidPlugin?.requestNotificationsPermission();
-    await androidPlugin?.requestExactAlarmsPermission();
+    try {
+      tz.initializeTimeZones();
+      tz.setLocalLocation(tz.getLocation('Europe/Rome'));
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: false, // request later when Activity is ready
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
+      const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
+      await _plugin.initialize(
+        settings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          debugPrint('Notification tapped: ${response.payload}');
+        },
+      );
+      _initialized = true;
+      debugPrint('NotificationService: initialized OK');
+    } catch (e) {
+      debugPrint('NotificationService init error: $e');
+    }
   }
+
+  /// Request permissions — call AFTER the app UI is visible (e.g. from CalendarPage.initState).
+  static Future<bool> ensurePermissions() async {
+    if (kIsWeb || !_initialized) return false;
+    if (_permissionsGranted) return true;
+    try {
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        // Request POST_NOTIFICATIONS (Android 13+)
+        final notifGranted = await androidPlugin.requestNotificationsPermission();
+        debugPrint('NotificationService: POST_NOTIFICATIONS = $notifGranted');
+        // Request SCHEDULE_EXACT_ALARM (Android 12+)
+        final exactGranted = await androidPlugin.requestExactAlarmsPermission();
+        debugPrint('NotificationService: EXACT_ALARM = $exactGranted');
+        _permissionsGranted = (notifGranted ?? false);
+      } else {
+        // iOS
+        final iosPlugin = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+        final granted = await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+        _permissionsGranted = granted ?? false;
+      }
+      debugPrint('NotificationService: permissions granted = $_permissionsGranted');
+      return _permissionsGranted;
+    } catch (e) {
+      debugPrint('NotificationService permission error: $e');
+      return false;
+    }
+  }
+
+  static const _androidDetails = AndroidNotificationDetails(
+    'event_reminders',
+    'Promemoria eventi',
+    channelDescription: 'Notifiche promemoria per gli eventi del calendario',
+    importance: Importance.max,
+    priority: Priority.high,
+    playSound: true,
+    enableVibration: true,
+  );
+  static const _notifDetails = NotificationDetails(
+    android: _androidDetails,
+    iOS: DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
+  );
 
   static String _buildBody(String title, int minutesBefore) {
     if (minutesBefore < 60) {
       return '$title tra $minutesBefore minuti';
     } else if (minutesBefore < 1440) {
       final hours = minutesBefore ~/ 60;
-      return '$title tra $hours ${hours == 1 ? 'ora' : 'ore'}';
+      return '$title tra $hours ${hours == 1 ? "ora" : "ore"}';
     } else if (minutesBefore < 10080) {
       final days = minutesBefore ~/ 1440;
-      return '$title tra $days ${days == 1 ? 'giorno' : 'giorni'}';
+      return '$title tra $days ${days == 1 ? "giorno" : "giorni"}';
     } else {
       final weeks = minutesBefore ~/ 10080;
-      return '$title tra $weeks ${weeks == 1 ? 'settimana' : 'settimane'}';
+      return '$title tra $weeks ${weeks == 1 ? "settimana" : "settimane"}';
     }
   }
 
@@ -6698,32 +6772,36 @@ class NotificationService {
     if (scheduledTime.isBefore(DateTime.now())) return;
 
     final tzScheduled = tz.TZDateTime.from(scheduledTime, tz.local);
-    const androidDetails = AndroidNotificationDetails(
-      'event_reminders',
-      'Promemoria eventi',
-      channelDescription: 'Notifiche promemoria per gli eventi del calendario',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-      fullScreenIntent: true,
-    );
-    const iosDetails = DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true);
-    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
     try {
       await _plugin.zonedSchedule(
         id,
         'Promemoria',
         _buildBody(title, minutesBefore),
         tzScheduled,
-        details,
+        _notifDetails,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         payload: 'event_$id',
       );
+      debugPrint('NotificationService: scheduled #$id for $tzScheduled');
     } catch (e) {
-      debugPrint('Errore scheduling notifica: $e');
+      debugPrint('NotificationService schedule error: $e');
+      // Fallback: try inexact if exact fails
+      try {
+        await _plugin.zonedSchedule(
+          id,
+          'Promemoria',
+          _buildBody(title, minutesBefore),
+          tzScheduled,
+          _notifDetails,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+          payload: 'event_$id',
+        );
+        debugPrint('NotificationService: scheduled #$id (inexact fallback)');
+      } catch (e2) {
+        debugPrint('NotificationService fallback error: $e2');
+      }
     }
   }
 
@@ -6737,25 +6815,23 @@ class NotificationService {
     await _plugin.cancelAll();
   }
 
-  /// Sends an immediate test notification to verify the pipeline works.
+  /// Immediate test notification — also requests permissions if needed.
   static Future<bool> showTestNotification() async {
-    if (kIsWeb || !_initialized) return false;
-    const androidDetails = AndroidNotificationDetails(
-      'event_reminders',
-      'Promemoria eventi',
-      channelDescription: 'Notifiche promemoria per gli eventi del calendario',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-    );
-    const iosDetails = DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true);
-    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    if (kIsWeb) return false;
+    if (!_initialized) await init();
+    await ensurePermissions();
+    if (!_permissionsGranted) return false;
     try {
-      await _plugin.show(0, 'Ethos Note', 'Le notifiche funzionano!', details);
+      await _plugin.show(
+        99999,
+        'Ethos Note',
+        'Le notifiche funzionano! 🔔',
+        _notifDetails,
+      );
+      debugPrint('NotificationService: test notification sent');
       return true;
     } catch (e) {
-      debugPrint('Test notification error: $e');
+      debugPrint('NotificationService test error: $e');
       return false;
     }
   }
@@ -7077,6 +7153,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(tr('calendar_settings')),
+        elevation: 0,
+        scrolledUnderElevation: 2,
         actions: [
           FilledButton.icon(
             onPressed: _saveAndPop,
@@ -7627,11 +7705,25 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             Center(
               child: OutlinedButton.icon(
                 onPressed: () async {
+                  // First ensure permissions
+                  final permOk = await NotificationService.ensurePermissions();
+                  if (!permOk) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Permesso notifiche negato. Vai in Impostazioni → App → Ethos Note → Notifiche e attivale.'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+                    return;
+                  }
                   final ok = await NotificationService.showTestNotification();
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(ok ? 'Notifica inviata! Controlla la barra notifiche.' : 'Errore: notifiche non autorizzate. Controlla le impostazioni del telefono.'),
+                      content: Text(ok ? 'Notifica inviata! Controlla la barra notifiche.' : 'Errore nell\'invio. Controlla le impostazioni del telefono.'),
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
@@ -8168,7 +8260,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
 
   Future<void> _loadFriends() async {
     final profile = await DatabaseHelper().getProfile();
-    if (profile != null) {
+    if (profile != null && mounted) {
       setState(() {
         _availableFriends = profile.friends;
       });
@@ -8352,6 +8444,8 @@ class _EventEditorPageState extends State<EventEditorPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.existingEvent != null ? tr('edit_event') : tr('new_event')),
+        elevation: 0,
+        scrolledUnderElevation: 2,
         actions: [
           FilledButton.icon(
             onPressed: _saveEvent,
@@ -9408,6 +9502,8 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(tr('profile')),
+        elevation: 0,
+        scrolledUnderElevation: 2,
         actions: [
           FilledButton.icon(
             onPressed: _saveProfile,
@@ -9721,16 +9817,6 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
-  }
-
-  String _getIntegrationsSubtitle() {
-    final connected = <String>[];
-    if (GoogleCalendarService.isSignedIn) {
-      connected.add('Google Calendar');
-      connected.add('Google Drive');
-    }
-    if (_profile.geminiConnected) connected.add('Gemini AI');
-    return connected.isEmpty ? tr('no_active_integrations') : connected.join(', ');
   }
 
 }
@@ -11271,13 +11357,6 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
     );
   }
 
-  String _getCorrectionLabel(double value) {
-    if (value <= 0.0) return tr('spelling_only');
-    if (value <= 0.25) return tr('spelling_punctuation');
-    if (value <= 0.5) return tr('light_summary');
-    if (value <= 0.75) return tr('reformulation');
-    return tr('full_rewrite');
-  }
 }
 
 // ─── Ethos Aura (Premium Hub) ────────────────────────────────────────────────
@@ -11669,7 +11748,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), behavior: SnackBarBehavior.floating),
+          SnackBar(content: Text('Error: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         );
       }
     }
@@ -12089,6 +12168,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     _retentionDays = settings.trashRetentionDays;
     await TrashedNote.cleanExpired(_retentionDays);
     final notes = await TrashedNote.load();
+    if (!mounted) return;
     setState(() => _trashedNotes = notes);
   }
 
@@ -12639,6 +12719,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   Future<void> _loadNotes() async {
     final notes = await DatabaseHelper().getAllFlashNotes();
+    if (!mounted) return;
     setState(() {
       _notes = notes;
     });
@@ -12646,15 +12727,6 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   Future<void> _saveNotes() async {
     await DatabaseHelper().replaceAllFlashNotes(_notes);
-  }
-
-  Future<void> _addNote() async {
-    if (_controller.text.isNotEmpty) {
-      final note = FlashNote(content: _controller.text);
-      await DatabaseHelper().insertFlashNote(note);
-      _controller.clear();
-      await _loadNotes();
-    }
   }
 
   Future<void> _addPhotoNote() async {
@@ -13336,7 +13408,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (apiKey.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('api_key')), behavior: SnackBarBehavior.floating),
+        SnackBar(content: Text(tr('api_key')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       );
       return;
     }
@@ -13351,12 +13423,22 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           const Text('Trascrizione in corso...'),
         ]),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 30),
       ),
     );
 
     try {
       final audioBytes = await File(note.audioPath!).readAsBytes();
+      if (audioBytes.length > 20 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(tr('file_too_large')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          );
+        }
+        return;
+      }
       final mimeType = note.audioPath!.endsWith('.m4a') ? 'audio/mp4' : 'audio/mpeg';
       final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
       final response = await model.generateContent([
@@ -13364,7 +13446,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           gemini.DataPart(mimeType, audioBytes),
           gemini.TextPart('Trascrivi questo audio in italiano. Restituisci solo il testo trascritto, senza commenti.'),
         ]),
-      ]);
+      ]).timeout(const Duration(seconds: 60));
       final result = response.text ?? '';
 
       if (!mounted) return;
@@ -13562,16 +13644,18 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                       await viewerPlayer?.pause();
                       setSheetState(() => isPlaying = false);
                     } else {
-                      viewerPlayer ??= ap.AudioPlayer();
-                      viewerPlayer!.onPositionChanged.listen((p) {
-                        setSheetState(() => position = p);
-                      });
-                      viewerPlayer!.onDurationChanged.listen((d) {
-                        setSheetState(() => duration = d);
-                      });
-                      viewerPlayer!.onPlayerComplete.listen((_) {
-                        setSheetState(() { isPlaying = false; position = Duration.zero; });
-                      });
+                      if (viewerPlayer == null) {
+                        viewerPlayer = ap.AudioPlayer();
+                        viewerPlayer!.onPositionChanged.listen((p) {
+                          setSheetState(() => position = p);
+                        });
+                        viewerPlayer!.onDurationChanged.listen((d) {
+                          setSheetState(() => duration = d);
+                        });
+                        viewerPlayer!.onPlayerComplete.listen((_) {
+                          setSheetState(() { isPlaying = false; position = Duration.zero; });
+                        });
+                      }
                       try {
                         if (position > Duration.zero) {
                           await viewerPlayer!.resume();
@@ -13724,7 +13808,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                 gemini.DataPart(mimeType, audioBytes),
                                 gemini.TextPart('Trascrivi questo audio in italiano. Restituisci solo il testo trascritto, senza commenti.'),
                               ]),
-                            ]);
+                            ]).timeout(const Duration(seconds: 60));
                             setSheetState(() {
                               transcription = response.text ?? '';
                               isTranscribing = false;
@@ -14481,7 +14565,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                           children: groupKeys.map((key) {
                             final isSelected = _selectedGroup == key;
                             final label = _getGroupLabel(key);
-                            final groupNotes = groupedNotes[key]!;
+                            final groupNotes = groupedNotes[key] ?? [];
                             return ListTile(
                               dense: true,
                               leading: Icon(_getGroupIcon(), size: 20, color: isSelected ? accentColor : colorScheme.onSurfaceVariant),
@@ -15017,10 +15101,12 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                             await previewPlayer?.stop();
                             setSheetState(() => isPlayingPreview = false);
                           } else {
-                            previewPlayer ??= ap.AudioPlayer();
-                            previewPlayer!.onPlayerComplete.listen((_) {
-                              setSheetState(() => isPlayingPreview = false);
-                            });
+                            if (previewPlayer == null) {
+                              previewPlayer = ap.AudioPlayer();
+                              previewPlayer!.onPlayerComplete.listen((_) {
+                                setSheetState(() => isPlayingPreview = false);
+                              });
+                            }
                             try {
                               if (kIsWeb) {
                                 await previewPlayer!.play(ap.UrlSource(recordedPath!));
@@ -15446,7 +15532,6 @@ class _NotesProPageState extends State<NotesProPage> {
   ];
 
   @override
-  @override
   void initState() {
     super.initState();
     _loadNotes();
@@ -15645,11 +15730,13 @@ class _NotesProPageState extends State<NotesProPage> {
 
   Future<void> _loadSettings() async {
     final settings = await NoteProSettings.load();
+    if (!mounted) return;
     setState(() => _settings = settings);
   }
 
   Future<void> _loadCustomFolders() async {
     final customFolders = await DatabaseHelper().getAllFolders();
+    if (!mounted) return;
     setState(() {
       _folders.addAll(customFolders);
     });
@@ -15664,6 +15751,7 @@ class _NotesProPageState extends State<NotesProPage> {
 
   Future<void> _loadNotes() async {
     final notes = await DatabaseHelper().getAllProNotes();
+    if (!mounted) return;
     setState(() {
       _proNotes = notes;
     });
@@ -17711,20 +17799,15 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
     pw.Font regularFont;
     pw.Font boldFont;
-    pw.Font italicFont;
     try {
       regularFont = await PdfGoogleFonts.nunitoRegular();
       boldFont = await PdfGoogleFonts.nunitoBold();
-      italicFont = await PdfGoogleFonts.nunitoItalic();
     } catch (_) {
       regularFont = pw.Font.helvetica();
       boldFont = pw.Font.helveticaBold();
-      italicFont = pw.Font.helveticaOblique();
     }
 
     final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
-    final boldStyle = pw.TextStyle(font: boldFont, fontSize: 12);
-    final italicStyle = pw.TextStyle(font: italicFont, fontSize: 12);
     final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22);
     final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
 
@@ -18470,7 +18553,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               if (isCustom) {
                 _applyCustomTemplate(displayName);
               } else {
-                _applyTemplate(displayName, _businessTemplates[displayName]!);
+                final tpl = _businessTemplates[displayName];
+                if (tpl != null) _applyTemplate(displayName, tpl);
               }
             },
             child: Text(tr('apply')),
