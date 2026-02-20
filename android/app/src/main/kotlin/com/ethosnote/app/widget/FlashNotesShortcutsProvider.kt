@@ -23,13 +23,6 @@ class FlashNotesShortcutsProvider : AppWidgetProvider() {
             views.setInt(R.id.widget_root, "setBackgroundResource",
                 if (isNightMode) R.drawable.widget_background_dark else R.drawable.widget_background)
 
-            // Apply text colors
-            val textColor = if (isNightMode) 0x99FFFFFF.toInt() else 0x99000000.toInt()
-            views.setTextColor(R.id.label_text, textColor)
-            views.setTextColor(R.id.label_photo, textColor)
-            views.setTextColor(R.id.label_voice, textColor)
-            views.setTextColor(R.id.label_event, textColor)
-
             // Text shortcut → ethosnote://flashnote/text
             views.setOnClickPendingIntent(R.id.btn_text,
                 buildDeepLinkIntent(context, "ethosnote://flashnote/text", 0))

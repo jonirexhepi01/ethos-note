@@ -20,26 +20,46 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Create notification channel (required for Android 8+)
+        // Create 3 notification channels for different alert types (Android 8+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "event_reminders_v2",
-                "Promemoria eventi",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifiche promemoria per gli eventi del calendario"
-                enableVibration(true)
-                setSound(
-                    android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION),
-                    android.media.AudioAttributes.Builder()
-                        .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
-                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-            }
             val notificationManager =
                 getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+
+            val defaultSound = android.media.RingtoneManager.getDefaultUri(
+                android.media.RingtoneManager.TYPE_NOTIFICATION
+            )
+            val audioAttrs = android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+
+            // Channel: sound only
+            notificationManager.createNotificationChannel(
+                NotificationChannel("event_sound", "Promemoria (suono)", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Solo suono, senza vibrazione"
+                    enableVibration(false)
+                    setSound(defaultSound, audioAttrs)
+                }
+            )
+            // Channel: vibration only
+            notificationManager.createNotificationChannel(
+                NotificationChannel("event_vibration", "Promemoria (vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Solo vibrazione, senza suono"
+                    enableVibration(true)
+                    setSound(null, null)
+                }
+            )
+            // Channel: sound + vibration
+            notificationManager.createNotificationChannel(
+                NotificationChannel("event_both", "Promemoria (suono + vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Suono e vibrazione insieme"
+                    enableVibration(true)
+                    setSound(defaultSound, audioAttrs)
+                }
+            )
+
+            // Delete legacy channel if present
+            notificationManager.deleteNotificationChannel("event_reminders_v2")
         }
 
         // Share channel (existing)

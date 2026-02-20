@@ -3183,9 +3183,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (kIsWeb) return;
     try {
       await HomeWidget.updateWidget(
-        androidName: 'com.ethosnote.app.widget.CalendarWidgetProvider',
-      );
-      await HomeWidget.updateWidget(
         androidName: 'com.ethosnote.app.widget.FlashNotesShortcutsProvider',
       );
     } catch (_) {}
@@ -3869,7 +3866,6 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {
       _events = events;
     });
-    _syncCalendarEventsToWidget();
     // Re-schedule all future notifications on app start
     _rescheduleAllNotifications();
   }
@@ -3887,30 +3883,11 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _saveEvents() async {
     await DatabaseHelper().saveAllEvents(_events);
-    _syncCalendarEventsToWidget();
-  }
-
-  Future<void> _syncCalendarEventsToWidget() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
-    try {
-      // Build compact JSON: { "2026-2-19": [{"title":"...","calendar":"Personale"}], ... }
-      final Map<String, dynamic> compact = {};
-      for (final entry in _events.entries) {
-        compact[entry.key] = entry.value.map((e) => {
-          'title': e.title,
-          'calendar': e.calendar,
-        }).toList();
-      }
-      final jsonString = jsonEncode(compact);
-      await HomeWidget.saveWidgetData('calendar_widget_events', jsonString);
-      await HomeWidget.updateWidget(
-        androidName: 'com.ethosnote.app.widget.CalendarWidgetProvider',
-      );
-    } catch (_) {}
   }
 
   void _scheduleNotification(CalendarEventFull event) {
     final baseId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+    final alertType = _calSettings.alertConfig.alertType;
 
     // 1) Schedule from event-specific reminder (if set)
     if (event.reminder != null && event.reminder!.isNotEmpty) {
@@ -3937,6 +3914,7 @@ class _CalendarPageState extends State<CalendarPage> {
         title: event.title,
         eventTime: event.startTime,
         minutesBefore: minutesBefore,
+        alertType: alertType,
       );
       return;
     }
@@ -3949,6 +3927,7 @@ class _CalendarPageState extends State<CalendarPage> {
         title: event.title,
         eventTime: event.startTime,
         minutesBefore: mins,
+        alertType: alertType,
       );
     }
   }
@@ -6086,19 +6065,42 @@ class NotificationService {
     }
   }
 
-  static const _androidDetails = AndroidNotificationDetails(
-    'event_reminders_v2',
-    'Promemoria eventi',
-    channelDescription: 'Notifiche promemoria per gli eventi del calendario',
-    importance: Importance.max,
-    priority: Priority.high,
-    playSound: true,
-    enableVibration: true,
-  );
-  static const _notifDetails = NotificationDetails(
-    android: _androidDetails,
-    iOS: DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
-  );
+  static NotificationDetails _buildNotifDetails(String alertType) {
+    final String channelId;
+    final String channelName;
+    final bool playSound;
+    final bool enableVibration;
+    switch (alertType) {
+      case 'sound':
+        channelId = 'event_sound';
+        channelName = 'Promemoria (suono)';
+        playSound = true;
+        enableVibration = false;
+        break;
+      case 'vibration':
+        channelId = 'event_vibration';
+        channelName = 'Promemoria (vibrazione)';
+        playSound = false;
+        enableVibration = true;
+        break;
+      default: // 'sound_vibration'
+        channelId = 'event_both';
+        channelName = 'Promemoria (suono + vibrazione)';
+        playSound = true;
+        enableVibration = true;
+    }
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        channelId,
+        channelName,
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: playSound,
+        enableVibration: enableVibration,
+      ),
+      iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
+    );
+  }
 
   static String _buildBody(String title, int minutesBefore) {
     if (minutesBefore < 60) {
@@ -6120,6 +6122,7 @@ class NotificationService {
     required String title,
     required DateTime eventTime,
     required int minutesBefore,
+    String alertType = 'sound_vibration',
   }) async {
     if (kIsWeb || !_initialized) return;
     await ensurePermissions();
@@ -6128,13 +6131,14 @@ class NotificationService {
 
     final tzScheduled = tz.TZDateTime.from(scheduledTime, tz.local);
     final body = _buildBody(title, minutesBefore);
+    final details = _buildNotifDetails(alertType);
     try {
       await _plugin.zonedSchedule(
         id,
         'Promemoria',
         body,
         tzScheduled,
-        _notifDetails,
+        details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         payload: 'event_$id',
@@ -6149,7 +6153,7 @@ class NotificationService {
           'Promemoria',
           body,
           tzScheduled,
-          _notifDetails,
+          details,
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           payload: 'event_$id',
@@ -6159,7 +6163,7 @@ class NotificationService {
         debugPrint('NotificationService fallback error: $e2');
         // Ultimate fallback: show immediately
         try {
-          await _plugin.show(id, 'Promemoria', body, _notifDetails, payload: 'event_$id');
+          await _plugin.show(id, 'Promemoria', body, details, payload: 'event_$id');
           debugPrint('NotificationService: immediate show #$id as last resort');
         } catch (_) {}
       }
@@ -6177,7 +6181,7 @@ class NotificationService {
   }
 
   /// Immediate test notification — also requests permissions if needed.
-  static Future<bool> showTestNotification() async {
+  static Future<bool> showTestNotification({String alertType = 'sound_vibration'}) async {
     if (kIsWeb) return false;
     if (!_initialized) await init();
     await ensurePermissions();
@@ -6187,9 +6191,9 @@ class NotificationService {
         99999,
         'Ethos Note',
         'Le notifiche funzionano! 🔔',
-        _notifDetails,
+        _buildNotifDetails(alertType),
       );
-      debugPrint('NotificationService: test notification sent');
+      debugPrint('NotificationService: test notification sent (alertType=$alertType)');
       return true;
     } catch (e) {
       debugPrint('NotificationService test error: $e');
@@ -6437,15 +6441,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     'sound_vibration': 'Sound + Vibration',
   };
 
-  static final _alertSounds = [
-    'Default',
-    tr('bell'),
-    'Gong',
-    'Chime',
-    'Ding',
-    tr('melody'),
-  ];
-
   static final _alertDurations = {
     3: tr('3_seconds'),
   };
@@ -6623,7 +6618,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 _updateSettings(_settings.copyWith(
                   alertConfig: CalendarAlertConfig(
                     alertType: _settings.alertConfig.alertType,
-                    soundName: _settings.alertConfig.soundName,
                     durationSeconds: value,
                   ),
                 ));
@@ -6793,7 +6787,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   }
 
   Widget _buildUnifiedAlertCard() {
-    final showSound = _settings.alertConfig.alertType != 'vibration';
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -6816,7 +6809,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   _updateSettings(_settings.copyWith(
                     alertConfig: CalendarAlertConfig(
                       alertType: sel.first,
-                      soundName: _settings.alertConfig.soundName,
                       durationSeconds: _settings.alertConfig.durationSeconds,
                     ),
                   ));
@@ -6825,32 +6817,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 style: const ButtonStyle(visualDensity: VisualDensity.compact),
               ),
             ),
-
-            // Sound (only if not vibration-only)
-            if (showSound) ...[
-              const Divider(),
-              Text(tr('alert_sound'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _settings.alertConfig.soundName ?? 'Default',
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-                  prefixIcon: Icon(Icons.music_note, color: Color(_settings.calendarColorValue)),
-                ),
-                items: _alertSounds.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                onChanged: (value) {
-                  _updateSettings(_settings.copyWith(
-                    alertConfig: CalendarAlertConfig(
-                      alertType: _settings.alertConfig.alertType,
-                      soundName: value,
-                      durationSeconds: _settings.alertConfig.durationSeconds,
-                    ),
-                  ));
-                },
-              ),
-            ],
 
             // Timing
             const Divider(),
@@ -6916,7 +6882,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                         _updateSettings(_settings.copyWith(
                           alertConfig: CalendarAlertConfig(
                             alertType: _settings.alertConfig.alertType,
-                            soundName: _settings.alertConfig.soundName,
                             durationSeconds: entry.key,
                           ),
                         ));
@@ -6954,7 +6919,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                     );
                     return;
                   }
-                  final ok = await NotificationService.showTestNotification();
+                  final ok = await NotificationService.showTestNotification(alertType: _settings.alertConfig.alertType);
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -12132,24 +12097,6 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         // Sync to Google Calendar if connected
         if (GoogleCalendarService.isSignedIn) {
           GoogleCalendarService.pushEvent(event);
-        }
-
-        // Sync calendar widget
-        if (!kIsWeb) {
-          try {
-            final allEvents = await DatabaseHelper().getAllEvents();
-            final Map<String, dynamic> compact = {};
-            for (final entry in allEvents.entries) {
-              compact[entry.key] = entry.value.map((e) => {
-                'title': e.title,
-                'calendar': e.calendar,
-              }).toList();
-            }
-            await HomeWidget.saveWidgetData('calendar_widget_events', jsonEncode(compact));
-            await HomeWidget.updateWidget(
-              androidName: 'com.ethosnote.app.widget.CalendarWidgetProvider',
-            );
-          } catch (_) {}
         }
 
         if (mounted) {

@@ -3,6 +3,4 @@
     <string name="app_name">Ethos Note</string>
     <string name="widget_flash_shortcuts_label">Flash Notes Shortcuts</string>
     <string name="widget_flash_shortcuts_desc">Crea velocemente note di testo, foto o vocali</string>
-    <string name="widget_calendar_label">Calendario Ethos Note</string>
-    <string name="widget_calendar_desc">Vista calendario con i tuoi eventi</string>
 </resources>
