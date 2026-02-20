@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:convert';
@@ -12809,16 +12810,31 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   Duration _editorAudioPosition = Duration.zero;
   Duration _editorAudioDuration = Duration.zero;
   bool _imageExpanded = false;
+  bool _isEditing = false;
+
+  static final _urlRegex = RegExp(
+    r'https?://[^\s<>\[\](){}\"]+',
+    caseSensitive: false,
+  );
 
   @override
   void initState() {
     super.initState();
     _bodyFocusNode = FocusNode();
+    _bodyFocusNode.addListener(_onFocusChanged);
     _bodyController = TextEditingController(text: widget.existingNote?.content ?? '');
     _bodyController.addListener(_onChanged);
     _attachedImageBase64 = widget.existingNote?.imageBase64;
     _prevText = _bodyController.text;
     _bodyController.addListener(_handleListContinuation);
+    // New notes start in edit mode
+    _isEditing = widget.existingNote == null;
+  }
+
+  void _onFocusChanged() {
+    if (!_bodyFocusNode.hasFocus && _isEditing) {
+      setState(() => _isEditing = false);
+    }
   }
 
   void _onChanged() {
@@ -12830,6 +12846,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     _editorAudioPlayer?.dispose();
     _bodyController.removeListener(_handleListContinuation);
     _bodyController.dispose();
+    _bodyFocusNode.removeListener(_onFocusChanged);
     _bodyFocusNode.dispose();
     super.dispose();
   }
@@ -12973,6 +12990,29 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     return '${m.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
   }
 
+  TextSpan _buildLinkifiedSpan(String text, TextStyle baseStyle, Color linkColor) {
+    final matches = _urlRegex.allMatches(text).toList();
+    if (matches.isEmpty) return TextSpan(text: text, style: baseStyle);
+    final spans = <InlineSpan>[];
+    int lastEnd = 0;
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start), style: baseStyle));
+      }
+      final url = match.group(0)!;
+      spans.add(TextSpan(
+        text: url,
+        style: baseStyle.copyWith(color: linkColor, decoration: TextDecoration.underline, decorationColor: linkColor),
+        recognizer: TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+      ));
+      lastEnd = match.end;
+    }
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd), style: baseStyle));
+    }
+    return TextSpan(children: spans);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -13025,7 +13065,12 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
           ],
         ),
         body: GestureDetector(
-          onTap: () => _bodyFocusNode.requestFocus(),
+          onTap: () {
+            if (!_isEditing) {
+              setState(() => _isEditing = true);
+              _bodyFocusNode.requestFocus();
+            }
+          },
           behavior: HitTestBehavior.translucent,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -13217,42 +13262,51 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                   constraints: BoxConstraints(
                     minHeight: MediaQuery.of(context).size.height * 0.6,
                   ),
-                  child: TextField(
-                    controller: _bodyController,
-                    focusNode: _bodyFocusNode,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: colorScheme.onSurface,
-                      height: 1.6,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: tr('type_message'),
-                      hintStyle: TextStyle(
-                        fontSize: 16,
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-                      ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      isDense: true,
-                      filled: false,
-                    ),
-                    maxLines: null,
-                    textCapitalization: TextCapitalization.sentences,
-                    keyboardType: TextInputType.multiline,
-                    contextMenuBuilder: (context, editableTextState) {
-                      return AdaptiveTextSelectionToolbar.buttonItems(
-                        anchors: editableTextState.contextMenuAnchors,
-                        buttonItems: <ContextMenuButtonItem>[
-                          ContextMenuButtonItem(label: 'Taglia', onPressed: () => editableTextState.cutSelection(SelectionChangedCause.toolbar)),
-                          ContextMenuButtonItem(label: 'Copia', onPressed: () => editableTextState.copySelection(SelectionChangedCause.toolbar)),
-                          ContextMenuButtonItem(label: 'Incolla', onPressed: () => editableTextState.pasteText(SelectionChangedCause.toolbar)),
-                          ContextMenuButtonItem(label: 'Seleziona tutto', onPressed: () => editableTextState.selectAll(SelectionChangedCause.toolbar)),
-                        ],
-                      );
-                    },
-                  ),
+                  child: _isEditing
+                      ? TextField(
+                          controller: _bodyController,
+                          focusNode: _bodyFocusNode,
+                          autofocus: widget.existingNote == null,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: colorScheme.onSurface,
+                            height: 1.6,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: tr('type_message'),
+                            hintStyle: TextStyle(
+                              fontSize: 16,
+                              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                            ),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                            isDense: true,
+                            filled: false,
+                          ),
+                          maxLines: null,
+                          textCapitalization: TextCapitalization.sentences,
+                          keyboardType: TextInputType.multiline,
+                          contextMenuBuilder: (context, editableTextState) {
+                            return AdaptiveTextSelectionToolbar.buttonItems(
+                              anchors: editableTextState.contextMenuAnchors,
+                              buttonItems: <ContextMenuButtonItem>[
+                                ContextMenuButtonItem(label: 'Taglia', onPressed: () => editableTextState.cutSelection(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: 'Copia', onPressed: () => editableTextState.copySelection(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: 'Incolla', onPressed: () => editableTextState.pasteText(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: 'Seleziona tutto', onPressed: () => editableTextState.selectAll(SelectionChangedCause.toolbar)),
+                              ],
+                            );
+                          },
+                        )
+                      : Text.rich(
+                          _buildLinkifiedSpan(
+                            _bodyController.text,
+                            TextStyle(fontSize: 16, color: colorScheme.onSurface, height: 1.6),
+                            colorScheme.primary,
+                          ),
+                        ),
                 ),
               ],
             ),
