@@ -8177,14 +8177,16 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
       boldFont = pw.Font.helveticaBold();
     }
 
-    // Load logo for footer (reuses NoteProSettings.pdfShowLogo)
+    // Always load logo for header; check pdfShowLogo for footer
     pw.MemoryImage? logoImage;
     try {
+      final logoData = await rootBundle.load('assets/logo.png');
+      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+    } catch (_) {}
+    bool showFooterLogo = false;
+    try {
       final noteSettings = await NoteProSettings.load();
-      if (noteSettings.pdfShowLogo) {
-        final logoData = await rootBundle.load('assets/logo.png');
-        logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
-      }
+      showFooterLogo = noteSettings.pdfShowLogo;
     } catch (_) {}
 
     // Helper: numbered section card — light rose background, modern Material style
@@ -8218,30 +8220,20 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
       );
     }
 
-    // Helper: chip row — filled red for selected, white outline for unselected
-    pw.Widget pdfChips(List<String> options, {String? selected, Set<String>? selectedSet}) {
+    // Helper: compact chip row — only renders selected items
+    pw.Widget pdfSelectedChips(List<String> items) {
+      if (items.isEmpty) return pw.SizedBox();
       return pw.Wrap(
         spacing: 8,
         runSpacing: 7,
-        children: options.map((opt) {
-          final isSelected = selected != null ? opt == selected : (selectedSet?.contains(opt) ?? false);
-          return pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: pw.BoxDecoration(
-              color: isSelected ? const PdfColor.fromInt(0xFFE53935) : PdfColors.white,
-              borderRadius: pw.BorderRadius.circular(16),
-              border: isSelected ? null : pw.Border.all(color: PdfColors.grey300, width: 0.6),
-            ),
-            child: pw.Text(
-              isSelected ? '\u2713  $opt' : opt,
-              style: pw.TextStyle(
-                font: isSelected ? boldFont : regularFont,
-                fontSize: 11,
-                color: isSelected ? PdfColors.white : PdfColors.grey800,
-              ),
-            ),
-          );
-        }).toList(),
+        children: items.map((item) => pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: pw.BoxDecoration(
+            color: const PdfColor.fromInt(0xFFE53935),
+            borderRadius: pw.BorderRadius.circular(16),
+          ),
+          child: pw.Text(item, style: pw.TextStyle(font: boldFont, fontSize: 10, color: PdfColors.white)),
+        )).toList(),
       );
     }
 
@@ -8265,102 +8257,153 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
         : '${tr('cycle_report')} ${data['month'] ?? ''}';
 
     final generatedDate = '${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}';
+    final footerStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
+    final brandStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
 
     pdf.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(36),
-      header: (ctx) => pw.Column(
+      header: (_) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text('Ethos Note', style: pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500)),
+          pw.Row(children: [
+            if (logoImage != null) ...[
+              pw.Image(logoImage, width: 20, height: 20),
+              pw.SizedBox(width: 8),
+            ],
+            pw.Text('Ethos Note', style: brandStyle),
+          ]),
+          pw.SizedBox(height: 4),
+          pw.Divider(color: PdfColors.red, thickness: 1),
           pw.SizedBox(height: 4),
           pw.Text(pageTitle, style: pw.TextStyle(font: boldFont, fontSize: 20, color: PdfColors.red)),
-          pw.Divider(color: PdfColor.fromInt(0x33E53935), thickness: 1),
           pw.SizedBox(height: 8),
         ],
       ),
-      footer: (_) => pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      footer: (ctx) => pw.Row(
         children: [
-          pw.Text(generatedDate, style: pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500)),
-          if (logoImage != null)
-            pw.Image(logoImage, width: 32, height: 32)
-          else
-            pw.SizedBox(),
+          pw.Expanded(
+            child: pw.Text(generatedDate, style: footerStyle),
+          ),
+          pw.Expanded(
+            child: pw.Center(
+              child: pw.Text('Pagina ${ctx.pageNumber} di ${ctx.pagesCount}', style: footerStyle),
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: showFooterLogo && logoImage != null
+                  ? pw.Image(logoImage, width: 20, height: 20)
+                  : pw.SizedBox(),
+            ),
+          ),
         ],
       ),
       build: (ctx) {
         final sections = <pw.Widget>[];
+        int sectionNum = 0;
 
         if (isMissing) {
           final reason = data['missingReason'] as String? ?? '';
           final reasonCustom = data['missingReasonCustom'] as String? ?? '';
-          sections.add(pdfSection('1', tr('cycle_missing_why'), pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pdfChips([tr('cycle_missing_arrived'), tr('cycle_missing_not_yet'), tr('cycle_missing_pregnant'), tr('cycle_missing_other')], selected: reason),
-              if (reasonCustom.isNotEmpty) pdfTextBox(reasonCustom),
-            ],
-          )));
+          if (reason.isNotEmpty || reasonCustom.isNotEmpty) {
+            sectionNum++;
+            sections.add(pdfSection('$sectionNum', tr('cycle_missing_why'), pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (reason.isNotEmpty) pdfSelectedChips([reason]),
+                if (reasonCustom.isNotEmpty) pdfTextBox(reasonCustom),
+              ],
+            )));
+          }
         } else {
-          // 1. Timing
-          sections.add(pdfSection('1', tr('cycle_q_timing'),
-            pdfChips([tr('cycle_q_timing_early'), tr('cycle_q_timing_ontime'), tr('cycle_q_timing_late')], selected: data['timing'] as String?),
-          ));
+          // Timing
+          final timing = data['timing'] as String? ?? '';
+          if (timing.isNotEmpty) {
+            sectionNum++;
+            sections.add(pdfSection('$sectionNum', tr('cycle_q_timing'),
+              pdfSelectedChips([timing]),
+            ));
+          }
 
-          // 2. Flow
-          sections.add(pdfSection('2', tr('cycle_q_flow'),
-            pdfChips([tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')], selected: data['flow'] as String?),
-          ));
+          // Flow
+          final flow = data['flow'] as String? ?? '';
+          if (flow.isNotEmpty) {
+            sectionNum++;
+            sections.add(pdfSection('$sectionNum', tr('cycle_q_flow'),
+              pdfSelectedChips([flow]),
+            ));
+          }
 
-          // 3. Symptoms
-          final symptoms = Set<String>.from((data['symptoms'] as List?)?.cast<String>() ?? []);
-          sections.add(pdfSection('3', tr('cycle_q_symptoms'),
-            pdfChips(_symptomOptions, selectedSet: symptoms),
-          ));
+          // Symptoms
+          final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
+          if (symptoms.isNotEmpty) {
+            sectionNum++;
+            sections.add(pdfSection('$sectionNum', tr('cycle_q_symptoms'),
+              pdfSelectedChips(symptoms),
+            ));
+          }
 
-          // 4. Energy
-          sections.add(pdfSection('4', tr('cycle_q_energy'),
-            pdfChips([tr('cycle_q_energy_low'), tr('cycle_q_energy_normal'), tr('cycle_q_energy_high')], selected: data['energy'] as String?),
-          ));
+          // Energy
+          final energy = data['energy'] as String? ?? '';
+          if (energy.isNotEmpty) {
+            sectionNum++;
+            sections.add(pdfSection('$sectionNum', tr('cycle_q_energy'),
+              pdfSelectedChips([energy]),
+            ));
+          }
 
-          // 5. Cravings
-          final cravings = Set<String>.from((data['cravings'] as List?)?.cast<String>() ?? []);
+          // Cravings
+          final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
           final cravCustom = data['cravingsCustom'] as String? ?? '';
-          sections.add(pdfSection('5', tr('cycle_q_cravings'), pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pdfChips(_cravingOptions, selectedSet: cravings),
-              if (cravCustom.isNotEmpty) pdfTextBox(cravCustom),
-            ],
-          )));
+          if (cravings.isNotEmpty || cravCustom.isNotEmpty) {
+            sectionNum++;
+            sections.add(pdfSection('$sectionNum', tr('cycle_q_cravings'), pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (cravings.isNotEmpty) pdfSelectedChips(cravings),
+                if (cravCustom.isNotEmpty) pdfTextBox(cravCustom),
+              ],
+            )));
+          }
 
-          // 6. Sleep
+          // Sleep
+          final sleep = data['sleep'] as String? ?? '';
           final sleepCustom = data['sleepCustom'] as String? ?? '';
-          sections.add(pdfSection('6', tr('cycle_q_sleep'), pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pdfChips([tr('cycle_q_sleep_normal'), tr('cycle_q_sleep_deep'), tr('cycle_q_sleep_restless'), tr('cycle_q_sleep_insomnia')], selected: data['sleep'] as String?),
-              if (sleepCustom.isNotEmpty) pdfTextBox(sleepCustom),
-            ],
-          )));
+          if (sleep.isNotEmpty || sleepCustom.isNotEmpty) {
+            sectionNum++;
+            sections.add(pdfSection('$sectionNum', tr('cycle_q_sleep'), pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (sleep.isNotEmpty) pdfSelectedChips([sleep]),
+                if (sleepCustom.isNotEmpty) pdfTextBox(sleepCustom),
+              ],
+            )));
+          }
 
-          // 7. Emotions
-          final emotions = Set<String>.from((data['emotions'] as List?)?.cast<String>() ?? []);
+          // Emotions
+          final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
           final emoCustom = data['emotionsCustom'] as String? ?? '';
-          sections.add(pdfSection('7', tr('cycle_q_emotions'), pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pdfChips([tr('cycle_q_emotions_calm'), tr('cycle_q_emotions_irritable'), tr('cycle_q_emotions_sensitive'), tr('cycle_q_emotions_sad')], selectedSet: emotions),
-              if (emoCustom.isNotEmpty) pdfTextBox(emoCustom),
-            ],
-          )));
+          if (emotions.isNotEmpty || emoCustom.isNotEmpty) {
+            sectionNum++;
+            sections.add(pdfSection('$sectionNum', tr('cycle_q_emotions'), pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (emotions.isNotEmpty) pdfSelectedChips(emotions),
+                if (emoCustom.isNotEmpty) pdfTextBox(emoCustom),
+              ],
+            )));
+          }
 
-          // 8. Notes
+          // Notes
           final notes = data['notes'] as String? ?? '';
-          sections.add(pdfSection('8', tr('cycle_q_notes'),
-            pdfTextBox(notes.isNotEmpty ? notes : '—'),
-          ));
+          if (notes.isNotEmpty) {
+            sectionNum++;
+            sections.add(pdfSection('$sectionNum', tr('cycle_q_notes'),
+              pdfTextBox(notes),
+            ));
+          }
         }
 
         return sections;
@@ -18659,7 +18702,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
     );
 
     try {
-      final pdfBytes = await generateNotePdfFromProNote(_currentNote);
+      final pdfBytes = await generateNotePdfFromProNote(_currentNote, isFlashNote: true);
       if (!mounted) return;
       Navigator.pop(context); // dismiss loading
       Navigator.push(
@@ -19211,14 +19254,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     final headerText = _showHeader ? _headerController.text : null;
     final footerText = _showFooter ? _footerController.text : null;
 
-    final noteSettings = await NoteProSettings.load();
+    // Always load logo for header; check pdfShowLogo for footer
     pw.MemoryImage? logoImage;
-    if (noteSettings.pdfShowLogo) {
-      try {
-        final logoData = await rootBundle.load('assets/logo.png');
-        logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
-      } catch (_) {}
-    }
+    try {
+      final logoData = await rootBundle.load('assets/logo.png');
+      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+    } catch (_) {}
+    final noteSettings = await NoteProSettings.load();
+    final showFooterLogo = noteSettings.pdfShowLogo;
 
     pw.Font regularFont;
     pw.Font boldFont;
@@ -19240,8 +19283,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     const pdfIndigoLight = PdfColor.fromInt(0x336366F1);
     final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
     final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22, color: pdfIndigo);
+    final footerStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
     final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
     final brandStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
+    final generatedDate = '${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}';
 
     pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs, {double? overrideFontSize}) {
       if (attrs == null && overrideFontSize == null) return baseStyle;
@@ -19315,32 +19360,36 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
       // List prefix
       if (listType != null) {
-        String prefix;
         if (listType == 'bullet') {
-          prefix = '\u2022 ';
+          lineSpans.insert(0, pw.TextSpan(text: '\u2022 ', style: lineSpans.isNotEmpty && lineSpans.first is pw.TextSpan ? (lineSpans.first as pw.TextSpan).style : baseStyle));
           orderedCounter = 0;
         } else if (listType == 'ordered') {
           orderedCounter++;
-          prefix = '$orderedCounter. ';
+          lineSpans.insert(0, pw.TextSpan(text: '$orderedCounter. ', style: lineSpans.isNotEmpty && lineSpans.first is pw.TextSpan ? (lineSpans.first as pw.TextSpan).style : baseStyle));
         } else if (listType == 'checked') {
-          prefix = '\u2611 ';
+          lineSpans.insert(0, pw.WidgetSpan(child: pw.Container(
+            width: 13, height: 13,
+            margin: const pw.EdgeInsets.only(right: 5),
+            decoration: pw.BoxDecoration(color: pdfIndigo, borderRadius: pw.BorderRadius.circular(3)),
+            child: pw.Center(child: pw.Text('\u2713', style: pw.TextStyle(font: boldFont, fontSize: 9, color: PdfColors.white))),
+          )));
           orderedCounter = 0;
         } else if (listType == 'unchecked') {
-          prefix = '\u2610 ';
+          lineSpans.insert(0, pw.WidgetSpan(child: pw.Container(
+            width: 13, height: 13,
+            margin: const pw.EdgeInsets.only(right: 5),
+            decoration: pw.BoxDecoration(borderRadius: pw.BorderRadius.circular(3), border: pw.Border.all(color: PdfColors.grey400, width: 1)),
+          )));
           orderedCounter = 0;
         } else {
-          prefix = '';
           orderedCounter = 0;
-        }
-        if (prefix.isNotEmpty) {
-          lineSpans.insert(0, pw.TextSpan(text: prefix, style: lineSpans.isNotEmpty && lineSpans.first is pw.TextSpan ? (lineSpans.first as pw.TextSpan).style : baseStyle));
         }
       } else {
         orderedCounter = 0;
       }
 
       pw.Widget lineWidget = pw.Padding(
-        padding: pw.EdgeInsets.only(bottom: 4, left: listType != null ? 12 : 0),
+        padding: pw.EdgeInsets.only(bottom: 4, left: listType != null ? 16 : 0),
         child: pw.RichText(text: pw.TextSpan(children: List.of(lineSpans))),
       );
 
@@ -19385,13 +19434,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               bodyWidgets.add(pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(vertical: 8),
                 child: pw.Center(
-                  child: pw.Image(pw.MemoryImage(imgBytes), width: imgW, height: imgH),
+                  child: pw.ClipRRect(
+                    horizontalRadius: 8,
+                    verticalRadius: 8,
+                    child: pw.Image(pw.MemoryImage(imgBytes), width: imgW, height: imgH),
+                  ),
                 ),
               ));
             }
           } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
         } else if (map.containsKey('divider')) {
-          bodyWidgets.add(pw.Divider(thickness: 0.5));
+          bodyWidgets.add(pw.Divider(thickness: 0.5, color: pdfIndigoLight));
         }
       }
     }
@@ -19404,27 +19457,45 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         header: (_) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('Ethos Note', style: brandStyle),
+              pw.Row(children: [
+                if (logoImage != null) ...[
+                  pw.Image(logoImage, width: 20, height: 20),
+                  pw.SizedBox(width: 8),
+                ],
+                pw.Text('Ethos Note', style: brandStyle),
+              ]),
+              pw.SizedBox(height: 4),
+              pw.Divider(color: pdfIndigo, thickness: 1),
               if (headerText != null && headerText.isNotEmpty) ...[
-                pw.SizedBox(height: 2),
+                pw.SizedBox(height: 4),
                 pw.Text(headerText, style: headerStyle),
               ],
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 6),
             ],
           ),
-        footer: (footerText != null && footerText.isNotEmpty) || logoImage != null
-            ? (_) => pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  if (footerText != null && footerText.isNotEmpty)
-                    pw.Text(footerText, style: headerStyle)
-                  else
-                    pw.SizedBox(),
-                  if (logoImage != null)
-                    pw.Image(logoImage, width: 32, height: 32),
-                ],
-              )
-            : null,
+        footer: (ctx) => pw.Row(
+            children: [
+              pw.Expanded(
+                child: pw.Text(
+                  footerText != null && footerText.isNotEmpty ? footerText : generatedDate,
+                  style: footerStyle,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Center(
+                  child: pw.Text('Pagina ${ctx.pageNumber} di ${ctx.pagesCount}', style: footerStyle),
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: showFooterLogo && logoImage != null
+                      ? pw.Image(logoImage, width: 20, height: 20)
+                      : pw.SizedBox(),
+                ),
+              ),
+            ],
+          ),
         build: (context) => [
           if (title.isNotEmpty) ...[
             pw.Text(title, style: titleStyle),
@@ -20421,17 +20492,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
 // ── PDF Viewer Page ──
 
-Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
+Future<Uint8List> generateNotePdfFromProNote(ProNote note, {bool isFlashNote = false}) async {
   final doc = pw.Document();
 
-  final noteSettings = await NoteProSettings.load();
+  // Always load logo for header; check pdfShowLogo for footer
   pw.MemoryImage? logoImage;
-  if (noteSettings.pdfShowLogo) {
-    try {
-      final logoData = await rootBundle.load('assets/logo.png');
-      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
-    } catch (_) {}
-  }
+  try {
+    final logoData = await rootBundle.load('assets/logo.png');
+    logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+  } catch (_) {}
+  final noteSettings = await NoteProSettings.load();
+  final showFooterLogo = noteSettings.pdfShowLogo;
 
   pw.Font regularFont;
   pw.Font boldFont;
@@ -20449,11 +20520,15 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
     boldItalicFont = pw.Font.helveticaBoldOblique();
   }
   const pdfIndigo = PdfColor.fromInt(0xFF6366F1);
-  const pdfIndigoLight = PdfColor.fromInt(0x336366F1);
+  const pdfOrange = PdfColor.fromInt(0xFFFFA726);
+  final accentColor = isFlashNote ? pdfOrange : pdfIndigo;
+  final accentColorLight = PdfColor.fromInt(isFlashNote ? 0x33FFA726 : 0x336366F1);
   final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
-  final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22, color: pdfIndigo);
+  final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22, color: accentColor);
+  final footerStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
   final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
   final brandStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
+  final generatedDate = '${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}';
 
   pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs, {double? overrideFontSize}) {
     if (attrs == null && overrideFontSize == null) return baseStyle;
@@ -20528,32 +20603,36 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
 
         // List prefix
         if (listType != null) {
-          String prefix;
           if (listType == 'bullet') {
-            prefix = '\u2022 ';
+            lineSpans.insert(0, pw.TextSpan(text: '\u2022 ', style: lineSpans.isNotEmpty && lineSpans.first is pw.TextSpan ? (lineSpans.first as pw.TextSpan).style : baseStyle));
             orderedCounter = 0;
           } else if (listType == 'ordered') {
             orderedCounter++;
-            prefix = '$orderedCounter. ';
+            lineSpans.insert(0, pw.TextSpan(text: '$orderedCounter. ', style: lineSpans.isNotEmpty && lineSpans.first is pw.TextSpan ? (lineSpans.first as pw.TextSpan).style : baseStyle));
           } else if (listType == 'checked') {
-            prefix = '\u2611 ';
+            lineSpans.insert(0, pw.WidgetSpan(child: pw.Container(
+              width: 13, height: 13,
+              margin: const pw.EdgeInsets.only(right: 5),
+              decoration: pw.BoxDecoration(color: accentColor, borderRadius: pw.BorderRadius.circular(3)),
+              child: pw.Center(child: pw.Text('\u2713', style: pw.TextStyle(font: boldFont, fontSize: 9, color: PdfColors.white))),
+            )));
             orderedCounter = 0;
           } else if (listType == 'unchecked') {
-            prefix = '\u2610 ';
+            lineSpans.insert(0, pw.WidgetSpan(child: pw.Container(
+              width: 13, height: 13,
+              margin: const pw.EdgeInsets.only(right: 5),
+              decoration: pw.BoxDecoration(borderRadius: pw.BorderRadius.circular(3), border: pw.Border.all(color: PdfColors.grey400, width: 1)),
+            )));
             orderedCounter = 0;
           } else {
-            prefix = '';
             orderedCounter = 0;
-          }
-          if (prefix.isNotEmpty) {
-            lineSpans.insert(0, pw.TextSpan(text: prefix, style: lineSpans.isNotEmpty && lineSpans.first is pw.TextSpan ? (lineSpans.first as pw.TextSpan).style : baseStyle));
           }
         } else {
           orderedCounter = 0;
         }
 
         pw.Widget lineWidget = pw.Padding(
-          padding: pw.EdgeInsets.only(bottom: 4, left: listType != null ? 12 : 0),
+          padding: pw.EdgeInsets.only(bottom: 4, left: listType != null ? 16 : 0),
           child: pw.RichText(text: pw.TextSpan(children: List.of(lineSpans))),
         );
 
@@ -20597,13 +20676,17 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
                   bodyWidgets.add(pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(vertical: 8),
                     child: pw.Center(
-                      child: pw.Image(pw.MemoryImage(imgBytes), width: imgW, height: imgH),
+                      child: pw.ClipRRect(
+                        horizontalRadius: 8,
+                        verticalRadius: 8,
+                        child: pw.Image(pw.MemoryImage(imgBytes), width: imgW, height: imgH),
+                      ),
                     ),
                   ));
                 }
               } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
             } else if (insert.containsKey('divider')) {
-              bodyWidgets.add(pw.Divider(thickness: 0.5));
+              bodyWidgets.add(pw.Divider(thickness: 0.5, color: accentColorLight));
             }
           }
         }
@@ -20624,31 +20707,49 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
       header: (_) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('Ethos Note', style: brandStyle),
+              pw.Row(children: [
+                if (logoImage != null) ...[
+                  pw.Image(logoImage, width: 20, height: 20),
+                  pw.SizedBox(width: 8),
+                ],
+                pw.Text('Ethos Note', style: brandStyle),
+              ]),
+              pw.SizedBox(height: 4),
+              pw.Divider(color: accentColor, thickness: 1),
               if (note.headerText != null && note.headerText!.isNotEmpty) ...[
-                pw.SizedBox(height: 2),
+                pw.SizedBox(height: 4),
                 pw.Text(note.headerText!, style: headerStyle),
               ],
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 6),
             ],
           ),
-      footer: (footerText != null && footerText.isNotEmpty) || logoImage != null
-          ? (_) => pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                if (footerText != null && footerText.isNotEmpty)
-                  pw.Text(footerText, style: headerStyle)
-                else
-                  pw.SizedBox(),
-                if (logoImage != null)
-                  pw.Image(logoImage, width: 32, height: 32),
-              ],
-            )
-          : null,
+      footer: (ctx) => pw.Row(
+            children: [
+              pw.Expanded(
+                child: pw.Text(
+                  footerText != null && footerText.isNotEmpty ? footerText : generatedDate,
+                  style: footerStyle,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Center(
+                  child: pw.Text('Pagina ${ctx.pageNumber} di ${ctx.pagesCount}', style: footerStyle),
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: showFooterLogo && logoImage != null
+                      ? pw.Image(logoImage, width: 20, height: 20)
+                      : pw.SizedBox(),
+                ),
+              ),
+            ],
+          ),
       build: (context) => [
         if (note.title.isNotEmpty) ...[
           pw.Text(note.title, style: titleStyle),
-          pw.Divider(thickness: 0.5, color: pdfIndigoLight),
+          pw.Divider(thickness: 0.5, color: accentColorLight),
           pw.SizedBox(height: 8),
         ],
         ...bodyWidgets,
