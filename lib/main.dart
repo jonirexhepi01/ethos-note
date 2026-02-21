@@ -8166,7 +8166,7 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     final isMissing = data['type'] == 'cycle_missing';
     final pdf = pw.Document();
 
-    // Load Nunito font (same pattern as Deep Note PDF)
+    // Load Nunito font + emoji fallback
     pw.Font regularFont;
     pw.Font boldFont;
     try {
@@ -8176,6 +8176,9 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
       regularFont = pw.Font.helvetica();
       boldFont = pw.Font.helveticaBold();
     }
+    pw.Font? emojiFont;
+    try { emojiFont = await PdfGoogleFonts.notoColorEmojiRegular(); } catch (_) {}
+    final fontFallback = <pw.Font>[if (emojiFont != null) emojiFont];
 
     // Always load logo for header; check pdfShowLogo for footer
     pw.MemoryImage? logoImage;
@@ -8258,7 +8261,6 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
 
     final generatedDate = '${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}';
     final footerStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
-    final brandStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
 
     pdf.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
@@ -8266,17 +8268,7 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
       header: (_) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Row(children: [
-            if (logoImage != null) ...[
-              pw.Image(logoImage, width: 20, height: 20),
-              pw.SizedBox(width: 8),
-            ],
-            pw.Text('Ethos Note', style: brandStyle),
-          ]),
-          pw.SizedBox(height: 4),
-          pw.Divider(color: PdfColors.red, thickness: 1),
-          pw.SizedBox(height: 4),
-          pw.Text(pageTitle, style: pw.TextStyle(font: boldFont, fontSize: 20, color: PdfColors.red)),
+          pw.Text(pageTitle, style: pw.TextStyle(font: boldFont, fontSize: 20, color: PdfColors.red, fontFallback: fontFallback)),
           pw.SizedBox(height: 8),
         ],
       ),
@@ -18188,6 +18180,36 @@ class _NotesProPageState extends State<NotesProPage> {
     final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
     if (note.id != noteId) return;
 
+    // Detect images and text
+    final (hasImages, hasText) = _analyzeContentDelta(note.contentDelta);
+    bool photosFullPage = false;
+    if (hasImages && hasText) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text('Foto nel PDF'),
+          content: const Text('Come vuoi le foto nel PDF?'),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, 'inline'),
+              child: const Text('Stessa pagina'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'separate'),
+              child: const Text('Pagina separata'),
+            ),
+          ],
+        ),
+      );
+      if (choice == null) return;
+      if (!mounted) return;
+      photosFullPage = choice == 'separate';
+    } else if (hasImages && !hasText) {
+      photosFullPage = true;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -18207,7 +18229,7 @@ class _NotesProPageState extends State<NotesProPage> {
     );
 
     try {
-      final pdfBytes = await generateNotePdfFromProNote(note);
+      final pdfBytes = await generateNotePdfFromProNote(note, photosFullPage: photosFullPage);
       if (!mounted) return;
       Navigator.pop(context); // dismiss loading
       Navigator.push(
@@ -18683,6 +18705,36 @@ class _NoteReadPageState extends State<NoteReadPage> {
   }
 
   Future<void> _exportAsPdf() async {
+    // Detect images and text
+    final (hasImages, hasText) = _analyzeContentDelta(_currentNote.contentDelta);
+    bool photosFullPage = false;
+    if (hasImages && hasText) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text('Foto nel PDF'),
+          content: const Text('Come vuoi le foto nel PDF?'),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, 'inline'),
+              child: const Text('Stessa pagina'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'separate'),
+              child: const Text('Pagina separata'),
+            ),
+          ],
+        ),
+      );
+      if (choice == null) return;
+      if (!mounted) return;
+      photosFullPage = choice == 'separate';
+    } else if (hasImages && !hasText) {
+      photosFullPage = true;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -18702,7 +18754,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
     );
 
     try {
-      final pdfBytes = await generateNotePdfFromProNote(_currentNote, isFlashNote: true);
+      final pdfBytes = await generateNotePdfFromProNote(_currentNote, isFlashNote: true, photosFullPage: photosFullPage);
       if (!mounted) return;
       Navigator.pop(context); // dismiss loading
       Navigator.push(
@@ -19248,13 +19300,13 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     }
   }
 
-  Future<Uint8List> _generateNotePdf() async {
+  Future<Uint8List> _generateNotePdf({bool photosFullPage = false}) async {
     final doc = pw.Document();
     final title = _titleController.text;
     final headerText = _showHeader ? _headerController.text : null;
     final footerText = _showFooter ? _footerController.text : null;
 
-    // Always load logo for header; check pdfShowLogo for footer
+    // Load logo for footer
     pw.MemoryImage? logoImage;
     try {
       final logoData = await rootBundle.load('assets/logo.png');
@@ -19278,14 +19330,16 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       italicFont = pw.Font.helveticaOblique();
       boldItalicFont = pw.Font.helveticaBoldOblique();
     }
+    pw.Font? emojiFont;
+    try { emojiFont = await PdfGoogleFonts.notoColorEmojiRegular(); } catch (_) {}
+    final fontFallback = <pw.Font>[if (emojiFont != null) emojiFont];
 
     const pdfIndigo = PdfColor.fromInt(0xFF6366F1);
     const pdfIndigoLight = PdfColor.fromInt(0x336366F1);
-    final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
-    final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22, color: pdfIndigo);
+    final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12, fontFallback: fontFallback);
+    final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22, color: pdfIndigo, fontFallback: fontFallback);
     final footerStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
     final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
-    final brandStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
     final generatedDate = '${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}';
 
     pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs, {double? overrideFontSize}) {
@@ -19430,17 +19484,28 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               imgBytes = base64Decode(imgStr.split(',').last);
             }
             if (imgBytes != null) {
-              final (imgW, imgH) = _pdfImageDisplaySize(imgBytes);
-              bodyWidgets.add(pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                child: pw.Center(
+              if (photosFullPage) {
+                bodyWidgets.add(pw.Container(
+                  width: 515,
+                  height: 700,
+                  alignment: pw.Alignment.centerLeft,
+                  child: pw.ClipRRect(
+                    horizontalRadius: 8,
+                    verticalRadius: 8,
+                    child: pw.Image(pw.MemoryImage(imgBytes), fit: pw.BoxFit.contain),
+                  ),
+                ));
+              } else {
+                final (imgW, imgH) = _pdfImageDisplaySize(imgBytes);
+                bodyWidgets.add(pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 8),
                   child: pw.ClipRRect(
                     horizontalRadius: 8,
                     verticalRadius: 8,
                     child: pw.Image(pw.MemoryImage(imgBytes), width: imgW, height: imgH),
                   ),
-                ),
-              ));
+                ));
+              }
             }
           } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
         } else if (map.containsKey('divider')) {
@@ -19454,25 +19519,15 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
-        header: (_) => pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Row(children: [
-                if (logoImage != null) ...[
-                  pw.Image(logoImage, width: 20, height: 20),
-                  pw.SizedBox(width: 8),
+        header: (headerText != null && headerText.isNotEmpty)
+            ? (_) => pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(headerText, style: headerStyle),
+                  pw.SizedBox(height: 6),
                 ],
-                pw.Text('Ethos Note', style: brandStyle),
-              ]),
-              pw.SizedBox(height: 4),
-              pw.Divider(color: pdfIndigo, thickness: 1),
-              if (headerText != null && headerText.isNotEmpty) ...[
-                pw.SizedBox(height: 4),
-                pw.Text(headerText, style: headerStyle),
-              ],
-              pw.SizedBox(height: 6),
-            ],
-          ),
+              )
+            : null,
         footer: (ctx) => pw.Row(
             children: [
               pw.Expanded(
@@ -19511,6 +19566,42 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   }
 
   Future<void> _exportAsPdf() async {
+    // Detect images and text in current document
+    bool hasImages = false;
+    bool hasText = false;
+    for (final op in _quillController.document.toDelta().toList()) {
+      if (op.data is Map && (op.data as Map).containsKey('image')) hasImages = true;
+      if (op.data is String && (op.data as String).trim().isNotEmpty) hasText = true;
+    }
+
+    bool photosFullPage = false;
+    if (hasImages && hasText) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text('Foto nel PDF'),
+          content: const Text('Come vuoi le foto nel PDF?'),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, 'inline'),
+              child: const Text('Stessa pagina'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'separate'),
+              child: const Text('Pagina separata'),
+            ),
+          ],
+        ),
+      );
+      if (choice == null) return;
+      if (!mounted) return;
+      photosFullPage = choice == 'separate';
+    } else if (hasImages && !hasText) {
+      photosFullPage = true;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -19530,7 +19621,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
 
     try {
-      final pdfBytes = await _generateNotePdf();
+      final pdfBytes = await _generateNotePdf(photosFullPage: photosFullPage);
       if (!mounted) return;
       Navigator.pop(context); // dismiss loading
       Navigator.push(
@@ -20478,6 +20569,26 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   return null;
 }
 
+/// Analyzes a delta JSON string to detect images and text content.
+(bool, bool) _analyzeContentDelta(String? deltaJson) {
+  if (deltaJson == null) return (false, false);
+  try {
+    final ops = json.decode(deltaJson) as List;
+    bool hasImages = false;
+    bool hasText = false;
+    for (final op in ops) {
+      if (op is Map) {
+        final insert = op['insert'];
+        if (insert is Map && insert.containsKey('image')) hasImages = true;
+        if (insert is String && insert.trim().isNotEmpty) hasText = true;
+      }
+    }
+    return (hasImages, hasText);
+  } catch (_) {
+    return (false, true);
+  }
+}
+
 /// Calculates PDF image display dimensions, keeping it inline with text.
 (double, double) _pdfImageDisplaySize(Uint8List bytes, {double maxW = 400, double maxH = 350}) {
   final dims = _pdfImageSize(bytes);
@@ -20492,10 +20603,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
 // ── PDF Viewer Page ──
 
-Future<Uint8List> generateNotePdfFromProNote(ProNote note, {bool isFlashNote = false}) async {
+Future<Uint8List> generateNotePdfFromProNote(ProNote note, {bool isFlashNote = false, bool photosFullPage = false}) async {
   final doc = pw.Document();
 
-  // Always load logo for header; check pdfShowLogo for footer
+  // Load logo for footer
   pw.MemoryImage? logoImage;
   try {
     final logoData = await rootBundle.load('assets/logo.png');
@@ -20519,15 +20630,18 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note, {bool isFlashNote = f
     italicFont = pw.Font.helveticaOblique();
     boldItalicFont = pw.Font.helveticaBoldOblique();
   }
+  pw.Font? emojiFont;
+  try { emojiFont = await PdfGoogleFonts.notoColorEmojiRegular(); } catch (_) {}
+  final fontFallback = <pw.Font>[if (emojiFont != null) emojiFont];
+
   const pdfIndigo = PdfColor.fromInt(0xFF6366F1);
   const pdfOrange = PdfColor.fromInt(0xFFFFA726);
   final accentColor = isFlashNote ? pdfOrange : pdfIndigo;
   final accentColorLight = PdfColor.fromInt(isFlashNote ? 0x33FFA726 : 0x336366F1);
-  final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
-  final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22, color: accentColor);
+  final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12, fontFallback: fontFallback);
+  final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22, color: accentColor, fontFallback: fontFallback);
   final footerStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
   final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
-  final brandStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
   final generatedDate = '${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}';
 
   pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs, {double? overrideFontSize}) {
@@ -20672,17 +20786,28 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note, {bool isFlashNote = f
                   imgBytes = base64Decode(imgStr.split(',').last);
                 }
                 if (imgBytes != null) {
-                  final (imgW, imgH) = _pdfImageDisplaySize(imgBytes);
-                  bodyWidgets.add(pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                    child: pw.Center(
+                  if (photosFullPage) {
+                    bodyWidgets.add(pw.Container(
+                      width: 515,
+                      height: 700,
+                      alignment: pw.Alignment.centerLeft,
+                      child: pw.ClipRRect(
+                        horizontalRadius: 8,
+                        verticalRadius: 8,
+                        child: pw.Image(pw.MemoryImage(imgBytes), fit: pw.BoxFit.contain),
+                      ),
+                    ));
+                  } else {
+                    final (imgW, imgH) = _pdfImageDisplaySize(imgBytes);
+                    bodyWidgets.add(pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 8),
                       child: pw.ClipRRect(
                         horizontalRadius: 8,
                         verticalRadius: 8,
                         child: pw.Image(pw.MemoryImage(imgBytes), width: imgW, height: imgH),
                       ),
-                    ),
-                  ));
+                    ));
+                  }
                 }
               } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
             } else if (insert.containsKey('divider')) {
@@ -20704,25 +20829,15 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note, {bool isFlashNote = f
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(40),
-      header: (_) => pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Row(children: [
-                if (logoImage != null) ...[
-                  pw.Image(logoImage, width: 20, height: 20),
-                  pw.SizedBox(width: 8),
-                ],
-                pw.Text('Ethos Note', style: brandStyle),
-              ]),
-              pw.SizedBox(height: 4),
-              pw.Divider(color: accentColor, thickness: 1),
-              if (note.headerText != null && note.headerText!.isNotEmpty) ...[
-                pw.SizedBox(height: 4),
+      header: (note.headerText != null && note.headerText!.isNotEmpty)
+          ? (_) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
                 pw.Text(note.headerText!, style: headerStyle),
+                pw.SizedBox(height: 6),
               ],
-              pw.SizedBox(height: 6),
-            ],
-          ),
+            )
+          : null,
       footer: (ctx) => pw.Row(
             children: [
               pw.Expanded(
