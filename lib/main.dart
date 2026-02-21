@@ -12937,6 +12937,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   Duration _editorAudioDuration = Duration.zero;
   bool _imageExpanded = false;
   bool _isEditing = false;
+  bool _checkboxJustTapped = false;
 
   static final _tokenRegex = RegExp(
     r'https?://[^\s<>\[\](){}\"]+|[☐☑]',
@@ -13097,9 +13098,6 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 2048,
-        maxHeight: 2048,
-        imageQuality: 92,
       );
       if (image != null) {
         final bytes = await image.readAsBytes();
@@ -13137,6 +13135,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
             color: isChecked ? linkColor : colorScheme.onSurfaceVariant,
           ),
           recognizer: TapGestureRecognizer()..onTap = () {
+            _checkboxJustTapped = true;
             final newChar = isChecked ? '☐' : '☑';
             final newText = text.substring(0, match.start) + newChar + text.substring(match.end);
             _bodyController.text = newText;
@@ -13177,6 +13176,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     return PopScope(
       canPop: true,
       child: Scaffold(
+        resizeToAvoidBottomInset: true,
         backgroundColor: colorScheme.surface,
         appBar: AppBar(
           elevation: 0,
@@ -13222,6 +13222,10 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
         ),
         body: GestureDetector(
           onTap: () {
+            if (_checkboxJustTapped) {
+              _checkboxJustTapped = false;
+              return;
+            }
             if (!_isEditing) {
               setState(() => _isEditing = true);
               _bodyFocusNode.requestFocus();
@@ -13468,89 +13472,87 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
             ),
           ),
         ),
-        bottomNavigationBar: SafeArea(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              border: Border(top: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _flashFormatBtn(
-                          icon: Icons.format_list_bulleted,
-                          label: tr('bullet_list'),
-                          accentColor: accentColor,
-                          onTap: () {
-                            final sel = _bodyController.selection;
-                            final pos = sel.isValid ? sel.baseOffset : _bodyController.text.length;
-                            final before = _bodyController.text.substring(0, pos);
-                            final after = _bodyController.text.substring(pos);
-                            final needsNewline = before.isNotEmpty && !before.endsWith('\n');
-                            final prefix = '${needsNewline ? '\n' : ''}• ';
-                            _bodyController.text = '$before$prefix$after';
-                            _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _flashFormatBtn(
-                          icon: Icons.format_list_numbered,
-                          label: tr('numbered_list'),
-                          accentColor: accentColor,
-                          onTap: () {
-                            final text = _bodyController.text;
-                            final sel = _bodyController.selection;
-                            final pos = sel.isValid ? sel.baseOffset : text.length;
-                            final before = text.substring(0, pos);
-                            final lines = before.split('\n');
-                            int num = 1;
-                            for (final l in lines.reversed) {
-                              if (l.trim().isEmpty) break;
-                              if (RegExp(r'^\d+\.\s').hasMatch(l)) { num++; } else { break; }
-                            }
-                            final after = text.substring(pos);
-                            final needsNewline = before.isNotEmpty && !before.endsWith('\n');
-                            final prefix = '${needsNewline ? '\n' : ''}$num. ';
-                            _bodyController.text = '$before$prefix$after';
-                            _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _flashFormatBtn(
-                          icon: Icons.checklist,
-                          label: 'Checklist',
-                          accentColor: accentColor,
-                          onTap: () {
-                            final sel = _bodyController.selection;
-                            final pos = sel.isValid ? sel.baseOffset : _bodyController.text.length;
-                            final before = _bodyController.text.substring(0, pos);
-                            final after = _bodyController.text.substring(pos);
-                            final needsNewline = before.isNotEmpty && !before.endsWith('\n');
-                            final prefix = '${needsNewline ? '\n' : ''}☐ ';
-                            _bodyController.text = '$before$prefix$after';
-                            _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
-                          },
-                        ),
-                      ],
-                    ),
+        bottomNavigationBar: Container(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + MediaQuery.of(context).viewPadding.bottom),
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            border: Border(top: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _flashFormatBtn(
+                        icon: Icons.format_list_bulleted,
+                        label: tr('bullet_list'),
+                        accentColor: accentColor,
+                        onTap: () {
+                          final sel = _bodyController.selection;
+                          final pos = sel.isValid ? sel.baseOffset : _bodyController.text.length;
+                          final before = _bodyController.text.substring(0, pos);
+                          final after = _bodyController.text.substring(pos);
+                          final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                          final prefix = '${needsNewline ? '\n' : ''}• ';
+                          _bodyController.text = '$before$prefix$after';
+                          _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      _flashFormatBtn(
+                        icon: Icons.format_list_numbered,
+                        label: tr('numbered_list'),
+                        accentColor: accentColor,
+                        onTap: () {
+                          final text = _bodyController.text;
+                          final sel = _bodyController.selection;
+                          final pos = sel.isValid ? sel.baseOffset : text.length;
+                          final before = text.substring(0, pos);
+                          final lines = before.split('\n');
+                          int num = 1;
+                          for (final l in lines.reversed) {
+                            if (l.trim().isEmpty) break;
+                            if (RegExp(r'^\d+\.\s').hasMatch(l)) { num++; } else { break; }
+                          }
+                          final after = text.substring(pos);
+                          final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                          final prefix = '${needsNewline ? '\n' : ''}$num. ';
+                          _bodyController.text = '$before$prefix$after';
+                          _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      _flashFormatBtn(
+                        icon: Icons.checklist,
+                        label: 'Checklist',
+                        accentColor: accentColor,
+                        onTap: () {
+                          final sel = _bodyController.selection;
+                          final pos = sel.isValid ? sel.baseOffset : _bodyController.text.length;
+                          final before = _bodyController.text.substring(0, pos);
+                          final after = _bodyController.text.substring(pos);
+                          final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                          final prefix = '${needsNewline ? '\n' : ''}☐ ';
+                          _bodyController.text = '$before$prefix$after';
+                          _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _pickImage,
-                  icon: Icon(Icons.camera_alt, size: 20, color: accentColor),
-                  tooltip: tr('attach_photo'),
-                  style: IconButton.styleFrom(
-                    backgroundColor: accentColor.withValues(alpha: 0.1),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _pickImage,
+                icon: Icon(Icons.camera_alt, size: 20, color: accentColor),
+                tooltip: tr('attach_photo'),
+                style: IconButton.styleFrom(
+                  backgroundColor: accentColor.withValues(alpha: 0.1),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -13772,9 +13774,6 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: source,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 80,
       );
       if (image == null) return;
       final bytes = await image.readAsBytes();
@@ -16474,6 +16473,7 @@ class _NotesProPageState extends State<NotesProPage> {
   bool _cycleDiaryBadge = false;
   bool _selectionMode = false;
   Set<int> _selectedNoteIds = {};
+  bool _isAiLoading = false;
 
   static const _availableIcons = [
     Icons.folder, Icons.work, Icons.person, Icons.school,
@@ -17586,6 +17586,29 @@ class _NotesProPageState extends State<NotesProPage> {
                         },
                         child: Text(_selectedNoteIds.length == _filteredNotes.length ? tr('deselect_all') : tr('select_all')),
                       ),
+                      if (_selectedNoteIds.length == 1) ...[
+                        IconButton(
+                          onPressed: () => _exportSelectedNotePdf(),
+                          icon: const Icon(Icons.picture_as_pdf),
+                          tooltip: 'Esporta PDF',
+                        ),
+                        if (_isAiLoading)
+                          const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                          )
+                        else
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.auto_awesome),
+                            tooltip: 'AI',
+                            onSelected: (value) => _callAiForSelectedNote(value),
+                            itemBuilder: (context) => [
+                              PopupMenuItem(value: 'riassumi', child: Row(children: [Icon(Icons.auto_awesome, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Riassunto')])),
+                              PopupMenuItem(value: 'correggi', child: Row(children: [Icon(Icons.spellcheck, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Correggi')])),
+                              PopupMenuItem(value: 'punti_chiave', child: Row(children: [Icon(Icons.format_list_bulleted, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Punti chiave')])),
+                            ],
+                          ),
+                      ],
                       IconButton(
                         onPressed: _selectedNoteIds.isEmpty ? null : () => _changeSelectedFolder(),
                         icon: const Icon(Icons.folder_outlined),
@@ -18074,6 +18097,183 @@ class _NotesProPageState extends State<NotesProPage> {
         child: const Icon(Icons.add),
       ),
     );
+  }
+
+  Future<void> _exportSelectedNotePdf() async {
+    if (_selectedNoteIds.length != 1) return;
+    final noteId = _selectedNoteIds.first;
+    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
+    if (note.id != noteId) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(tr('exporting_pdf')),
+            ],
+          ),
+        ),
+      )),
+    );
+
+    try {
+      final pdfBytes = await generateNotePdfFromProNote(note);
+      if (!mounted) return;
+      Navigator.pop(context); // dismiss loading
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _PdfViewerPage(
+            pdfBytes: pdfBytes,
+            title: '${note.title}.pdf',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _callAiForSelectedNote(String action) async {
+    if (_selectedNoteIds.length != 1) return;
+    final noteId = _selectedNoteIds.first;
+    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
+    if (note.id != noteId) return;
+
+    final settings = await FlashNotesSettings.load();
+    final apiKey = settings.geminiApiKey;
+    if (apiKey.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('api_key')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isAiLoading = true);
+
+    try {
+      final text = note.content.trim();
+      if (text.isEmpty) {
+        setState(() => _isAiLoading = false);
+        return;
+      }
+
+      final String prompt;
+      final String title;
+      if (action == 'riassumi') {
+        prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
+        title = 'Riassunto intelligente';
+      } else if (action == 'correggi') {
+        prompt = 'Correggi errori ortografici, grammaticali e di punteggiatura nel seguente testo italiano. Migliora la formattazione mantenendo il significato originale:\n\n$text';
+        title = 'Correggi e formatta';
+      } else {
+        prompt = 'Estrai i punti chiave più importanti dal seguente testo in italiano, come lista puntata:\n\n$text';
+        title = tr('ai_key_points');
+      }
+
+      final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
+      final response = await model.generateContent([gemini.Content.text(prompt)]).timeout(const Duration(seconds: 60));
+      final result = response.text ?? tr('no_results');
+
+      if (!mounted) return;
+      setState(() => _isAiLoading = false);
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) {
+          final colorScheme = Theme.of(ctx).colorScheme;
+          return DraggableScrollableSheet(
+            initialChildSize: 0.5,
+            minChildSize: 0.3,
+            maxChildSize: 0.85,
+            expand: false,
+            builder: (_, scrollController) => Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(title, style: Theme.of(ctx).textTheme.titleLarge),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      child: Card(
+                        elevation: 0,
+                        color: colorScheme.surfaceContainerLowest,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: SelectableText(result, style: const TextStyle(fontSize: 14, height: 1.5)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close, size: 18),
+                      label: Text(tr('close')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isAiLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 
   Future<void> _deleteSelectedNotes() async {
@@ -18976,14 +19176,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     pw.Font regularFont;
     pw.Font boldFont;
     pw.Font italicFont;
+    pw.Font boldItalicFont;
     try {
       regularFont = await PdfGoogleFonts.nunitoRegular();
       boldFont = await PdfGoogleFonts.nunitoBold();
       italicFont = await PdfGoogleFonts.nunitoItalic();
+      boldItalicFont = await PdfGoogleFonts.nunitoBoldItalic();
     } catch (_) {
       regularFont = pw.Font.helvetica();
       boldFont = pw.Font.helveticaBold();
       italicFont = pw.Font.helveticaOblique();
+      boldItalicFont = pw.Font.helveticaBoldOblique();
     }
 
     final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
@@ -18993,8 +19196,15 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs) {
       if (attrs == null) return baseStyle;
       var style = baseStyle;
-      if (attrs['bold'] == true) style = style.copyWith(font: boldFont, fontBold: boldFont);
-      if (attrs['italic'] == true) style = style.copyWith(font: italicFont, fontItalic: italicFont);
+      final isBold = attrs['bold'] == true;
+      final isItalic = attrs['italic'] == true;
+      if (isBold && isItalic) {
+        style = style.copyWith(font: boldItalicFont, fontBold: boldItalicFont, fontItalic: boldItalicFont);
+      } else if (isBold) {
+        style = style.copyWith(font: boldFont, fontBold: boldFont);
+      } else if (isItalic) {
+        style = style.copyWith(font: italicFont, fontItalic: italicFont);
+      }
       if (attrs['underline'] == true) style = style.copyWith(decoration: pw.TextDecoration.underline);
       if (attrs['strike'] == true) style = style.copyWith(decoration: pw.TextDecoration.lineThrough);
       return style;
@@ -19823,6 +20033,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                     ),
+                    filled: false,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -20020,14 +20231,17 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
   pw.Font regularFont;
   pw.Font boldFont;
   pw.Font italicFont;
+  pw.Font boldItalicFont;
   try {
     regularFont = await PdfGoogleFonts.nunitoRegular();
     boldFont = await PdfGoogleFonts.nunitoBold();
     italicFont = await PdfGoogleFonts.nunitoItalic();
+    boldItalicFont = await PdfGoogleFonts.nunitoBoldItalic();
   } catch (_) {
     regularFont = pw.Font.helvetica();
     boldFont = pw.Font.helveticaBold();
     italicFont = pw.Font.helveticaOblique();
+    boldItalicFont = pw.Font.helveticaBoldOblique();
   }
   final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
   final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22);
@@ -20036,8 +20250,15 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
   pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs) {
     if (attrs == null) return baseStyle;
     var style = baseStyle;
-    if (attrs['bold'] == true) style = style.copyWith(font: boldFont, fontBold: boldFont);
-    if (attrs['italic'] == true) style = style.copyWith(font: italicFont, fontItalic: italicFont);
+    final isBold = attrs['bold'] == true;
+    final isItalic = attrs['italic'] == true;
+    if (isBold && isItalic) {
+      style = style.copyWith(font: boldItalicFont, fontBold: boldItalicFont, fontItalic: boldItalicFont);
+    } else if (isBold) {
+      style = style.copyWith(font: boldFont, fontBold: boldFont);
+    } else if (isItalic) {
+      style = style.copyWith(font: italicFont, fontItalic: italicFont);
+    }
     if (attrs['underline'] == true) style = style.copyWith(decoration: pw.TextDecoration.underline);
     if (attrs['strike'] == true) style = style.copyWith(decoration: pw.TextDecoration.lineThrough);
     return style;
