@@ -8166,32 +8166,75 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     final isMissing = data['type'] == 'cycle_missing';
     final pdf = pw.Document();
 
-    // Helper: numbered section card
+    // Load Nunito font (same pattern as Deep Note PDF)
+    pw.Font regularFont;
+    pw.Font boldFont;
+    try {
+      regularFont = await PdfGoogleFonts.nunitoRegular();
+      boldFont = await PdfGoogleFonts.nunitoBold();
+    } catch (_) {
+      regularFont = pw.Font.helvetica();
+      boldFont = pw.Font.helveticaBold();
+    }
+
+    // Load logo for footer (reuses NoteProSettings.pdfShowLogo)
+    pw.MemoryImage? logoImage;
+    try {
+      final noteSettings = await NoteProSettings.load();
+      if (noteSettings.pdfShowLogo) {
+        final logoData = await rootBundle.load('assets/logo.png');
+        logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+      }
+    } catch (_) {}
+
+    // Helper: numbered section card — white with red left accent
     pw.Widget pdfSection(String number, String title, pw.Widget content) {
       return pw.Container(
-        margin: const pw.EdgeInsets.only(bottom: 10),
-        padding: const pw.EdgeInsets.all(14),
+        margin: const pw.EdgeInsets.only(bottom: 12),
         decoration: pw.BoxDecoration(
-          color: PdfColors.grey100,
-          borderRadius: pw.BorderRadius.circular(12),
+          color: PdfColors.white,
+          borderRadius: pw.BorderRadius.circular(10),
+          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
         ),
-        child: pw.Column(
+        child: pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Row(children: [
-              pw.Container(
-                width: 24, height: 24,
-                decoration: const pw.BoxDecoration(
-                  color: PdfColor.fromInt(0x1FE53935),
-                  shape: pw.BoxShape.circle,
+            // Left red accent bar
+            pw.Container(
+              width: 3,
+              height: 60,
+              decoration: pw.BoxDecoration(
+                color: PdfColors.red,
+                borderRadius: pw.BorderRadius.only(
+                  topLeft: const pw.Radius.circular(10),
+                  bottomLeft: const pw.Radius.circular(10),
                 ),
-                child: pw.Center(child: pw.Text(number, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.red))),
               ),
-              pw.SizedBox(width: 8),
-              pw.Expanded(child: pw.Text(title, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13))),
-            ]),
-            pw.SizedBox(height: 10),
-            content,
+            ),
+            pw.Expanded(
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.all(14),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(children: [
+                      pw.Container(
+                        width: 24, height: 24,
+                        decoration: const pw.BoxDecoration(
+                          color: PdfColor.fromInt(0x26E53935),
+                          shape: pw.BoxShape.circle,
+                        ),
+                        child: pw.Center(child: pw.Text(number, style: pw.TextStyle(font: boldFont, fontSize: 11, color: PdfColors.red))),
+                      ),
+                      pw.SizedBox(width: 8),
+                      pw.Expanded(child: pw.Text(title, style: pw.TextStyle(font: boldFont, fontSize: 13))),
+                    ]),
+                    pw.SizedBox(height: 10),
+                    content,
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       );
@@ -8200,17 +8243,17 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     // Helper: chip row (for single choice — shows selected with filled bg)
     pw.Widget pdfChips(List<String> options, {String? selected, Set<String>? selectedSet}) {
       return pw.Wrap(
-        spacing: 6,
-        runSpacing: 5,
+        spacing: 8,
+        runSpacing: 6,
         children: options.map((opt) {
           final isSelected = selected != null ? opt == selected : (selectedSet?.contains(opt) ?? false);
           return pw.Container(
             padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: pw.BoxDecoration(
-              color: isSelected ? PdfColor.fromInt(0x26E53935) : PdfColors.white,
+              color: isSelected ? PdfColor.fromInt(0x1AE53935) : PdfColors.white,
               borderRadius: pw.BorderRadius.circular(14),
               border: pw.Border.all(
-                color: isSelected ? PdfColors.red : PdfColors.grey400,
+                color: isSelected ? PdfColors.red : PdfColors.grey300,
                 width: isSelected ? 1.2 : 0.6,
               ),
             ),
@@ -8218,14 +8261,9 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
               mainAxisSize: pw.MainAxisSize.min,
               children: [
                 if (isSelected) ...[
-                  pw.Container(
-                    width: 12, height: 12,
-                    decoration: const pw.BoxDecoration(color: PdfColors.red, shape: pw.BoxShape.circle),
-                    child: pw.Center(child: pw.Text('✓', style: pw.TextStyle(fontSize: 8, color: PdfColors.white, fontWeight: pw.FontWeight.bold))),
-                  ),
-                  pw.SizedBox(width: 4),
+                  pw.Text('\u2713 ', style: pw.TextStyle(font: boldFont, fontSize: 10, color: PdfColors.red)),
                 ],
-                pw.Text(opt, style: pw.TextStyle(fontSize: 10, fontWeight: isSelected ? pw.FontWeight.bold : pw.FontWeight.normal, color: isSelected ? PdfColors.red900 : PdfColors.grey800)),
+                pw.Text(opt, style: pw.TextStyle(font: isSelected ? boldFont : regularFont, fontSize: 11, color: isSelected ? PdfColors.red900 : PdfColors.grey800)),
               ],
             ),
           );
@@ -8245,7 +8283,7 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
           borderRadius: pw.BorderRadius.circular(8),
           border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
         ),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 11)),
+        child: pw.Text(text, style: pw.TextStyle(font: regularFont, fontSize: 11)),
       );
     }
 
@@ -8253,17 +8291,29 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
         ? '${tr('cycle_missing')} ${data['month'] ?? ''}'
         : '${tr('cycle_report')} ${data['month'] ?? ''}';
 
+    final generatedDate = '${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}';
+
     pdf.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(36),
       header: (ctx) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text('Ethos Note', style: pw.TextStyle(fontSize: 9, color: PdfColors.grey500)),
+          pw.Text('Ethos Note', style: pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500)),
           pw.SizedBox(height: 4),
-          pw.Text(pageTitle, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.red)),
+          pw.Text(pageTitle, style: pw.TextStyle(font: boldFont, fontSize: 20, color: PdfColors.red)),
           pw.Divider(color: PdfColor.fromInt(0x33E53935), thickness: 1),
           pw.SizedBox(height: 8),
+        ],
+      ),
+      footer: (_) => pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(generatedDate, style: pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500)),
+          if (logoImage != null)
+            pw.Image(logoImage, width: 32, height: 32)
+          else
+            pw.SizedBox(),
         ],
       ),
       build: (ctx) {
@@ -19213,9 +19263,12 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       boldItalicFont = pw.Font.helveticaBoldOblique();
     }
 
+    const pdfIndigo = PdfColor.fromInt(0xFF6366F1);
+    const pdfIndigoLight = PdfColor.fromInt(0x336366F1);
     final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
-    final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22);
+    final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22, color: pdfIndigo);
     final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
+    final brandStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
 
     pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs, {double? overrideFontSize}) {
       if (attrs == null && overrideFontSize == null) return baseStyle;
@@ -19372,9 +19425,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
-        header: headerText != null && headerText.isNotEmpty
-            ? (_) => pw.Text(headerText, style: headerStyle)
-            : null,
+        header: (_) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Ethos Note', style: brandStyle),
+              if (headerText != null && headerText.isNotEmpty) ...[
+                pw.SizedBox(height: 2),
+                pw.Text(headerText, style: headerStyle),
+              ],
+              pw.SizedBox(height: 4),
+            ],
+          ),
         footer: (footerText != null && footerText.isNotEmpty) || logoImage != null
             ? (_) => pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -19391,7 +19452,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         build: (context) => [
           if (title.isNotEmpty) ...[
             pw.Text(title, style: titleStyle),
-            pw.Divider(thickness: 0.5),
+            pw.Divider(thickness: 0.5, color: pdfIndigoLight),
             pw.SizedBox(height: 8),
           ],
           ...bodyWidgets,
@@ -20370,9 +20431,12 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
     italicFont = pw.Font.helveticaOblique();
     boldItalicFont = pw.Font.helveticaBoldOblique();
   }
+  const pdfIndigo = PdfColor.fromInt(0xFF6366F1);
+  const pdfIndigoLight = PdfColor.fromInt(0x336366F1);
   final baseStyle = pw.TextStyle(font: regularFont, fontSize: 12);
-  final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22);
+  final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22, color: pdfIndigo);
   final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
+  final brandStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
 
   pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs, {double? overrideFontSize}) {
     if (attrs == null && overrideFontSize == null) return baseStyle;
@@ -20537,9 +20601,17 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(40),
-      header: note.headerText != null && note.headerText!.isNotEmpty
-          ? (_) => pw.Text(note.headerText!, style: headerStyle)
-          : null,
+      header: (_) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Ethos Note', style: brandStyle),
+              if (note.headerText != null && note.headerText!.isNotEmpty) ...[
+                pw.SizedBox(height: 2),
+                pw.Text(note.headerText!, style: headerStyle),
+              ],
+              pw.SizedBox(height: 4),
+            ],
+          ),
       footer: (footerText != null && footerText.isNotEmpty) || logoImage != null
           ? (_) => pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -20556,7 +20628,7 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
       build: (context) => [
         if (note.title.isNotEmpty) ...[
           pw.Text(note.title, style: titleStyle),
-          pw.Divider(thickness: 0.5),
+          pw.Divider(thickness: 0.5, color: pdfIndigoLight),
           pw.SizedBox(height: 8),
         ],
         ...bodyWidgets,
