@@ -24,7 +24,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:health/health.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, TargetPlatform, defaultTargetPlatform;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, MethodChannel;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, MethodChannel, rootBundle;
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:path_provider/path_provider.dart';
@@ -357,6 +357,8 @@ const _translations = <String, Map<String, String>>{
   'footer': {'it': 'Piè di pagina', 'en': 'Footer', 'fr': 'Pied de page', 'es': 'Pie de página'},
   'pdf': {'it': 'PDF', 'en': 'PDF', 'fr': 'PDF', 'es': 'PDF'},
   'export_pdf': {'it': 'Esporta PDF', 'en': 'Export PDF', 'fr': 'Exporter en PDF', 'es': 'Exportar PDF'},
+  'pdf_show_logo': {'it': 'Logo Deep Note nel PDF', 'en': 'Deep Note logo in PDF', 'fr': 'Logo Deep Note dans le PDF', 'es': 'Logo Deep Note en PDF'},
+  'pdf_show_logo_desc': {'it': 'Mostra il logo in basso a destra di ogni pagina', 'en': 'Show logo at the bottom right of each page', 'fr': 'Afficher le logo en bas à droite de chaque page', 'es': 'Mostrar el logo en la parte inferior derecha de cada página'},
   'print': {'it': 'Stampa', 'en': 'Print', 'fr': 'Imprimer', 'es': 'Imprimir'},
   'pin_security': {'it': 'PIN di sicurezza', 'en': 'Security PIN', 'fr': 'PIN de sécurité', 'es': 'PIN de seguridad'},
   'enter_pin': {'it': 'Inserisci PIN', 'en': 'Enter PIN', 'fr': 'Entrez le PIN', 'es': 'Introduce el PIN'},
@@ -12450,6 +12452,15 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                       _updateSettings(_settings.copyWith(pdfSaveMode: value));
                     },
                   ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    title: Text(tr('pdf_show_logo')),
+                    subtitle: Text(tr('pdf_show_logo_desc')),
+                    value: _settings.pdfShowLogo,
+                    onChanged: (value) {
+                      _updateSettings(_settings.copyWith(pdfShowLogo: value));
+                    },
+                  ),
                 ],
               ),
             ),
@@ -16321,6 +16332,7 @@ class NoteProSettings {
   final List<String> downloadedFonts;
   final bool trashEnabled;
   final int trashRetentionDays;
+  final bool pdfShowLogo;
 
   const NoteProSettings({
     this.securityPin,
@@ -16331,6 +16343,7 @@ class NoteProSettings {
     this.downloadedFonts = const [],
     this.trashEnabled = true,
     this.trashRetentionDays = 30,
+    this.pdfShowLogo = false,
   });
 
   NoteProSettings copyWith({
@@ -16343,6 +16356,7 @@ class NoteProSettings {
     List<String>? downloadedFonts,
     bool? trashEnabled,
     int? trashRetentionDays,
+    bool? pdfShowLogo,
   }) {
     return NoteProSettings(
       securityPin: clearPin == true ? null : (securityPin ?? this.securityPin),
@@ -16353,6 +16367,7 @@ class NoteProSettings {
       downloadedFonts: downloadedFonts ?? this.downloadedFonts,
       trashEnabled: trashEnabled ?? this.trashEnabled,
       trashRetentionDays: trashRetentionDays ?? this.trashRetentionDays,
+      pdfShowLogo: pdfShowLogo ?? this.pdfShowLogo,
     );
   }
 
@@ -16365,6 +16380,7 @@ class NoteProSettings {
     'downloadedFonts': downloadedFonts,
     'trashEnabled': trashEnabled,
     'trashRetentionDays': trashRetentionDays,
+    'pdfShowLogo': pdfShowLogo,
   };
 
   factory NoteProSettings.fromJson(Map<String, dynamic> json) => NoteProSettings(
@@ -16376,6 +16392,7 @@ class NoteProSettings {
     downloadedFonts: (json['downloadedFonts'] as List?)?.cast<String>() ?? [],
     trashEnabled: json['trashEnabled'] ?? true,
     trashRetentionDays: json['trashRetentionDays'] ?? 30,
+    pdfShowLogo: json['pdfShowLogo'] ?? false,
   );
 
   static Future<NoteProSettings> load() async {
@@ -18656,6 +18673,11 @@ class _NoteReadPageState extends State<NoteReadPage> {
         scrolledUnderElevation: 2,
         backgroundColor: Colors.transparent,
         actions: [
+          IconButton(
+            onPressed: _exportAsPdf,
+            icon: Icon(Icons.picture_as_pdf, color: colorScheme.onSurfaceVariant),
+            tooltip: 'Esporta PDF',
+          ),
           if (_isAiLoading)
             const Padding(
               padding: EdgeInsets.all(12),
@@ -18663,20 +18685,13 @@ class _NoteReadPageState extends State<NoteReadPage> {
             )
           else
             PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, color: Theme.of(context).colorScheme.onSurfaceVariant),
-              onSelected: (value) {
-                if (value == 'pdf') {
-                  _exportAsPdf();
-                } else if (value == 'riassumi' || value == 'correggi' || value == 'punti_chiave') {
-                  _callGeminiAI(value);
-                }
-              },
+              icon: Icon(Icons.auto_awesome, color: colorScheme.onSurfaceVariant),
+              tooltip: 'AI',
+              onSelected: (value) => _callGeminiAI(value),
               itemBuilder: (context) => [
-                PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Esporta PDF')])),
-                const PopupMenuDivider(),
-                PopupMenuItem(value: 'riassumi', child: Row(children: [Icon(Icons.auto_awesome, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('AI: Riassunto')])),
-                PopupMenuItem(value: 'correggi', child: Row(children: [Icon(Icons.spellcheck, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('AI: Correggi e formatta')])),
-                PopupMenuItem(value: 'punti_chiave', child: Row(children: [Icon(Icons.format_list_bulleted, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('AI: Punti chiave')])),
+                PopupMenuItem(value: 'riassumi', child: Row(children: [Icon(Icons.auto_awesome, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Riassunto')])),
+                PopupMenuItem(value: 'correggi', child: Row(children: [Icon(Icons.spellcheck, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Correggi')])),
+                PopupMenuItem(value: 'punti_chiave', child: Row(children: [Icon(Icons.format_list_bulleted, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Punti chiave')])),
               ],
             ),
           FilledButton.icon(
@@ -19173,6 +19188,15 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     final headerText = _showHeader ? _headerController.text : null;
     final footerText = _showFooter ? _footerController.text : null;
 
+    final noteSettings = await NoteProSettings.load();
+    pw.MemoryImage? logoImage;
+    if (noteSettings.pdfShowLogo) {
+      try {
+        final logoData = await rootBundle.load('assets/logo.png');
+        logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+      } catch (_) {}
+    }
+
     pw.Font regularFont;
     pw.Font boldFont;
     pw.Font italicFont;
@@ -19193,11 +19217,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22);
     final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
 
-    pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs) {
-      if (attrs == null) return baseStyle;
+    pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs, {double? overrideFontSize}) {
+      if (attrs == null && overrideFontSize == null) return baseStyle;
       var style = baseStyle;
-      final isBold = attrs['bold'] == true;
-      final isItalic = attrs['italic'] == true;
+      final isBold = attrs?['bold'] == true;
+      final isItalic = attrs?['italic'] == true;
       if (isBold && isItalic) {
         style = style.copyWith(font: boldItalicFont, fontBold: boldItalicFont, fontItalic: boldItalicFont);
       } else if (isBold) {
@@ -19205,8 +19229,31 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       } else if (isItalic) {
         style = style.copyWith(font: italicFont, fontItalic: italicFont);
       }
-      if (attrs['underline'] == true) style = style.copyWith(decoration: pw.TextDecoration.underline);
-      if (attrs['strike'] == true) style = style.copyWith(decoration: pw.TextDecoration.lineThrough);
+      if (attrs?['underline'] == true) style = style.copyWith(decoration: pw.TextDecoration.underline);
+      if (attrs?['strike'] == true) style = style.copyWith(decoration: pw.TextDecoration.lineThrough);
+      if (attrs?['link'] != null) {
+        style = style.copyWith(color: PdfColors.blue, decoration: pw.TextDecoration.underline);
+      }
+      final sizeVal = attrs?['size'];
+      if (sizeVal != null) {
+        final sz = double.tryParse(sizeVal.toString());
+        if (sz != null) style = style.copyWith(fontSize: sz);
+      }
+      if (overrideFontSize != null) {
+        style = style.copyWith(fontSize: overrideFontSize);
+      }
+      final colorVal = attrs?['color'];
+      if (colorVal is String && colorVal.startsWith('#') && colorVal.length >= 7) {
+        final hex = colorVal.replaceFirst('#', '');
+        final c = int.tryParse(hex, radix: 16);
+        if (c != null) style = style.copyWith(color: PdfColor.fromInt(0xFF000000 | c));
+      }
+      final bgVal = attrs?['background'];
+      if (bgVal is String && bgVal.startsWith('#') && bgVal.length >= 7) {
+        final hex = bgVal.replaceFirst('#', '');
+        final c = int.tryParse(hex, radix: 16);
+        if (c != null) style = style.copyWith(background: pw.BoxDecoration(color: PdfColor.fromInt(0xFF000000 | c)));
+      }
       return style;
     }
 
@@ -19214,31 +19261,91 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     final delta = _quillController.document.toDelta();
     final List<pw.Widget> bodyWidgets = [];
     List<pw.InlineSpan> lineSpans = [];
+    int orderedCounter = 0;
 
-    void flushLine() {
-      if (lineSpans.isEmpty) {
+    void flushLine(Map<String, dynamic>? blockAttrs) {
+      final headerLevel = blockAttrs?['header'];
+      final listType = blockAttrs?['list'];
+      final align = blockAttrs?['align'];
+
+      if (lineSpans.isEmpty && listType == null) {
         bodyWidgets.add(pw.SizedBox(height: 6));
+        lineSpans = [];
+        if (listType == null) orderedCounter = 0;
         return;
       }
-      bodyWidgets.add(pw.Padding(
-        padding: const pw.EdgeInsets.only(bottom: 4),
+
+      // Apply header styling to all spans
+      if (headerLevel == 1 || headerLevel == 2) {
+        final hSize = headerLevel == 1 ? 24.0 : 20.0;
+        lineSpans = lineSpans.map((span) {
+          if (span is pw.TextSpan) {
+            final s = (span.style ?? baseStyle).copyWith(fontSize: hSize, font: boldFont, fontBold: boldFont);
+            return pw.TextSpan(text: span.text, style: s);
+          }
+          return span;
+        }).toList();
+      }
+
+      // List prefix
+      if (listType != null) {
+        String prefix;
+        if (listType == 'bullet') {
+          prefix = '\u2022 ';
+          orderedCounter = 0;
+        } else if (listType == 'ordered') {
+          orderedCounter++;
+          prefix = '$orderedCounter. ';
+        } else if (listType == 'checked') {
+          prefix = '\u2611 ';
+          orderedCounter = 0;
+        } else if (listType == 'unchecked') {
+          prefix = '\u2610 ';
+          orderedCounter = 0;
+        } else {
+          prefix = '';
+          orderedCounter = 0;
+        }
+        if (prefix.isNotEmpty) {
+          lineSpans.insert(0, pw.TextSpan(text: prefix, style: lineSpans.isNotEmpty && lineSpans.first is pw.TextSpan ? (lineSpans.first as pw.TextSpan).style : baseStyle));
+        }
+      } else {
+        orderedCounter = 0;
+      }
+
+      pw.Widget lineWidget = pw.Padding(
+        padding: pw.EdgeInsets.only(bottom: 4, left: listType != null ? 12 : 0),
         child: pw.RichText(text: pw.TextSpan(children: List.of(lineSpans))),
-      ));
+      );
+
+      // Alignment
+      if (align == 'center') {
+        lineWidget = pw.Align(alignment: pw.Alignment.center, child: lineWidget);
+      } else if (align == 'right') {
+        lineWidget = pw.Align(alignment: pw.Alignment.centerRight, child: lineWidget);
+      }
+
+      bodyWidgets.add(lineWidget);
       lineSpans = [];
     }
 
     for (final op in delta.toList()) {
       if (op.data is String) {
-        final style = pdfStyleFromAttributes(op.attributes);
-        final lines = (op.data as String).split('\n');
+        final text = op.data as String;
+        final attrs = op.attributes;
+        final style = pdfStyleFromAttributes(attrs != null ? Map<String, dynamic>.from(attrs) : null);
+        final lines = text.split('\n');
         for (int i = 0; i < lines.length; i++) {
           if (lines[i].isNotEmpty) {
             lineSpans.add(pw.TextSpan(text: lines[i], style: style));
           }
-          if (i < lines.length - 1) flushLine();
+          if (i < lines.length - 1) {
+            // The \n carries block-level attributes
+            flushLine(attrs != null ? Map<String, dynamic>.from(attrs) : null);
+          }
         }
       } else if (op.data is Map) {
-        flushLine();
+        flushLine(null);
         final map = op.data as Map;
         if (map.containsKey('image')) {
           final imgStr = map['image'] as String;
@@ -19246,8 +19353,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
             Uint8List? imgBytes;
             if (imgStr.startsWith('data:image/')) {
               imgBytes = base64Decode(imgStr.split(',').last);
-            } else if (imgStr.startsWith('http')) {
-              // skip remote images
             }
             if (imgBytes != null) {
               bodyWidgets.add(pw.Padding(
@@ -19256,10 +19361,12 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               ));
             }
           } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
+        } else if (map.containsKey('divider')) {
+          bodyWidgets.add(pw.Divider(thickness: 0.5));
         }
       }
     }
-    flushLine();
+    flushLine(null);
 
     doc.addPage(
       pw.MultiPage(
@@ -19268,8 +19375,18 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         header: headerText != null && headerText.isNotEmpty
             ? (_) => pw.Text(headerText, style: headerStyle)
             : null,
-        footer: footerText != null && footerText.isNotEmpty
-            ? (_) => pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(footerText, style: headerStyle))
+        footer: (footerText != null && footerText.isNotEmpty) || logoImage != null
+            ? (_) => pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  if (footerText != null && footerText.isNotEmpty)
+                    pw.Text(footerText, style: headerStyle)
+                  else
+                    pw.SizedBox(),
+                  if (logoImage != null)
+                    pw.Image(logoImage, width: 32, height: 32),
+                ],
+              )
             : null,
         build: (context) => [
           if (title.isNotEmpty) ...[
@@ -20228,6 +20345,16 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
 Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
   final doc = pw.Document();
+
+  final noteSettings = await NoteProSettings.load();
+  pw.MemoryImage? logoImage;
+  if (noteSettings.pdfShowLogo) {
+    try {
+      final logoData = await rootBundle.load('assets/logo.png');
+      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+    } catch (_) {}
+  }
+
   pw.Font regularFont;
   pw.Font boldFont;
   pw.Font italicFont;
@@ -20247,11 +20374,11 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
   final titleStyle = pw.TextStyle(font: boldFont, fontSize: 22);
   final headerStyle = pw.TextStyle(font: regularFont, fontSize: 10, color: PdfColors.grey600);
 
-  pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs) {
-    if (attrs == null) return baseStyle;
+  pw.TextStyle pdfStyleFromAttributes(Map<String, dynamic>? attrs, {double? overrideFontSize}) {
+    if (attrs == null && overrideFontSize == null) return baseStyle;
     var style = baseStyle;
-    final isBold = attrs['bold'] == true;
-    final isItalic = attrs['italic'] == true;
+    final isBold = attrs?['bold'] == true;
+    final isItalic = attrs?['italic'] == true;
     if (isBold && isItalic) {
       style = style.copyWith(font: boldItalicFont, fontBold: boldItalicFont, fontItalic: boldItalicFont);
     } else if (isBold) {
@@ -20259,8 +20386,31 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
     } else if (isItalic) {
       style = style.copyWith(font: italicFont, fontItalic: italicFont);
     }
-    if (attrs['underline'] == true) style = style.copyWith(decoration: pw.TextDecoration.underline);
-    if (attrs['strike'] == true) style = style.copyWith(decoration: pw.TextDecoration.lineThrough);
+    if (attrs?['underline'] == true) style = style.copyWith(decoration: pw.TextDecoration.underline);
+    if (attrs?['strike'] == true) style = style.copyWith(decoration: pw.TextDecoration.lineThrough);
+    if (attrs?['link'] != null) {
+      style = style.copyWith(color: PdfColors.blue, decoration: pw.TextDecoration.underline);
+    }
+    final sizeVal = attrs?['size'];
+    if (sizeVal != null) {
+      final sz = double.tryParse(sizeVal.toString());
+      if (sz != null) style = style.copyWith(fontSize: sz);
+    }
+    if (overrideFontSize != null) {
+      style = style.copyWith(fontSize: overrideFontSize);
+    }
+    final colorVal = attrs?['color'];
+    if (colorVal is String && colorVal.startsWith('#') && colorVal.length >= 7) {
+      final hex = colorVal.replaceFirst('#', '');
+      final c = int.tryParse(hex, radix: 16);
+      if (c != null) style = style.copyWith(color: PdfColor.fromInt(0xFF000000 | c));
+    }
+    final bgVal = attrs?['background'];
+    if (bgVal is String && bgVal.startsWith('#') && bgVal.length >= 7) {
+      final hex = bgVal.replaceFirst('#', '');
+      final c = int.tryParse(hex, radix: 16);
+      if (c != null) style = style.copyWith(background: pw.BoxDecoration(color: PdfColor.fromInt(0xFF000000 | c)));
+    }
     return style;
   }
 
@@ -20269,16 +20419,71 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
     try {
       final deltaJson = json.decode(note.contentDelta!) as List;
       List<pw.InlineSpan> lineSpans = [];
+      int orderedCounter = 0;
 
-      void flushLine() {
-        if (lineSpans.isEmpty) {
+      void flushLine(Map<String, dynamic>? blockAttrs) {
+        final headerLevel = blockAttrs?['header'];
+        final listType = blockAttrs?['list'];
+        final align = blockAttrs?['align'];
+
+        if (lineSpans.isEmpty && listType == null) {
           bodyWidgets.add(pw.SizedBox(height: 6));
+          lineSpans = [];
+          if (listType == null) orderedCounter = 0;
           return;
         }
-        bodyWidgets.add(pw.Padding(
-          padding: const pw.EdgeInsets.only(bottom: 4),
+
+        // Apply header styling to all spans
+        if (headerLevel == 1 || headerLevel == 2) {
+          final hSize = headerLevel == 1 ? 24.0 : 20.0;
+          lineSpans = lineSpans.map((span) {
+            if (span is pw.TextSpan) {
+              final s = (span.style ?? baseStyle).copyWith(fontSize: hSize, font: boldFont, fontBold: boldFont);
+              return pw.TextSpan(text: span.text, style: s);
+            }
+            return span;
+          }).toList();
+        }
+
+        // List prefix
+        if (listType != null) {
+          String prefix;
+          if (listType == 'bullet') {
+            prefix = '\u2022 ';
+            orderedCounter = 0;
+          } else if (listType == 'ordered') {
+            orderedCounter++;
+            prefix = '$orderedCounter. ';
+          } else if (listType == 'checked') {
+            prefix = '\u2611 ';
+            orderedCounter = 0;
+          } else if (listType == 'unchecked') {
+            prefix = '\u2610 ';
+            orderedCounter = 0;
+          } else {
+            prefix = '';
+            orderedCounter = 0;
+          }
+          if (prefix.isNotEmpty) {
+            lineSpans.insert(0, pw.TextSpan(text: prefix, style: lineSpans.isNotEmpty && lineSpans.first is pw.TextSpan ? (lineSpans.first as pw.TextSpan).style : baseStyle));
+          }
+        } else {
+          orderedCounter = 0;
+        }
+
+        pw.Widget lineWidget = pw.Padding(
+          padding: pw.EdgeInsets.only(bottom: 4, left: listType != null ? 12 : 0),
           child: pw.RichText(text: pw.TextSpan(children: List.of(lineSpans))),
-        ));
+        );
+
+        // Alignment
+        if (align == 'center') {
+          lineWidget = pw.Align(alignment: pw.Alignment.center, child: lineWidget);
+        } else if (align == 'right') {
+          lineWidget = pw.Align(alignment: pw.Alignment.centerRight, child: lineWidget);
+        }
+
+        bodyWidgets.add(lineWidget);
         lineSpans = [];
       }
 
@@ -20293,10 +20498,12 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
               if (lines[i].isNotEmpty) {
                 lineSpans.add(pw.TextSpan(text: lines[i], style: style));
               }
-              if (i < lines.length - 1) flushLine();
+              if (i < lines.length - 1) {
+                flushLine(attrs);
+              }
             }
           } else if (insert is Map) {
-            flushLine();
+            flushLine(null);
             if (insert.containsKey('image')) {
               final imgStr = insert['image'] as String;
               try {
@@ -20311,11 +20518,13 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
                   ));
                 }
               } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
+            } else if (insert.containsKey('divider')) {
+              bodyWidgets.add(pw.Divider(thickness: 0.5));
             }
           }
         }
       }
-      flushLine();
+      flushLine(null);
     } catch (_) {
       bodyWidgets.add(pw.Text(note.content, style: baseStyle));
     }
@@ -20323,6 +20532,7 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
     bodyWidgets.add(pw.Text(note.content, style: baseStyle));
   }
 
+  final footerText = note.footerText;
   doc.addPage(
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
@@ -20330,8 +20540,18 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
       header: note.headerText != null && note.headerText!.isNotEmpty
           ? (_) => pw.Text(note.headerText!, style: headerStyle)
           : null,
-      footer: note.footerText != null && note.footerText!.isNotEmpty
-          ? (_) => pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(note.footerText!, style: headerStyle))
+      footer: (footerText != null && footerText.isNotEmpty) || logoImage != null
+          ? (_) => pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                if (footerText != null && footerText.isNotEmpty)
+                  pw.Text(footerText, style: headerStyle)
+                else
+                  pw.SizedBox(),
+                if (logoImage != null)
+                  pw.Image(logoImage, width: 32, height: 32),
+              ],
+            )
           : null,
       build: (context) => [
         if (note.title.isNotEmpty) ...[
