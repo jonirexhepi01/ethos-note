@@ -8187,103 +8187,76 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
       }
     } catch (_) {}
 
-    // Helper: numbered section card — white with red left accent
+    // Helper: numbered section card — light rose background, modern Material style
     pw.Widget pdfSection(String number, String title, pw.Widget content) {
       return pw.Container(
-        margin: const pw.EdgeInsets.only(bottom: 12),
+        margin: const pw.EdgeInsets.only(bottom: 14),
+        padding: const pw.EdgeInsets.all(16),
         decoration: pw.BoxDecoration(
-          color: PdfColors.white,
-          borderRadius: pw.BorderRadius.circular(10),
-          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+          color: const PdfColor.fromInt(0xFFFFF5F5),
+          borderRadius: pw.BorderRadius.circular(12),
         ),
-        child: pw.Row(
+        child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            // Left red accent bar
-            pw.Container(
-              width: 3,
-              height: 60,
-              decoration: pw.BoxDecoration(
-                color: PdfColors.red,
-                borderRadius: pw.BorderRadius.only(
-                  topLeft: const pw.Radius.circular(10),
-                  bottomLeft: const pw.Radius.circular(10),
+            pw.Row(children: [
+              pw.Container(
+                width: 26, height: 26,
+                decoration: const pw.BoxDecoration(
+                  color: PdfColor.fromInt(0xFFE53935),
+                  shape: pw.BoxShape.circle,
                 ),
+                child: pw.Center(child: pw.Text(number, style: pw.TextStyle(font: boldFont, fontSize: 12, color: PdfColors.white))),
               ),
-            ),
-            pw.Expanded(
-              child: pw.Padding(
-                padding: const pw.EdgeInsets.all(14),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Row(children: [
-                      pw.Container(
-                        width: 24, height: 24,
-                        decoration: const pw.BoxDecoration(
-                          color: PdfColor.fromInt(0x26E53935),
-                          shape: pw.BoxShape.circle,
-                        ),
-                        child: pw.Center(child: pw.Text(number, style: pw.TextStyle(font: boldFont, fontSize: 11, color: PdfColors.red))),
-                      ),
-                      pw.SizedBox(width: 8),
-                      pw.Expanded(child: pw.Text(title, style: pw.TextStyle(font: boldFont, fontSize: 13))),
-                    ]),
-                    pw.SizedBox(height: 10),
-                    content,
-                  ],
-                ),
-              ),
-            ),
+              pw.SizedBox(width: 10),
+              pw.Expanded(child: pw.Text(title, style: pw.TextStyle(font: boldFont, fontSize: 13, color: const PdfColor.fromInt(0xFF37474F)))),
+            ]),
+            pw.SizedBox(height: 12),
+            content,
           ],
         ),
       );
     }
 
-    // Helper: chip row (for single choice — shows selected with filled bg)
+    // Helper: chip row — filled red for selected, white outline for unselected
     pw.Widget pdfChips(List<String> options, {String? selected, Set<String>? selectedSet}) {
       return pw.Wrap(
         spacing: 8,
-        runSpacing: 6,
+        runSpacing: 7,
         children: options.map((opt) {
           final isSelected = selected != null ? opt == selected : (selectedSet?.contains(opt) ?? false);
           return pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: pw.BoxDecoration(
-              color: isSelected ? PdfColor.fromInt(0x1AE53935) : PdfColors.white,
-              borderRadius: pw.BorderRadius.circular(14),
-              border: pw.Border.all(
-                color: isSelected ? PdfColors.red : PdfColors.grey300,
-                width: isSelected ? 1.2 : 0.6,
-              ),
+              color: isSelected ? const PdfColor.fromInt(0xFFE53935) : PdfColors.white,
+              borderRadius: pw.BorderRadius.circular(16),
+              border: isSelected ? null : pw.Border.all(color: PdfColors.grey300, width: 0.6),
             ),
-            child: pw.Row(
-              mainAxisSize: pw.MainAxisSize.min,
-              children: [
-                if (isSelected) ...[
-                  pw.Text('\u2713 ', style: pw.TextStyle(font: boldFont, fontSize: 10, color: PdfColors.red)),
-                ],
-                pw.Text(opt, style: pw.TextStyle(font: isSelected ? boldFont : regularFont, fontSize: 11, color: isSelected ? PdfColors.red900 : PdfColors.grey800)),
-              ],
+            child: pw.Text(
+              isSelected ? '\u2713  $opt' : opt,
+              style: pw.TextStyle(
+                font: isSelected ? boldFont : regularFont,
+                fontSize: 11,
+                color: isSelected ? PdfColors.white : PdfColors.grey800,
+              ),
             ),
           );
         }).toList(),
       );
     }
 
-    // Helper: text note box
+    // Helper: text note box — clean white card
     pw.Widget pdfTextBox(String text) {
       if (text.isEmpty) return pw.SizedBox();
       return pw.Container(
-        margin: const pw.EdgeInsets.only(top: 6),
-        padding: const pw.EdgeInsets.all(10),
+        margin: const pw.EdgeInsets.only(top: 8),
+        padding: const pw.EdgeInsets.all(12),
         width: double.infinity,
         decoration: pw.BoxDecoration(
           color: PdfColors.white,
-          borderRadius: pw.BorderRadius.circular(8),
-          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+          borderRadius: pw.BorderRadius.circular(10),
         ),
-        child: pw.Text(text, style: pw.TextStyle(font: regularFont, fontSize: 11)),
+        child: pw.Text(text, style: pw.TextStyle(font: regularFont, fontSize: 11, color: const PdfColor.fromInt(0xFF455A64))),
       );
     }
 
@@ -19408,9 +19381,12 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               imgBytes = base64Decode(imgStr.split(',').last);
             }
             if (imgBytes != null) {
+              final (imgW, imgH) = _pdfImageDisplaySize(imgBytes);
               bodyWidgets.add(pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                child: pw.Image(pw.MemoryImage(imgBytes), width: 400),
+                child: pw.Center(
+                  child: pw.Image(pw.MemoryImage(imgBytes), width: imgW, height: imgH),
+                ),
               ));
             }
           } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
@@ -20402,6 +20378,47 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   }
 }
 
+// ── PDF Image Size Helper ──
+
+/// Reads image dimensions from raw PNG/JPEG bytes without async decoding.
+(int, int)? _pdfImageSize(Uint8List bytes) {
+  // PNG: signature + IHDR
+  if (bytes.length > 24 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+    final w = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+    final h = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+    if (w > 0 && h > 0) return (w, h);
+  }
+  // JPEG: find SOF0/SOF1/SOF2 marker
+  if (bytes.length > 2 && bytes[0] == 0xFF && bytes[1] == 0xD8) {
+    int i = 2;
+    while (i < bytes.length - 9) {
+      if (bytes[i] != 0xFF) { i++; continue; }
+      final marker = bytes[i + 1];
+      if (marker == 0xC0 || marker == 0xC1 || marker == 0xC2) {
+        final h = (bytes[i + 5] << 8) | bytes[i + 6];
+        final w = (bytes[i + 7] << 8) | bytes[i + 8];
+        if (w > 0 && h > 0) return (w, h);
+      }
+      if (marker == 0xDA) break; // Start of scan — stop searching
+      final len = (bytes[i + 2] << 8) | bytes[i + 3];
+      i += 2 + len;
+    }
+  }
+  return null;
+}
+
+/// Calculates PDF image display dimensions, keeping it inline with text.
+(double, double) _pdfImageDisplaySize(Uint8List bytes, {double maxW = 400, double maxH = 350}) {
+  final dims = _pdfImageSize(bytes);
+  if (dims == null) return (maxW.clamp(0, 300), maxH.clamp(0, 250));
+  final (origW, origH) = dims;
+  double w = origW.toDouble();
+  double h = origH.toDouble();
+  if (w > maxW) { h = h * (maxW / w); w = maxW; }
+  if (h > maxH) { w = w * (maxH / h); h = maxH; }
+  return (w, h);
+}
+
 // ── PDF Viewer Page ──
 
 Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
@@ -20576,9 +20593,12 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note) async {
                   imgBytes = base64Decode(imgStr.split(',').last);
                 }
                 if (imgBytes != null) {
+                  final (imgW, imgH) = _pdfImageDisplaySize(imgBytes);
                   bodyWidgets.add(pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                    child: pw.Image(pw.MemoryImage(imgBytes), width: 400),
+                    child: pw.Center(
+                      child: pw.Image(pw.MemoryImage(imgBytes), width: imgW, height: imgH),
+                    ),
                   ));
                 }
               } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
