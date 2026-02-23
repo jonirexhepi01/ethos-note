@@ -411,6 +411,23 @@ const _translations = <String, Map<String, String>>{
   'weekly': {'it': 'Settimanale', 'en': 'Weekly', 'fr': 'Hebdomadaire', 'es': 'Semanal'},
   'monthly': {'it': 'Mensile', 'en': 'Monthly', 'fr': 'Mensuel', 'es': 'Mensual'},
 
+  // ── Photo Recognition ──
+  'photo_recognition': {'it': 'Riconoscimento Foto AI', 'en': 'AI Photo Recognition', 'fr': 'Reconnaissance photo IA', 'es': 'Reconocimiento de fotos IA'},
+  'photo_recognition_desc': {'it': 'Analizza le foto con Gemini per estrarre dati e salvarli in Deep Note', 'en': 'Analyze photos with Gemini to extract data and save to Deep Note', 'fr': 'Analyser les photos avec Gemini pour extraire des données et enregistrer dans Deep Note', 'es': 'Analizar fotos con Gemini para extraer datos y guardar en Deep Note'},
+  'analyzing_photo': {'it': 'Analisi foto in corso...', 'en': 'Analyzing photo...', 'fr': 'Analyse de la photo...', 'es': 'Analizando foto...'},
+  'photo_recognized': {'it': 'Foto riconosciuta', 'en': 'Photo recognized', 'fr': 'Photo reconnue', 'es': 'Foto reconocida'},
+  'business_card': {'it': 'Biglietto da Visita', 'en': 'Business Card', 'fr': 'Carte de visite', 'es': 'Tarjeta de visita'},
+  'receipt': {'it': 'Ricevuta', 'en': 'Receipt', 'fr': 'Reçu', 'es': 'Recibo'},
+  'document': {'it': 'Documento', 'en': 'Document', 'fr': 'Document', 'es': 'Documento'},
+  'handwritten_note': {'it': 'Appunto scritto a mano', 'en': 'Handwritten note', 'fr': 'Note manuscrite', 'es': 'Nota manuscrita'},
+  'normal_photo': {'it': 'Foto normale', 'en': 'Normal photo', 'fr': 'Photo normale', 'es': 'Foto normal'},
+  'save_to_deep_note': {'it': 'Salva in Deep Note', 'en': 'Save to Deep Note', 'fr': 'Enregistrer dans Deep Note', 'es': 'Guardar en Deep Note'},
+  'keep_as_flash': {'it': 'Mantieni come Flash Note', 'en': 'Keep as Flash Note', 'fr': 'Garder comme Flash Note', 'es': 'Mantener como Flash Note'},
+  'category_detected': {'it': 'Categoria rilevata', 'en': 'Category detected', 'fr': 'Catégorie détectée', 'es': 'Categoría detectada'},
+  'recognition_failed': {'it': 'Riconoscimento non riuscito', 'en': 'Recognition failed', 'fr': 'Reconnaissance échouée', 'es': 'Reconocimiento fallido'},
+  'extracted_data': {'it': 'Dati estratti', 'en': 'Extracted data', 'fr': 'Données extraites', 'es': 'Datos extraídos'},
+  'saved_to_deep_note': {'it': 'Salvato in Deep Note', 'en': 'Saved to Deep Note', 'fr': 'Enregistré dans Deep Note', 'es': 'Guardado en Deep Note'},
+
   // ── Trash ──
   'empty_trash': {'it': 'Svuota Cestino', 'en': 'Empty Trash', 'fr': 'Vider la corbeille', 'es': 'Vaciar papelera'},
   'empty_trash_confirm': {'it': 'Svuotare il cestino? Tutti gli elementi verranno eliminati definitivamente.', 'en': 'Empty trash? All items will be permanently deleted.', 'fr': 'Vider la corbeille ? Tous les éléments seront définitivement supprimés.', 'es': '¿Vaciar papelera? Todos los elementos se eliminarán permanentemente.'},
@@ -11739,6 +11756,62 @@ class FlashNote {
   );
 }
 
+class PhotoRecognitionResult {
+  final String category; // 'business_card', 'receipt', 'document', 'handwritten', 'normal'
+  final String title;
+  final String extractedText;
+  final Map<String, String> fields;
+
+  const PhotoRecognitionResult({
+    required this.category,
+    required this.title,
+    this.extractedText = '',
+    this.fields = const {},
+  });
+
+  bool get isActionable => category != 'normal';
+
+  String get folderName {
+    switch (category) {
+      case 'business_card': return 'Biglietti da Visita';
+      case 'receipt': return 'Ricevute';
+      case 'document': return 'Documenti';
+      case 'handwritten': return 'Appunti';
+      default: return 'Generale';
+    }
+  }
+
+  IconData get folderIcon {
+    switch (category) {
+      case 'business_card': return Icons.contact_page;
+      case 'receipt': return Icons.receipt_long;
+      case 'document': return Icons.description;
+      case 'handwritten': return Icons.edit_note;
+      default: return Icons.folder;
+    }
+  }
+
+  Color get folderColor {
+    switch (category) {
+      case 'business_card': return const Color(0xFF1565C0);
+      case 'receipt': return const Color(0xFF2E7D32);
+      case 'document': return const Color(0xFF7B1FA2);
+      case 'handwritten': return const Color(0xFFF57C00);
+      default: return const Color(0xFF757575);
+    }
+  }
+
+  String get categoryLabel {
+    switch (category) {
+      case 'business_card': return tr('business_card');
+      case 'receipt': return tr('receipt');
+      case 'document': return tr('document');
+      case 'handwritten': return tr('handwritten_note');
+      default: return tr('normal_photo');
+    }
+  }
+}
+
 class FlashNotesSettings {
   final bool geminiEnabled;
   final String geminiApiKey;
@@ -11749,6 +11822,7 @@ class FlashNotesSettings {
   final double aiCorrectionLevel; // 0.0 (solo ortografia) - 1.0 (riscrittura completa)
   final String groupingMode; // 'daily', 'weekly', 'monthly', 'yearly'
   final int maxAudioDurationSeconds;
+  final bool photoRecognitionEnabled;
 
   const FlashNotesSettings({
     this.geminiEnabled = false,
@@ -11760,6 +11834,7 @@ class FlashNotesSettings {
     this.aiCorrectionLevel = 0.0,
     this.groupingMode = 'weekly',
     this.maxAudioDurationSeconds = 120,
+    this.photoRecognitionEnabled = false,
   });
 
   FlashNotesSettings copyWith({
@@ -11772,6 +11847,7 @@ class FlashNotesSettings {
     double? aiCorrectionLevel,
     String? groupingMode,
     int? maxAudioDurationSeconds,
+    bool? photoRecognitionEnabled,
   }) {
     return FlashNotesSettings(
       geminiEnabled: geminiEnabled ?? this.geminiEnabled,
@@ -11783,6 +11859,7 @@ class FlashNotesSettings {
       aiCorrectionLevel: aiCorrectionLevel ?? this.aiCorrectionLevel,
       groupingMode: groupingMode ?? this.groupingMode,
       maxAudioDurationSeconds: maxAudioDurationSeconds ?? this.maxAudioDurationSeconds,
+      photoRecognitionEnabled: photoRecognitionEnabled ?? this.photoRecognitionEnabled,
     );
   }
 
@@ -11796,6 +11873,7 @@ class FlashNotesSettings {
     'aiCorrectionLevel': aiCorrectionLevel,
     'groupingMode': groupingMode,
     'maxAudioDurationSeconds': maxAudioDurationSeconds,
+    'photoRecognitionEnabled': photoRecognitionEnabled,
   };
 
   factory FlashNotesSettings.fromJson(Map<String, dynamic> json) =>
@@ -11809,6 +11887,7 @@ class FlashNotesSettings {
         aiCorrectionLevel: (json['aiCorrectionLevel'] ?? 0.0).toDouble(),
         groupingMode: json['groupingMode'] ?? 'weekly',
         maxAudioDurationSeconds: json['maxAudioDurationSeconds'] ?? 120,
+        photoRecognitionEnabled: json['photoRecognitionEnabled'] ?? false,
       );
 
   static Future<FlashNotesSettings> load() async {
@@ -11822,6 +11901,94 @@ class FlashNotesSettings {
   Future<void> save() async {
     await DatabaseHelper().saveSetting('flash_notes_settings', json.encode(toJson()));
   }
+}
+
+// ── Photo Recognition with Gemini Vision ──
+
+Future<PhotoRecognitionResult?> classifyPhotoWithGemini(String base64Image, String apiKey) async {
+  try {
+    final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
+    final imageBytes = base64Decode(base64Image);
+
+    final prompt = '''Analizza questa immagine e classificala in una delle seguenti categorie:
+- "business_card": biglietto da visita (contiene nome, telefono, email, azienda)
+- "receipt": ricevuta o scontrino (contiene negozio, importo, data)
+- "document": documento formale (contratto, lettera, certificato)
+- "handwritten": appunto scritto a mano
+- "normal": foto normale (paesaggio, selfie, cibo, ecc.)
+
+Rispondi SOLO con un JSON valido (senza markdown code fences) in questo formato:
+{
+  "category": "business_card|receipt|document|handwritten|normal",
+  "title": "titolo breve descrittivo",
+  "extractedText": "testo principale estratto dall'immagine",
+  "fields": {
+    "campo1": "valore1",
+    "campo2": "valore2"
+  }
+}
+
+Per business_card i fields devono essere: nome, telefono, email, azienda, indirizzo (se presenti).
+Per receipt: negozio, importo, data.
+Per document: tipo_documento, testo_chiave.
+Per handwritten: testo_trascritto.
+Per normal: fields vuoto {}.''';
+
+    final response = await model.generateContent([
+      gemini.Content.multi([
+        gemini.DataPart('image/jpeg', imageBytes),
+        gemini.TextPart(prompt),
+      ]),
+    ]).timeout(const Duration(seconds: 60));
+
+    final text = response.text ?? '';
+    // Strip markdown code fences if present
+    String jsonStr = text.trim();
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replaceFirst(RegExp(r'^```(?:json)?\s*'), '');
+      jsonStr = jsonStr.replaceFirst(RegExp(r'\s*```\s*$'), '');
+    }
+
+    final parsed = json.decode(jsonStr) as Map<String, dynamic>;
+    final fieldsRaw = parsed['fields'] as Map<String, dynamic>? ?? {};
+    final fields = fieldsRaw.map((k, v) => MapEntry(k, v.toString()));
+
+    return PhotoRecognitionResult(
+      category: parsed['category'] ?? 'normal',
+      title: parsed['title'] ?? '',
+      extractedText: parsed['extractedText'] ?? '',
+      fields: fields,
+    );
+  } catch (e) {
+    if (kDebugMode) debugPrint('Photo recognition error: $e');
+    return null;
+  }
+}
+
+Future<void> ensurePhotoFolder(String folderName, IconData icon, Color color) async {
+  final folders = await DatabaseHelper().getAllFolders();
+  if (!folders.containsKey(folderName)) {
+    await DatabaseHelper().saveFolder(
+      folderName,
+      FolderStyle(icon, color, isCustom: true),
+    );
+  }
+}
+
+String formatRecognitionAsDeepNote(PhotoRecognitionResult result) {
+  final buf = StringBuffer();
+  if (result.extractedText.isNotEmpty) {
+    buf.writeln(result.extractedText);
+    buf.writeln();
+  }
+  if (result.fields.isNotEmpty) {
+    for (final entry in result.fields.entries) {
+      final label = entry.key.replaceAll('_', ' ');
+      final capitalLabel = label[0].toUpperCase() + label.substring(1);
+      buf.writeln('$capitalLabel: ${entry.value}');
+    }
+  }
+  return buf.toString().trim();
 }
 
 class FlashNotesSettingsPage extends StatefulWidget {
@@ -11923,6 +12090,34 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
                   });
                 });
               },
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // SEZIONE: Riconoscimento Foto AI
+          _buildSectionHeader(tr('photo_recognition'), Icons.image_search, sectionColor),
+          const SizedBox(height: 8),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            color: colorScheme.surfaceContainerLowest,
+            child: SwitchListTile(
+              secondary: Icon(
+                Icons.image_search,
+                color: _settings.photoRecognitionEnabled ? sectionColor : colorScheme.onSurfaceVariant,
+              ),
+              title: Text(tr('photo_recognition'), style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(
+                !_settings.geminiEnabled || _settings.geminiApiKey.isEmpty
+                    ? tr('requires_gemini')
+                    : tr('photo_recognition_desc'),
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              ),
+              value: _settings.photoRecognitionEnabled,
+              onChanged: _settings.geminiEnabled && _settings.geminiApiKey.isNotEmpty
+                  ? (val) => _updateSettings(_settings.copyWith(photoRecognitionEnabled: val))
+                  : null,
             ),
           ),
 
@@ -13220,9 +13415,139 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       if (image != null) {
         final bytes = await image.readAsBytes();
         if (!mounted) return;
-        setState(() => _attachedImageBase64 = base64Encode(bytes));
+        final b64 = base64Encode(bytes);
+        setState(() => _attachedImageBase64 = b64);
+        _tryPhotoRecognition(b64);
       }
     } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
+  }
+
+  Future<void> _tryPhotoRecognition(String base64Image) async {
+    final settings = await FlashNotesSettings.load();
+    if (!settings.photoRecognitionEnabled || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+            const SizedBox(width: 12),
+            Text(tr('analyzing_photo')),
+          ],
+        ),
+        duration: const Duration(seconds: 30),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+
+    final result = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    if (result == null || !result.isActionable) return;
+    if (!mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final colorScheme = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: [
+              Icon(result.folderIcon, color: result.folderColor),
+              const SizedBox(width: 8),
+              Expanded(child: Text(tr('photo_recognized'), style: const TextStyle(fontSize: 18))),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Chip(
+                  avatar: Icon(result.folderIcon, size: 16, color: result.folderColor),
+                  label: Text(result.categoryLabel, style: const TextStyle(fontSize: 12)),
+                  backgroundColor: result.folderColor.withValues(alpha: 0.1),
+                  side: BorderSide.none,
+                ),
+                if (result.title.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(result.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+                if (result.fields.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  ...result.fields.entries.map((e) {
+                    final label = e.key.replaceAll('_', ' ');
+                    final capitalLabel = label[0].toUpperCase() + label.substring(1);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text('$capitalLabel: ${e.value}', style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                    );
+                  }),
+                ],
+                if (result.extractedText.isNotEmpty && result.fields.isEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(result.extractedText, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('keep_as_flash')),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.note_add, size: 18),
+              label: Text(tr('save_to_deep_note')),
+              style: FilledButton.styleFrom(backgroundColor: result.folderColor),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await ensurePhotoFolder(result.folderName, result.folderIcon, result.folderColor);
+        final content = formatRecognitionAsDeepNote(result);
+        final proNote = ProNote(
+          title: result.title.isNotEmpty ? result.title : result.categoryLabel,
+          content: content,
+          folder: result.folderName,
+          imageBase64: base64Image,
+        );
+        await DatabaseHelper().insertProNote(proNote);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(result.folderIcon, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text('${tr('saved_to_deep_note')} → ${result.folderName}')),
+              ],
+            ),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${tr('error')}: $e'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+      }
+    }
   }
 
   String _formatDurationMs(int ms) {
@@ -13951,8 +14276,220 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         final note = FlashNote(content: caption, imageBase64: base64Str);
         await DatabaseHelper().insertFlashNote(note);
         if (mounted) await _loadNotes();
+        // Run photo recognition in background if enabled
+        if (mounted) _runPhotoRecognition(base64Str);
       }
       captionCtrl.dispose();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr('error')}: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _runPhotoRecognition(String base64Image) async {
+    final settings = await FlashNotesSettings.load();
+    if (!settings.photoRecognitionEnabled || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+            const SizedBox(width: 12),
+            Text(tr('analyzing_photo')),
+          ],
+        ),
+        duration: const Duration(seconds: 30),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+
+    final result = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('recognition_failed')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+
+    if (!result.isActionable) return;
+    if (!mounted) return;
+    _showPhotoRecognitionDialog(result, base64Image);
+  }
+
+  void _showPhotoRecognitionDialog(PhotoRecognitionResult result, String base64Image) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final imageBytes = base64Decode(base64Image);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, scrollController) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: ListView(
+            controller: scrollController,
+            children: [
+              // Handle
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 16),
+              // Title
+              Text(tr('photo_recognized'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              // Image preview
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(imageBytes, height: 180, width: double.infinity, fit: BoxFit.cover),
+              ),
+              const SizedBox(height: 16),
+              // Category chip
+              Row(
+                children: [
+                  Text('${tr('category_detected')}: ', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                  Chip(
+                    avatar: Icon(result.folderIcon, size: 18, color: result.folderColor),
+                    label: Text(result.categoryLabel),
+                    backgroundColor: result.folderColor.withValues(alpha: 0.1),
+                    side: BorderSide.none,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Title
+              if (result.title.isNotEmpty) ...[
+                Text(result.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+              ],
+              // Extracted data
+              if (result.fields.isNotEmpty) ...[
+                Text(tr('extracted_data'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                const SizedBox(height: 8),
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  color: colorScheme.surfaceContainerLowest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: result.fields.entries.map((e) {
+                        final label = e.key.replaceAll('_', ' ');
+                        final capitalLabel = label[0].toUpperCase() + label.substring(1);
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(width: 110, child: Text('$capitalLabel:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: colorScheme.onSurfaceVariant))),
+                              Expanded(child: Text(e.value, style: const TextStyle(fontSize: 13))),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              // Extracted text
+              if (result.extractedText.isNotEmpty && result.fields.isEmpty) ...[
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  color: colorScheme.surfaceContainerLowest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(result.extractedText, style: const TextStyle(fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              const SizedBox(height: 16),
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.flash_on, size: 18),
+                      label: Text(tr('keep_as_flash'), style: const TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await _saveAsDeepNote(result, base64Image);
+                      },
+                      icon: const Icon(Icons.note_add, size: 18),
+                      label: Text(tr('save_to_deep_note'), style: const TextStyle(fontSize: 12)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: result.folderColor,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveAsDeepNote(PhotoRecognitionResult result, String base64Image) async {
+    try {
+      await ensurePhotoFolder(result.folderName, result.folderIcon, result.folderColor);
+      final content = formatRecognitionAsDeepNote(result);
+      final proNote = ProNote(
+        title: result.title.isNotEmpty ? result.title : result.categoryLabel,
+        content: content,
+        folder: result.folderName,
+        imageBase64: base64Image,
+      );
+      await DatabaseHelper().insertProNote(proNote);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(result.folderIcon, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text('${tr('saved_to_deep_note')} → ${result.folderName}')),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
