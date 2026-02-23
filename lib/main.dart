@@ -1371,8 +1371,41 @@ class DatabaseHelper {
   Future<List<ProNote>> getAllProNotes() async {
     if (_webMode) return List.of(_wProNotes);
     final db = await database;
-    final maps = await db.query('pro_notes', orderBy: 'created_at DESC');
-    return maps.map((m) => ProNote.fromDbMap(m)).toList();
+    // Load without image_base64 first to avoid CursorWindow overflow
+    final maps = await db.query('pro_notes',
+      columns: ['id', 'title', 'content', 'content_delta', 'header_text', 'footer_text',
+                 'template_preset', 'folder', 'linked_date', 'created_at', 'updated_at'],
+      orderBy: 'created_at DESC',
+    );
+    final notes = <ProNote>[];
+    for (final m in maps) {
+      final noteId = m['id'] as int?;
+      String? imgB64;
+      if (noteId != null) {
+        try {
+          final imgRows = await db.query('pro_notes',
+            columns: ['image_base64'],
+            where: 'id = ?', whereArgs: [noteId],
+          );
+          if (imgRows.isNotEmpty) imgB64 = imgRows.first['image_base64'] as String?;
+        } catch (_) {}
+      }
+      notes.add(ProNote(
+        id: noteId,
+        title: m['title'] as String,
+        content: m['content'] as String,
+        contentDelta: m['content_delta'] as String?,
+        headerText: m['header_text'] as String?,
+        footerText: m['footer_text'] as String?,
+        templatePreset: m['template_preset'] as String?,
+        folder: (m['folder'] as String?) ?? 'Generale',
+        linkedDate: m['linked_date'] != null ? DateTime.fromMillisecondsSinceEpoch(m['linked_date'] as int) : null,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
+        updatedAt: m['updated_at'] != null ? DateTime.fromMillisecondsSinceEpoch(m['updated_at'] as int) : null,
+        imageBase64: imgB64,
+      ));
+    }
+    return notes;
   }
 
   Future<int> updateProNote(int id, ProNote note) async {
@@ -1398,8 +1431,34 @@ class DatabaseHelper {
   Future<List<FlashNote>> getAllFlashNotes() async {
     if (_webMode) return List.of(_wFlashNotes);
     final db = await database;
-    final maps = await db.query('flash_notes', orderBy: 'created_at DESC');
-    return maps.map((m) => FlashNote.fromDbMap(m)).toList();
+    // Load without image_base64 first to avoid CursorWindow overflow
+    final maps = await db.query('flash_notes',
+      columns: ['id', 'content', 'created_at', 'audio_path', 'audio_duration_ms'],
+      orderBy: 'created_at DESC',
+    );
+    final notes = <FlashNote>[];
+    for (final m in maps) {
+      final noteId = m['id'] as int?;
+      String? imgB64;
+      if (noteId != null) {
+        try {
+          final imgRows = await db.query('flash_notes',
+            columns: ['image_base64'],
+            where: 'id = ?', whereArgs: [noteId],
+          );
+          if (imgRows.isNotEmpty) imgB64 = imgRows.first['image_base64'] as String?;
+        } catch (_) {}
+      }
+      notes.add(FlashNote(
+        id: noteId,
+        content: m['content'] as String,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
+        audioPath: m['audio_path'] as String?,
+        audioDurationMs: m['audio_duration_ms'] as int?,
+        imageBase64: imgB64,
+      ));
+    }
+    return notes;
   }
 
   Future<int> updateFlashNote(int id, FlashNote note) async {
