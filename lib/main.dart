@@ -3701,21 +3701,41 @@ class _CalendarPageState extends State<CalendarPage> {
     }
     _selectedDay = _focusedDay;
     _holidays = _calSettings.showHolidays ? Holidays.getHolidays(_calSettings.religione) : {};
-    _loadEvents();
-    _loadCalendarSettings();
+    _initNotificationsAndEvents();
     _loadCycleDays();
     _loadCompletedGoogleEventIds();
     _initGoogleCalendar();
     _initHealth();
     _eventsScrollController.addListener(_onEventsScroll);
-    // Request notification permissions now that Activity is ready
-    NotificationService.ensurePermissions();
     // Handle deep link action (e.g. create new event)
     if (widget.initialAction == 'new') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _createEvent();
       });
     }
+  }
+
+  /// Ensures permissions + settings are loaded BEFORE scheduling notifications.
+  Future<void> _initNotificationsAndEvents() async {
+    // 1) Load calendar settings first (needed for alertMinutesBefore / alertType)
+    final settings = await CalendarSettings.load();
+    if (!mounted) return;
+    setState(() {
+      _calSettings = settings;
+      _holidays = settings.showHolidays ? Holidays.getHolidays(settings.religione) : {};
+    });
+    if (settings.showWeather && settings.weatherCity != null && settings.weatherCity!.isNotEmpty) {
+      _loadWeather();
+    }
+
+    // 2) Request notification permissions and wait for result
+    await NotificationService.ensurePermissions();
+
+    // 3) Now load events and schedule notifications (settings + permissions are ready)
+    await _loadEvents();
+
+    // 4) Schedule cycle reminder
+    _scheduleCycleReminder();
   }
 
   void _onEventsScroll() {
@@ -4081,19 +4101,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Future<void> _loadCalendarSettings() async {
-    final settings = await CalendarSettings.load();
-    if (!mounted) return;
-    setState(() {
-      _calSettings = settings;
-      _holidays = settings.showHolidays ? Holidays.getHolidays(settings.religione) : {};
-    });
-    if (settings.showWeather && settings.weatherCity != null && settings.weatherCity!.isNotEmpty) {
-      _loadWeather();
-    }
-    _scheduleCycleReminder();
-  }
-
   void _scheduleCycleReminder() {
     if (!_calSettings.showCycleTracking || !_calSettings.cycleReminder) {
       NotificationService.cancelCycleReminder();
@@ -4316,25 +4323,26 @@ class _CalendarPageState extends State<CalendarPage> {
       _events = events;
     });
     // Re-schedule all future notifications on app start
-    _rescheduleAllNotifications();
+    await _rescheduleAllNotifications();
   }
 
-  void _rescheduleAllNotifications() {
+  Future<void> _rescheduleAllNotifications() async {
     final now = DateTime.now();
     for (final dayEvents in _events.values) {
       for (final event in dayEvents) {
         if (event.startTime.isAfter(now)) {
-          _scheduleNotification(event);
+          await _scheduleNotification(event);
         }
       }
     }
+    debugPrint('NotificationService: rescheduled all future notifications');
   }
 
   Future<void> _saveEvents() async {
     await DatabaseHelper().saveAllEvents(_events);
   }
 
-  void _scheduleNotification(CalendarEventFull event) {
+  Future<void> _scheduleNotification(CalendarEventFull event) async {
     final baseId = event.startTime.millisecondsSinceEpoch ~/ 1000;
     final alertType = _calSettings.alertConfig.alertType;
 
@@ -4358,7 +4366,7 @@ class _CalendarPageState extends State<CalendarPage> {
         final numMatch = RegExp(r'(\d+)').firstMatch(r);
         if (numMatch != null) minutesBefore = int.tryParse(numMatch.group(1)!) ?? 15;
       }
-      NotificationService.scheduleEventReminder(
+      await NotificationService.scheduleEventReminder(
         id: baseId,
         title: event.title,
         eventTime: event.startTime,
@@ -4371,7 +4379,7 @@ class _CalendarPageState extends State<CalendarPage> {
     // 2) Fallback: use global alertMinutesBefore from CalendarSettings
     for (int i = 0; i < _calSettings.alertMinutesBefore.length; i++) {
       final mins = _calSettings.alertMinutesBefore[i];
-      NotificationService.scheduleEventReminder(
+      await NotificationService.scheduleEventReminder(
         id: baseId + i + 1,
         title: event.title,
         eventTime: event.startTime,
@@ -6470,6 +6478,7 @@ class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
   static bool _permissionsGranted = false;
+  static Future<bool>? _pendingPermissionRequest;
   static void Function(String payload)? onNotificationTap;
 
   /// Basic init — call from main(). Does NOT request permissions.
@@ -6501,9 +6510,23 @@ class NotificationService {
   }
 
   /// Request permissions — call AFTER the app UI is visible (e.g. from CalendarPage.initState).
+  /// Uses a shared Future to prevent concurrent permission dialogs.
   static Future<bool> ensurePermissions() async {
     if (kIsWeb || !_initialized) return false;
     if (_permissionsGranted) return true;
+    // Prevent concurrent permission requests — share a single Future
+    if (_pendingPermissionRequest != null) {
+      return _pendingPermissionRequest!;
+    }
+    _pendingPermissionRequest = _requestPermissions();
+    try {
+      return await _pendingPermissionRequest!;
+    } finally {
+      _pendingPermissionRequest = null;
+    }
+  }
+
+  static Future<bool> _requestPermissions() async {
     try {
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
@@ -6587,10 +6610,35 @@ class NotificationService {
     required int minutesBefore,
     String alertType = 'sound_vibration',
   }) async {
-    if (kIsWeb || !_initialized) return;
-    await ensurePermissions();
+    if (kIsWeb || !_initialized) {
+      debugPrint('NotificationService: skip — web=$kIsWeb, initialized=$_initialized');
+      return;
+    }
+    final permOk = await ensurePermissions();
+    if (!permOk && !_permissionsGranted) {
+      debugPrint('NotificationService: skip #$id — permissions not granted');
+      // Still attempt scheduling — Android may allow alarms even without POST_NOTIFICATIONS
+    }
+
     final scheduledTime = eventTime.subtract(Duration(minutes: minutesBefore));
-    if (scheduledTime.isBefore(DateTime.now())) return;
+    final now = DateTime.now();
+
+    // If the reminder time has passed but the event itself is still upcoming,
+    // show an immediate notification so the user doesn't miss it entirely.
+    if (scheduledTime.isBefore(now)) {
+      if (eventTime.isAfter(now)) {
+        debugPrint('NotificationService: reminder time passed for #$id, showing immediate');
+        final minutesLeft = eventTime.difference(now).inMinutes;
+        final body = minutesLeft <= 0
+            ? '$title — adesso!'
+            : '$title tra $minutesLeft ${minutesLeft == 1 ? "minuto" : "minuti"}';
+        final details = _buildNotifDetails(alertType);
+        try {
+          await _plugin.show(id, 'Promemoria', body, details, payload: 'event_$id');
+        } catch (e) { debugPrint('NotificationService immediate show error: $e'); }
+      }
+      return;
+    }
 
     final tzScheduled = tz.TZDateTime.from(scheduledTime, tz.local);
     final body = _buildBody(title, minutesBefore);
@@ -6606,7 +6654,7 @@ class NotificationService {
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         payload: 'event_$id',
       );
-      debugPrint('NotificationService: scheduled #$id for $tzScheduled');
+      debugPrint('NotificationService: scheduled #$id for $tzScheduled ("$title")');
     } catch (e) {
       debugPrint('NotificationService schedule error: $e');
       // Fallback: try inexact if exact fails
@@ -6628,7 +6676,7 @@ class NotificationService {
         try {
           await _plugin.show(id, 'Promemoria', body, details, payload: 'event_$id');
           debugPrint('NotificationService: immediate show #$id as last resort');
-        } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
+        } catch (e) { debugPrint('NotificationService last resort error: $e'); }
       }
     }
   }
@@ -8803,6 +8851,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
   ];
   final List<String> _reminders = [
     tr('10_min_before'),
+    tr('15_min_before'),
     tr('30_min_before'),
     tr('1_hour_before'),
     tr('day_before'),
@@ -16548,7 +16597,6 @@ class _NotesProPageState extends State<NotesProPage> {
   bool _cycleDiaryBadge = false;
   bool _selectionMode = false;
   Set<int> _selectedNoteIds = {};
-  bool _isAiLoading = false;
 
   static const _availableIcons = [
     Icons.folder, Icons.work, Icons.person, Icons.school,
@@ -17661,29 +17709,12 @@ class _NotesProPageState extends State<NotesProPage> {
                         },
                         child: Text(_selectedNoteIds.length == _filteredNotes.length ? tr('deselect_all') : tr('select_all')),
                       ),
-                      if (_selectedNoteIds.length == 1) ...[
+                      if (_selectedNoteIds.length == 1)
                         IconButton(
                           onPressed: () => _exportSelectedNotePdf(),
                           icon: const Icon(Icons.picture_as_pdf),
-                          tooltip: 'Esporta PDF',
+                          tooltip: 'PDF',
                         ),
-                        if (_isAiLoading)
-                          const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                          )
-                        else
-                          PopupMenuButton<String>(
-                            icon: const Icon(Icons.auto_awesome),
-                            tooltip: 'AI',
-                            onSelected: (value) => _callAiForSelectedNote(value),
-                            itemBuilder: (context) => [
-                              PopupMenuItem(value: 'riassumi', child: Row(children: [Icon(Icons.auto_awesome, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Riassunto')])),
-                              PopupMenuItem(value: 'correggi', child: Row(children: [Icon(Icons.spellcheck, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Correggi')])),
-                              PopupMenuItem(value: 'punti_chiave', child: Row(children: [Icon(Icons.format_list_bulleted, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Punti chiave')])),
-                            ],
-                          ),
-                      ],
                       IconButton(
                         onPressed: _selectedNoteIds.isEmpty ? null : () => _changeSelectedFolder(),
                         icon: const Icon(Icons.folder_outlined),
@@ -17880,6 +17911,35 @@ class _NotesProPageState extends State<NotesProPage> {
                                                       color: _isEthosTheme(context) ? const Color(0xFFC0364D) : colorScheme.onSurface,
                                                     )),
                                               ),
+                                              if (!_selectionMode && note.id != null)
+                                                SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child: PopupMenuButton<String>(
+                                                    icon: Icon(Icons.more_vert, size: 16, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                                                    padding: EdgeInsets.zero,
+                                                    iconSize: 16,
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                    onSelected: (value) {
+                                                      switch (value) {
+                                                        case 'pdf':
+                                                          _exportNotePdfById(note.id!);
+                                                          break;
+                                                        case 'move':
+                                                          _moveNoteById(note.id!);
+                                                          break;
+                                                        case 'delete':
+                                                          _deleteNoteById(note.id!);
+                                                          break;
+                                                      }
+                                                    },
+                                                    itemBuilder: (ctx) => [
+                                                      PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Crea PDF')])),
+                                                      PopupMenuItem(value: 'move', child: Row(children: [Icon(Icons.folder_outlined, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('change_folder'))])),
+                                                      PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                                    ],
+                                                  ),
+                                                ),
                                             ],
                                           ),
                                           const SizedBox(height: 6),
@@ -18033,7 +18093,30 @@ class _NotesProPageState extends State<NotesProPage> {
                                                 ],
                                               ),
                                             ),
-                                            Icon(Icons.more_horiz, size: 18, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+                                            if (!_selectionMode && note.id != null)
+                                              PopupMenuButton<String>(
+                                                icon: Icon(Icons.more_vert, size: 20, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                                                padding: EdgeInsets.zero,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                onSelected: (value) {
+                                                  switch (value) {
+                                                    case 'pdf':
+                                                      _exportNotePdfById(note.id!);
+                                                      break;
+                                                    case 'move':
+                                                      _moveNoteById(note.id!);
+                                                      break;
+                                                    case 'delete':
+                                                      _deleteNoteById(note.id!);
+                                                      break;
+                                                  }
+                                                },
+                                                itemBuilder: (ctx) => [
+                                                  PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Crea PDF')])),
+                                                  PopupMenuItem(value: 'move', child: Row(children: [Icon(Icons.folder_outlined, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('change_folder'))])),
+                                                  PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                                ],
+                                              ),
                                           ],
                                         ),
                                       ),
@@ -18254,133 +18337,6 @@ class _NotesProPageState extends State<NotesProPage> {
     }
   }
 
-  Future<void> _callAiForSelectedNote(String action) async {
-    if (_selectedNoteIds.length != 1) return;
-    final noteId = _selectedNoteIds.first;
-    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
-    if (note.id != noteId) return;
-
-    final settings = await FlashNotesSettings.load();
-    final apiKey = settings.geminiApiKey;
-    if (apiKey.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('api_key')),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isAiLoading = true);
-
-    try {
-      final text = note.content.trim();
-      if (text.isEmpty) {
-        setState(() => _isAiLoading = false);
-        return;
-      }
-
-      final String prompt;
-      final String title;
-      if (action == 'riassumi') {
-        prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
-        title = 'Riassunto intelligente';
-      } else if (action == 'correggi') {
-        prompt = 'Correggi errori ortografici, grammaticali e di punteggiatura nel seguente testo italiano. Migliora la formattazione mantenendo il significato originale:\n\n$text';
-        title = 'Correggi e formatta';
-      } else {
-        prompt = 'Estrai i punti chiave più importanti dal seguente testo in italiano, come lista puntata:\n\n$text';
-        title = tr('ai_key_points');
-      }
-
-      final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
-      final response = await model.generateContent([gemini.Content.text(prompt)]).timeout(const Duration(seconds: 60));
-      final result = response.text ?? tr('no_results');
-
-      if (!mounted) return;
-      setState(() => _isAiLoading = false);
-
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        builder: (ctx) {
-          final colorScheme = Theme.of(ctx).colorScheme;
-          return DraggableScrollableSheet(
-            initialChildSize: 0.5,
-            minChildSize: 0.3,
-            maxChildSize: 0.85,
-            expand: false,
-            builder: (_, scrollController) => Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40, height: 4,
-                      decoration: BoxDecoration(
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Icon(Icons.auto_awesome, color: colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Text(title, style: Theme.of(ctx).textTheme.titleLarge),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      child: Card(
-                        elevation: 0,
-                        color: colorScheme.surfaceContainerLowest,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: SelectableText(result, style: const TextStyle(fontSize: 14, height: 1.5)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close, size: 18),
-                      label: Text(tr('close')),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isAiLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${tr('error')}: $e'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-    }
-  }
-
   Future<void> _deleteSelectedNotes() async {
     final count = _selectedNoteIds.length;
     final confirmed = await showDialog<bool>(
@@ -18481,6 +18437,148 @@ class _NotesProPageState extends State<NotesProPage> {
         ),
       );
     }
+  }
+
+  /// Export a single note as PDF (used by 3-dot menu on card).
+  Future<void> _exportNotePdfById(int noteId) async {
+    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
+    if (note.id != noteId) return;
+
+    final (hasImages, hasText) = _analyzeContentDelta(note.contentDelta);
+    bool photosFullPage = false;
+    if (hasImages && hasText) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text('Foto nel PDF'),
+          content: const Text('Come vuoi le foto nel PDF?'),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, 'inline'),
+              child: const Text('Stessa pagina'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'separate'),
+              child: const Text('Pagina separata'),
+            ),
+          ],
+        ),
+      );
+      if (choice == null || !mounted) return;
+      photosFullPage = choice == 'separate';
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final pdfBytes = await generateNotePdfFromProNote(note, photosFullPage: photosFullPage);
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: note.title),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore PDF: $e'), behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      );
+    }
+  }
+
+  /// Move a single note to a different folder (used by 3-dot menu on card).
+  Future<void> _moveNoteById(int noteId) async {
+    final targetFolder = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            Text(tr('change_folder'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            ..._folders.entries.map((entry) => ListTile(
+              leading: entry.value.buildIcon(size: 20, iconColor: entry.value.color),
+              title: Text(folderLabel(entry.key)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              onTap: () => Navigator.pop(ctx, entry.key),
+            )),
+          ],
+        ),
+      ),
+    );
+    if (targetFolder == null || !mounted) return;
+    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
+    if (note.id != noteId) return;
+    final updated = ProNote(
+      title: note.title,
+      content: note.content,
+      contentDelta: note.contentDelta,
+      headerText: note.headerText,
+      footerText: note.footerText,
+      templatePreset: note.templatePreset,
+      folder: targetFolder,
+      createdAt: note.createdAt,
+      updatedAt: DateTime.now(),
+      linkedDate: note.linkedDate,
+      imageBase64: note.imageBase64,
+    );
+    await DatabaseHelper().updateProNote(noteId, updated);
+    await _loadNotes();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('move_to_folder')}: ${folderLabel(targetFolder)}'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
+  /// Delete a single note (used by 3-dot menu on card).
+  Future<void> _deleteNoteById(int noteId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('delete_note_confirm')),
+        content: Text('${tr('delete')}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            child: Text(tr('delete')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
+    if (note.id == noteId) {
+      final db = DatabaseHelper();
+      if (_settings.trashEnabled) {
+        await db.insertTrashedNote(TrashedNote(
+          type: 'pro',
+          noteJson: note.toJson(),
+          deletedAt: DateTime.now(),
+        ));
+      }
+      await db.deleteProNote(noteId);
+    }
+    await _loadNotes();
   }
 
 }
