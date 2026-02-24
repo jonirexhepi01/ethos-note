@@ -12819,12 +12819,20 @@ class FlashNotesSettingsPage extends StatefulWidget {
 class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
   late FlashNotesSettings _settings;
   late TextEditingController _apiKeyController;
+  EthosAuraSettings _auraSettings = const EthosAuraSettings();
 
   @override
   void initState() {
     super.initState();
     _settings = widget.settings;
     _apiKeyController = TextEditingController(text: _settings.geminiApiKey);
+    _loadAuraSettings();
+  }
+
+  Future<void> _loadAuraSettings() async {
+    final s = await EthosAuraSettings.load();
+    if (!mounted) return;
+    setState(() => _auraSettings = s);
   }
 
   @override
@@ -12989,14 +12997,25 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
             color: colorScheme.surfaceContainerLowest,
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(tr('max_duration'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 12),
-                  _buildAudioDurationSlider(colorScheme),
-                ],
-              ),
+              child: _auraSettings.unlimitedVoicePurchased
+                  ? Row(
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.green),
+                        const SizedBox(width: 12),
+                        Text(
+                          '${tr('max_duration')}: ${tr('unlimited')}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(tr('max_duration'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 12),
+                        _buildAudioDurationSlider(colorScheme),
+                      ],
+                    ),
             ),
           ),
 
@@ -17399,7 +17418,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     final colorScheme = Theme.of(context).colorScheme;
     final recorder = AudioRecorder();
     final flashSettings = await FlashNotesSettings.load();
-    final maxDuration = flashSettings.maxAudioDurationSeconds;
+    final auraSettings = await EthosAuraSettings.load();
+    final maxDuration = auraSettings.unlimitedVoicePurchased ? 0 : flashSettings.maxAudioDurationSeconds;
 
     if (!await recorder.hasPermission()) {
       recorder.dispose();
@@ -17531,7 +17551,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                 }
                               }
                               setSheetState(() {});
-                              if (elapsedSeconds >= maxDuration) {
+                              if (maxDuration > 0 && elapsedSeconds >= maxDuration) {
                                 timer?.cancel();
                                 recorder.stop().then((p) {
                                   recordedPath = p;
