@@ -18614,6 +18614,7 @@ class _NotesProPageState extends State<NotesProPage> {
     IconData selectedIcon = style.icon;
     Color selectedColor = style.color;
     bool isPrivate = style.isPrivate || folderName == tr('private_folder');
+    String? selectedEmoji = style.emojiIcon;
 
     if (!mounted) return;
     showDialog(
@@ -18641,25 +18642,53 @@ class _NotesProPageState extends State<NotesProPage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _availableIcons.map((icon) {
-                    final isSelected = selectedIcon == icon;
-                    return GestureDetector(
-                      onTap: () => setDialogState(() => selectedIcon = icon),
+                  children: [
+                    ..._availableIcons.map((icon) {
+                      final isSelected = selectedEmoji == null && selectedIcon == icon;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() { selectedIcon = icon; selectedEmoji = null; }),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isSelected ? selectedColor.withValues(alpha: 0.2) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected ? selectedColor : Colors.grey.withValues(alpha: 0.3),
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Icon(icon, size: 22, color: isSelected ? selectedColor : Colors.grey),
+                        ),
+                      );
+                    }),
+                    // Emoji picker button
+                    GestureDetector(
+                      onTap: () async {
+                        final emoji = await _showEmojiPickerDialog();
+                        if (emoji != null) {
+                          setDialogState(() => selectedEmoji = emoji);
+                        }
+                      },
                       child: Container(
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: isSelected ? selectedColor.withValues(alpha: 0.2) : Colors.transparent,
+                          color: selectedEmoji != null ? selectedColor.withValues(alpha: 0.2) : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: isSelected ? selectedColor : Colors.grey.withValues(alpha: 0.3),
-                            width: isSelected ? 2 : 1,
+                            color: selectedEmoji != null ? selectedColor : Colors.grey.withValues(alpha: 0.3),
+                            width: selectedEmoji != null ? 2 : 1,
                           ),
                         ),
-                        child: Icon(icon, size: 22, color: isSelected ? selectedColor : Colors.grey),
+                        child: Center(
+                          child: selectedEmoji != null
+                              ? Text(selectedEmoji!, style: const TextStyle(fontSize: 22))
+                              : const Text('😀', style: TextStyle(fontSize: 18)),
+                        ),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Text(tr('color'), style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -18755,6 +18784,7 @@ class _NotesProPageState extends State<NotesProPage> {
                   isShared: style.isShared,
                   isPrivate: isPrivate,
                   sharedEmails: style.sharedEmails,
+                  emojiIcon: selectedEmoji,
                 );
 
                 // If name changed, rename folder and move notes
@@ -18850,9 +18880,51 @@ class _NotesProPageState extends State<NotesProPage> {
     );
   }
 
+  Future<String?> _showEmojiPickerDialog() async {
+    final emojiController = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (emojiCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(tr('emoji_icon')),
+        content: TextField(
+          controller: emojiController,
+          autofocus: true,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 32),
+          decoration: InputDecoration(
+            hintText: '😀',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          onChanged: (val) {
+            if (val.isNotEmpty) {
+              final chars = val.characters;
+              if (chars.isNotEmpty) {
+                emojiController.text = chars.last;
+                emojiController.selection = TextSelection.fromPosition(TextPosition(offset: emojiController.text.length));
+              }
+            }
+          },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(emojiCtx), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () {
+              if (emojiController.text.isNotEmpty) {
+                Navigator.pop(emojiCtx, emojiController.text);
+              } else {
+                Navigator.pop(emojiCtx);
+              }
+            },
+            child: Text(tr('save')),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showCreateFolderDialog() async {
     final nameController = TextEditingController();
-    final emojiController = TextEditingController();
     IconData selectedIcon = Icons.folder;
     Color selectedColor = Colors.blue;
     bool isShared = false;
@@ -18911,45 +18983,11 @@ class _NotesProPageState extends State<NotesProPage> {
                     }),
                     // Emoji picker button
                     GestureDetector(
-                      onTap: () {
-                        showDialog(
-                          context: ctx,
-                          builder: (emojiCtx) => AlertDialog(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            title: Text(tr('emoji_icon')),
-                            content: TextField(
-                              controller: emojiController,
-                              autofocus: true,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 32),
-                              decoration: InputDecoration(
-                                hintText: '😀',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onChanged: (val) {
-                                if (val.isNotEmpty) {
-                                  final chars = val.characters;
-                                  if (chars.isNotEmpty) {
-                                    emojiController.text = chars.last;
-                                    emojiController.selection = TextSelection.fromPosition(TextPosition(offset: emojiController.text.length));
-                                  }
-                                }
-                              },
-                            ),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(emojiCtx), child: Text(tr('cancel'))),
-                              FilledButton(
-                                onPressed: () {
-                                  if (emojiController.text.isNotEmpty) {
-                                    setDialogState(() => selectedEmoji = emojiController.text);
-                                  }
-                                  Navigator.pop(emojiCtx);
-                                },
-                                child: Text(tr('save')),
-                              ),
-                            ],
-                          ),
-                        );
+                      onTap: () async {
+                        final emoji = await _showEmojiPickerDialog();
+                        if (emoji != null) {
+                          setDialogState(() => selectedEmoji = emoji);
+                        }
                       },
                       child: Container(
                         width: 40,
