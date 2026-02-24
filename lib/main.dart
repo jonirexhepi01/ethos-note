@@ -20021,6 +20021,38 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   bool _isAiLoading = false;
   List<Map<String, dynamic>> _customTemplates = [];
 
+  // Format state tracking
+  bool _fmtBold = false;
+  bool _fmtItalic = false;
+  bool _fmtUnderline = false;
+  bool _fmtStrike = false;
+  bool _fmtH1 = false;
+  bool _fmtH2 = false;
+  bool _fmtUl = false;
+  bool _fmtOl = false;
+  bool _fmtChecklist = false;
+  String _fmtAlign = 'left';
+
+  void _updateFormatState() {
+    if (!mounted) return;
+    final style = _quillController.getSelectionStyle();
+    setState(() {
+      _fmtBold = style.attributes.containsKey('bold');
+      _fmtItalic = style.attributes.containsKey('italic');
+      _fmtUnderline = style.attributes.containsKey('underline');
+      _fmtStrike = style.attributes.containsKey('strike');
+      final header = style.attributes['header'];
+      _fmtH1 = header?.value == 1;
+      _fmtH2 = header?.value == 2;
+      final list = style.attributes['list'];
+      _fmtUl = list?.value == 'bullet';
+      _fmtOl = list?.value == 'ordered';
+      _fmtChecklist = list?.value == 'unchecked' || list?.value == 'checked';
+      final align = style.attributes['align'];
+      _fmtAlign = (align?.value as String?) ?? 'left';
+    });
+  }
+
   static const _fontFamilies = {
     'Sans Serif': 'sans-serif',
     'Arcade': 'Press Start 2P',
@@ -20150,6 +20182,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       _quillController = quill.QuillController.basic();
     }
     _quillController.addListener(_updateDocumentLinks);
+    _quillController.addListener(_updateFormatState);
     _updateDocumentLinks();
     _loadCustomTemplates();
   }
@@ -20992,20 +21025,186 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
   }
 
+  Widget _fmtBtn(IconData icon, {required bool active, required VoidCallback onTap, String? tooltip, Widget? child}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip ?? '',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: active ? colorScheme.primaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: child ?? Icon(icon, size: 20, color: active ? colorScheme.primary : colorScheme.onSurfaceVariant),
+        ),
+      ),
+    );
+  }
+
+  Widget _toolbarDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: SizedBox(
+        height: 24,
+        child: VerticalDivider(width: 1, thickness: 1, color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+    );
+  }
+
   Widget _buildSPenToolbar() {
     final colorScheme = Theme.of(context).colorScheme;
-    const chipStyle = TextStyle(fontSize: 11);
 
-    Widget chip({required IconData icon, required String label, required VoidCallback onPressed}) {
-      return ActionChip(
-        avatar: Icon(icon, size: 16),
-        label: Text(label, style: chipStyle),
-        onPressed: onPressed,
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
-      );
-    }
-    const gap = SizedBox(width: 6);
+    // --- Row 1: Text formatting ---
+    final row1 = Row(
+      children: [
+        // Undo / Redo
+        _fmtBtn(Icons.undo, active: false, onTap: () { _quillController.undo(); setState(() {}); }, tooltip: 'Annulla'),
+        _fmtBtn(Icons.redo, active: false, onTap: () { _quillController.redo(); setState(() {}); }, tooltip: 'Ripeti'),
+        _toolbarDivider(),
+        // Bold, Italic, Underline, Strikethrough
+        _fmtBtn(Icons.format_bold, active: _fmtBold, onTap: () => _quillController.formatSelection(quill.Attribute.bold), tooltip: tr('bold')),
+        _fmtBtn(Icons.format_italic, active: _fmtItalic, onTap: () => _quillController.formatSelection(quill.Attribute.italic), tooltip: 'Corsivo'),
+        _fmtBtn(Icons.format_underline, active: _fmtUnderline, onTap: () => _quillController.formatSelection(quill.Attribute.underline), tooltip: 'Sottolineato'),
+        _fmtBtn(Icons.format_strikethrough, active: _fmtStrike, onTap: () => _quillController.formatSelection(quill.Attribute.strikeThrough), tooltip: 'Barrato'),
+        _toolbarDivider(),
+        // Headings
+        _fmtBtn(Icons.looks_one, active: _fmtH1, onTap: () {
+          _quillController.formatSelection(_fmtH1 ? quill.Attribute.header : quill.Attribute.h1);
+        }, tooltip: tr('title')),
+        _fmtBtn(Icons.looks_two, active: _fmtH2, onTap: () {
+          _quillController.formatSelection(_fmtH2 ? quill.Attribute.header : quill.Attribute.h2);
+        }, tooltip: tr('subtitle')),
+        _toolbarDivider(),
+        // Highlight, Text color, Background color
+        _fmtBtn(Icons.highlight, active: false, onTap: () {
+          _quillController.formatSelection(
+            quill.Attribute.fromKeyValue('background', _isEthosTheme(context) ? '#F2D5DC' : '#FFF9C4'),
+          );
+        }, tooltip: tr('highlight')),
+        _fmtBtn(Icons.format_color_text, active: false, onTap: () => _showColorPickerPopup(isBackground: false), tooltip: tr('text_color')),
+        _fmtBtn(Icons.format_color_fill, active: false, onTap: () => _showColorPickerPopup(isBackground: true), tooltip: tr('background_color')),
+        _toolbarDivider(),
+        // Alignment
+        _fmtBtn(Icons.format_align_left, active: _fmtAlign == 'left', onTap: () => _quillController.formatSelection(quill.Attribute.leftAlignment), tooltip: 'Sinistra'),
+        _fmtBtn(Icons.format_align_center, active: _fmtAlign == 'center', onTap: () => _quillController.formatSelection(quill.Attribute.centerAlignment), tooltip: 'Centro'),
+        _fmtBtn(Icons.format_align_right, active: _fmtAlign == 'right', onTap: () => _quillController.formatSelection(quill.Attribute.rightAlignment), tooltip: 'Destra'),
+      ],
+    );
+
+    // --- Row 2: Inserts & tools (scrollable) ---
+    final row2 = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          // Lists
+          _fmtBtn(Icons.format_list_bulleted, active: _fmtUl, onTap: () => _quillController.formatSelection(quill.Attribute.ul), tooltip: tr('bullet_list')),
+          _fmtBtn(Icons.format_list_numbered, active: _fmtOl, onTap: () => _quillController.formatSelection(quill.Attribute.ol), tooltip: tr('numbered_list')),
+          _fmtBtn(Icons.checklist, active: _fmtChecklist, onTap: () => _quillController.formatSelection(quill.Attribute.unchecked), tooltip: 'Checklist'),
+          _toolbarDivider(),
+          // Link, Image, HR
+          _fmtBtn(Icons.link, active: false, onTap: _insertLink, tooltip: 'Link'),
+          _fmtBtn(Icons.image_outlined, active: false, onTap: _insertImage, tooltip: tr('insert_image')),
+          _fmtBtn(Icons.horizontal_rule, active: false, onTap: _insertHorizontalRule, tooltip: tr('indent')),
+          _toolbarDivider(),
+          // Font
+          _fmtBtn(Icons.font_download_outlined, active: false, onTap: () {
+            showModalBottomSheet(context: context, builder: (_) => _buildFontFamilySheet());
+          }, tooltip: tr('font')),
+          _toolbarDivider(),
+          // AI
+          _isAiLoading
+              ? const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              : _fmtBtn(Icons.auto_awesome, active: false, onTap: () {
+                  final RenderBox box = context.findRenderObject() as RenderBox;
+                  final offset = box.localToGlobal(Offset.zero);
+                  showMenu<String>(
+                    context: context,
+                    position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
+                    items: [
+                      const PopupMenuItem(value: 'riassumi', child: Text('Riassunto intelligente')),
+                      const PopupMenuItem(value: 'correggi', child: Text('Correggi e formatta')),
+                    ],
+                  ).then((v) { if (v != null) _callGeminiAI(v); });
+                }, tooltip: 'AI', child: Icon(Icons.auto_awesome, size: 20, color: colorScheme.primary)),
+          _toolbarDivider(),
+          // Template
+          _fmtBtn(Icons.description_outlined, active: false, onTap: () {
+            final RenderBox box = context.findRenderObject() as RenderBox;
+            final offset = box.localToGlobal(Offset.zero);
+            final items = <PopupMenuEntry<String>>[
+              ..._businessTemplates.keys.map((name) {
+                return PopupMenuItem<String>(
+                  value: name,
+                  child: Row(
+                    children: [
+                      Icon(name == _selectedTemplate ? Icons.check : Icons.description, size: 18),
+                      const SizedBox(width: 8),
+                      Text(name),
+                    ],
+                  ),
+                );
+              }),
+              if (_customTemplates.isNotEmpty) ...[
+                const PopupMenuDivider(),
+                ..._customTemplates.map((t) {
+                  final name = t['name'] as String? ?? 'Template';
+                  return PopupMenuItem<String>(
+                    value: 'custom:$name',
+                    child: Row(
+                      children: [
+                        Icon(_selectedTemplate == name ? Icons.check : Icons.note_outlined, size: 18),
+                        const SizedBox(width: 8),
+                        Text(name),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ];
+            showMenu<String>(
+              context: context,
+              position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
+              items: items,
+            ).then((v) { if (v != null) _onTemplateSelected(v); });
+          }, tooltip: tr('template')),
+          // Folder
+          _fmtBtn(Icons.folder_outlined, active: false, onTap: () {
+            showModalBottomSheet(context: context, builder: (_) => _buildFolderSheet());
+          }, tooltip: tr('folder')),
+          // Calendar link
+          _fmtBtn(
+            _linkedDate != null ? Icons.calendar_today : Icons.calendar_today_outlined,
+            active: _linkedDate != null,
+            onTap: _pickLinkedDate,
+            tooltip: tr('select_date'),
+          ),
+          // Header/Footer
+          _fmtBtn(
+            _showHeader || _showFooter ? Icons.article : Icons.article_outlined,
+            active: _showHeader || _showFooter,
+            onTap: () {
+              setState(() {
+                if (_showHeader || _showFooter) {
+                  _showHeader = false;
+                  _showFooter = false;
+                } else {
+                  _showHeader = true;
+                  _showFooter = true;
+                }
+              });
+            },
+            tooltip: '${tr('header')}/${tr('footer')}',
+          ),
+        ],
+      ),
+    );
 
     return Material(
       elevation: 6,
@@ -21016,233 +21215,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.outlineVariant),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Undo / Redo
-              IconButton(
-                icon: Icon(Icons.undo, size: 20, color: colorScheme.onSurfaceVariant),
-                onPressed: () { _quillController.undo(); setState(() {}); },
-                tooltip: 'Annulla',
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-              ),
-              IconButton(
-                icon: Icon(Icons.redo, size: 20, color: colorScheme.onSurfaceVariant),
-                onPressed: () { _quillController.redo(); setState(() {}); },
-                tooltip: 'Ripeti',
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-              ),
-              gap,
-              // H1, H2
-              ActionChip(
-                avatar: Text('H1', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-                label: Text(tr('title'), style: chipStyle),
-                onPressed: () => _quillController.formatSelection(quill.Attribute.h1),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              ),
-              gap,
-              ActionChip(
-                avatar: Text('H2', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-                label: Text(tr('subtitle'), style: chipStyle),
-                onPressed: () => _quillController.formatSelection(quill.Attribute.h2),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              ),
-              gap,
-              // Bold
-              chip(icon: Icons.format_bold, label: tr('bold'), onPressed: () => _quillController.formatSelection(quill.Attribute.bold)),
-              gap,
-              // Highlight
-              chip(
-                icon: Icons.highlight,
-                label: tr('highlight'),
-                onPressed: () {
-                  _quillController.formatSelection(
-                    quill.Attribute.fromKeyValue('background', _isEthosTheme(context) ? '#F2D5DC' : '#FFF9C4'),
-                  );
-                },
-              ),
-              gap,
-              // Checklist
-              chip(icon: Icons.checklist, label: 'Checklist', onPressed: () => _quillController.formatSelection(quill.Attribute.unchecked)),
-              gap,
-              // Link
-              chip(icon: Icons.link, label: 'Link', onPressed: _insertLink),
-              gap,
-              // HR
-              chip(icon: Icons.horizontal_rule, label: tr('indent'), onPressed: _insertHorizontalRule),
-              gap,
-              // Image
-              chip(icon: Icons.image, label: tr('insert_image'), onPressed: _insertImage),
-              gap,
-              // UL
-              chip(icon: Icons.format_list_bulleted, label: tr('bullet_list'), onPressed: () => _quillController.formatSelection(quill.Attribute.ul)),
-              gap,
-              // OL
-              chip(icon: Icons.format_list_numbered, label: tr('numbered_list'), onPressed: () => _quillController.formatSelection(quill.Attribute.ol)),
-              gap,
-              // Font
-              chip(
-                icon: Icons.font_download,
-                label: tr('font'),
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    builder: (_) => _buildFontFamilySheet(),
-                  );
-                },
-              ),
-              gap,
-              // Color text
-              chip(icon: Icons.format_color_text, label: tr('text_color'), onPressed: () => _showColorPickerPopup(isBackground: false)),
-              gap,
-              // Color bg
-              chip(icon: Icons.format_color_fill, label: tr('background_color'), onPressed: () => _showColorPickerPopup(isBackground: true)),
-              gap,
-              // Alignment
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'left', icon: Icon(Icons.format_align_left, size: 16)),
-                  ButtonSegment(value: 'center', icon: Icon(Icons.format_align_center, size: 16)),
-                  ButtonSegment(value: 'right', icon: Icon(Icons.format_align_right, size: 16)),
-                ],
-                selected: const {'left'},
-                onSelectionChanged: (v) {
-                  final align = v.first;
-                  if (align == 'left') _quillController.formatSelection(quill.Attribute.leftAlignment);
-                  if (align == 'center') _quillController.formatSelection(quill.Attribute.centerAlignment);
-                  if (align == 'right') _quillController.formatSelection(quill.Attribute.rightAlignment);
-                },
-                showSelectedIcon: false,
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-              gap,
-              // AI
-              _isAiLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(6),
-                      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                    )
-                  : ActionChip(
-                      avatar: Icon(Icons.auto_awesome, size: 16, color: colorScheme.primary),
-                      label: Text('AI', style: chipStyle),
-                      onPressed: () {
-                        final RenderBox box = context.findRenderObject() as RenderBox;
-                        final offset = box.localToGlobal(Offset.zero);
-                        showMenu<String>(
-                          context: context,
-                          position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
-                          items: [
-                            const PopupMenuItem(value: 'riassumi', child: Text('Riassunto intelligente')),
-                            const PopupMenuItem(value: 'correggi', child: Text('Correggi e formatta')),
-                          ],
-                        ).then((v) { if (v != null) _callGeminiAI(v); });
-                      },
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-              gap,
-              // Header/Footer
-              chip(
-                icon: _showHeader || _showFooter ? Icons.article : Icons.article_outlined,
-                label: '${tr('header')}/${tr('footer')}',
-                onPressed: () {
-                  setState(() {
-                    if (_showHeader || _showFooter) {
-                      _showHeader = false;
-                      _showFooter = false;
-                    } else {
-                      _showHeader = true;
-                      _showFooter = true;
-                    }
-                  });
-                },
-              ),
-              gap,
-              // Template
-              ActionChip(
-                avatar: const Icon(Icons.description_outlined, size: 16),
-                label: Text(tr('template'), style: chipStyle),
-                onPressed: () {
-                  final RenderBox box = context.findRenderObject() as RenderBox;
-                  final offset = box.localToGlobal(Offset.zero);
-                  final items = <PopupMenuEntry<String>>[
-                    ..._businessTemplates.keys.map((name) {
-                      return PopupMenuItem<String>(
-                        value: name,
-                        child: Row(
-                          children: [
-                            Icon(
-                              name == _selectedTemplate ? Icons.check : Icons.description,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(name),
-                          ],
-                        ),
-                      );
-                    }),
-                    if (_customTemplates.isNotEmpty) ...[
-                      const PopupMenuDivider(),
-                      ..._customTemplates.map((t) {
-                        final name = t['name'] as String? ?? 'Template';
-                        return PopupMenuItem<String>(
-                          value: 'custom:$name',
-                          child: Row(
-                            children: [
-                              Icon(
-                                _selectedTemplate == name ? Icons.check : Icons.note_outlined,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(name),
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
-                  ];
-                  showMenu<String>(
-                    context: context,
-                    position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
-                    items: items,
-                  ).then((v) { if (v != null) _onTemplateSelected(v); });
-                },
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              ),
-              gap,
-              // Folder
-              chip(
-                icon: Icons.folder_outlined,
-                label: tr('folder'),
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    builder: (_) => _buildFolderSheet(),
-                  );
-                },
-              ),
-              gap,
-              // Calendar link
-              chip(
-                icon: _linkedDate != null ? Icons.calendar_today : Icons.calendar_today_outlined,
-                label: tr('select_date'),
-                onPressed: _pickLinkedDate,
-              ),
-            ],
-          ),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: row1,
+            ),
+            Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            row2,
+          ],
         ),
       ),
     );
@@ -21571,6 +21554,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   @override
   void dispose() {
     _quillController.removeListener(_updateDocumentLinks);
+    _quillController.removeListener(_updateFormatState);
     _titleController.dispose();
     _headerController.dispose();
     _footerController.dispose();
