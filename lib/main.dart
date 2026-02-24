@@ -829,6 +829,7 @@ const _translations = <String, Map<String, String>>{
   'purchased': {'it': 'Acquistato', 'en': 'Purchased', 'fr': 'Acheté', 'es': 'Comprado'},
   'unlock_horoscope': {'it': 'Sblocca Oroscopo', 'en': 'Unlock Horoscope', 'fr': 'Débloquer Horoscope', 'es': 'Desbloquear Horóscopo'},
   'unlock_unlimited_voice': {'it': 'Sblocca note vocali illimitate', 'en': 'Unlock unlimited voice notes', 'fr': 'Débloquer notes vocales illimitées', 'es': 'Desbloquear notas de voz ilimitadas'},
+  'unlock_photo_recognition': {'it': 'Riconoscimento Foto AI', 'en': 'AI Photo Recognition', 'fr': 'Reconnaissance photo IA', 'es': 'Reconocimiento de fotos IA'},
   'unlock_unlimited_profiles': {'it': 'Sblocca profili illimitati', 'en': 'Unlock unlimited profiles', 'fr': 'Débloquer profils illimités', 'es': 'Desbloquear perfiles ilimitados'},
   'max_duration': {'it': 'Durata massima', 'en': 'Max duration', 'fr': 'Durée maximale', 'es': 'Duración máxima'},
   'unlimited': {'it': 'Illimitata', 'en': 'Unlimited', 'fr': 'Illimitée', 'es': 'Ilimitada'},
@@ -12905,34 +12906,6 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
 
           const SizedBox(height: 24),
 
-          // SEZIONE: Riconoscimento Foto AI
-          _buildSectionHeader(tr('photo_recognition'), Icons.image_search, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: SwitchListTile(
-              secondary: Icon(
-                Icons.image_search,
-                color: _settings.photoRecognitionEnabled ? sectionColor : colorScheme.onSurfaceVariant,
-              ),
-              title: Text(tr('photo_recognition'), style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(
-                !_settings.geminiEnabled || _settings.geminiApiKey.isEmpty
-                    ? tr('requires_gemini')
-                    : tr('photo_recognition_desc'),
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-              ),
-              value: _settings.photoRecognitionEnabled,
-              onChanged: _settings.geminiEnabled && _settings.geminiApiKey.isNotEmpty
-                  ? (val) => _updateSettings(_settings.copyWith(photoRecognitionEnabled: val))
-                  : null,
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
           // SEZIONE B: Salvataggio flash note su Deep Note
           _buildSectionHeader(tr('save_flash_to_deep'), Icons.save_alt, sectionColor),
           const SizedBox(height: 8),
@@ -13103,22 +13076,26 @@ class EthosAuraSettings {
   final bool oroscopoPurchased;
   final bool unlimitedVoicePurchased;
   final bool unlimitedProfilesPurchased;
+  final bool photoRecognitionPurchased;
 
   const EthosAuraSettings({
     this.oroscopoPurchased = false,
     this.unlimitedVoicePurchased = false,
     this.unlimitedProfilesPurchased = false,
+    this.photoRecognitionPurchased = false,
   });
 
   EthosAuraSettings copyWith({
     bool? oroscopoPurchased,
     bool? unlimitedVoicePurchased,
     bool? unlimitedProfilesPurchased,
+    bool? photoRecognitionPurchased,
   }) {
     return EthosAuraSettings(
       oroscopoPurchased: oroscopoPurchased ?? this.oroscopoPurchased,
       unlimitedVoicePurchased: unlimitedVoicePurchased ?? this.unlimitedVoicePurchased,
       unlimitedProfilesPurchased: unlimitedProfilesPurchased ?? this.unlimitedProfilesPurchased,
+      photoRecognitionPurchased: photoRecognitionPurchased ?? this.photoRecognitionPurchased,
     );
   }
 
@@ -13126,6 +13103,7 @@ class EthosAuraSettings {
     'oroscopoPurchased': oroscopoPurchased,
     'unlimitedVoicePurchased': unlimitedVoicePurchased,
     'unlimitedProfilesPurchased': unlimitedProfilesPurchased,
+    'photoRecognitionPurchased': photoRecognitionPurchased,
   };
 
   factory EthosAuraSettings.fromJson(Map<String, dynamic> json) =>
@@ -13133,6 +13111,7 @@ class EthosAuraSettings {
         oroscopoPurchased: json['oroscopoPurchased'] ?? false,
         unlimitedVoicePurchased: json['unlimitedVoicePurchased'] ?? false,
         unlimitedProfilesPurchased: json['unlimitedProfilesPurchased'] ?? false,
+        photoRecognitionPurchased: json['photoRecognitionPurchased'] ?? false,
       );
 
   static Future<EthosAuraSettings> load() async {
@@ -13195,6 +13174,9 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
         break;
       case 'profiles':
         updated = _auraSettings.copyWith(unlimitedProfilesPurchased: true);
+        break;
+      case 'photo_recognition':
+        updated = _auraSettings.copyWith(photoRecognitionPurchased: true);
         break;
       default:
         return;
@@ -13264,6 +13246,16 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                   price: '€1,00',
                   purchased: _auraSettings.unlimitedVoicePurchased,
                   onTap: () => _simulatePurchase('voice'),
+                  colorScheme: colorScheme,
+                ),
+
+                // Photo Recognition AI
+                _buildPurchaseTile(
+                  icon: Icons.image_search,
+                  title: tr('unlock_photo_recognition'),
+                  price: '€0,99',
+                  purchased: _auraSettings.photoRecognitionPurchased,
+                  onTap: () => _simulatePurchase('photo_recognition'),
                   colorScheme: colorScheme,
                 ),
               ],
@@ -15182,8 +15174,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   }
 
   Future<void> _runPhotoRecognition(String imagePath) async {
+    final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    if (!settings.photoRecognitionEnabled || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
+    if (!auraSettings.photoRecognitionPurchased || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
     if (!mounted) return;
 
     // Read file for Gemini
