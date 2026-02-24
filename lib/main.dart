@@ -14910,6 +14910,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   bool _isAudioSheetOpen = false;
   // Photo recognition pulse animation
   bool _isAnalyzingPhoto = false;
+  // Direct camera launch from widget — shows black screen while camera opens
+  bool _launchingCamera = false;
 
   @override
   void initState() {
@@ -14920,6 +14922,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     _loadAiAvailability();
     // Handle deep link initial mode from widget
     if (widget.initialMode != null) {
+      if (widget.initialMode == 'photo') _launchingCamera = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         switch (widget.initialMode) {
           case 'photo':
@@ -15031,11 +15034,11 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   }
 
   Future<void> _addPhotoNote({bool directCamera = false}) async {
+    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
     ImageSource? source;
     if (directCamera) {
       source = ImageSource.camera;
     } else {
-      final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
       source = await showModalBottomSheet<ImageSource>(
         context: context,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -15093,6 +15096,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         maxHeight: 1200,
         imageQuality: 80,
       );
+      if (_launchingCamera && mounted) {
+        setState(() => _launchingCamera = false);
+      }
       if (image == null) return;
       final bytes = await image.readAsBytes();
 
@@ -16559,6 +16565,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_launchingCamera) {
+      return const Scaffold(backgroundColor: Colors.black);
+    }
     var sortedNotes = List<FlashNote>.from(_notes)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     if (_searchQuery.isNotEmpty) {
