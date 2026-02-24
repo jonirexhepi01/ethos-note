@@ -830,6 +830,7 @@ const _translations = <String, Map<String, String>>{
   'unlock_horoscope': {'it': 'Sblocca Oroscopo', 'en': 'Unlock Horoscope', 'fr': 'Débloquer Horoscope', 'es': 'Desbloquear Horóscopo'},
   'unlock_unlimited_voice': {'it': 'Sblocca note vocali illimitate', 'en': 'Unlock unlimited voice notes', 'fr': 'Débloquer notes vocales illimitées', 'es': 'Desbloquear notas de voz ilimitadas'},
   'unlock_photo_recognition': {'it': 'Riconoscimento Foto AI', 'en': 'AI Photo Recognition', 'fr': 'Reconnaissance photo IA', 'es': 'Reconocimiento de fotos IA'},
+  'unlock_cycle_tracking': {'it': 'Tracciamento Ciclo', 'en': 'Cycle Tracking', 'fr': 'Suivi du cycle', 'es': 'Seguimiento del ciclo'},
   'unlock_unlimited_profiles': {'it': 'Sblocca profili illimitati', 'en': 'Unlock unlimited profiles', 'fr': 'Débloquer profils illimités', 'es': 'Desbloquear perfiles ilimitados'},
   'max_duration': {'it': 'Durata massima', 'en': 'Max duration', 'fr': 'Durée maximale', 'es': 'Duración máxima'},
   'unlimited': {'it': 'Illimitata', 'en': 'Unlimited', 'fr': 'Illimitée', 'es': 'Ilimitada'},
@@ -4039,6 +4040,7 @@ class _CalendarPageState extends State<CalendarPage> {
   // Cycle tracking (private)
   Set<String> _cycleDays = {};
   Map<String, String> _cycleDaysIntensity = {};
+  EthosAuraSettings _auraSettings = const EthosAuraSettings();
 
   // Split layout: calendar compression on scroll
   bool _isCalendarCompact = false;
@@ -4064,6 +4066,7 @@ class _CalendarPageState extends State<CalendarPage> {
     _selectedDay = _focusedDay;
     _holidays = _calSettings.showHolidays ? Holidays.getHolidays(_calSettings.religione) : {};
     _initNotificationsAndEvents();
+    _loadAuraSettings();
     _loadCycleDays();
     _loadCompletedGoogleEventIds();
     _initGoogleCalendar();
@@ -4098,6 +4101,12 @@ class _CalendarPageState extends State<CalendarPage> {
 
     // 4) Schedule cycle reminder
     _scheduleCycleReminder();
+  }
+
+  Future<void> _loadAuraSettings() async {
+    final s = await EthosAuraSettings.load();
+    if (!mounted) return;
+    setState(() => _auraSettings = s);
   }
 
   void _onEventsScroll() {
@@ -4308,7 +4317,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   bool _isPredictedCycleDay(DateTime day) {
-    if (!_calSettings.showCycleTracking) return false;
+    if (!_auraSettings.cycleTrackingPurchased || !_calSettings.showCycleTracking) return false;
     if (_isCycleDay(day)) return false;
     final cyclePeriod = _calSettings.cyclePeriodDays;
     final duration = _calSettings.cycleDurationDays;
@@ -4464,7 +4473,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _scheduleCycleReminder() {
-    if (!_calSettings.showCycleTracking || !_calSettings.cycleReminder) {
+    if (!_auraSettings.cycleTrackingPurchased || !_calSettings.showCycleTracking || !_calSettings.cycleReminder) {
       NotificationService.cancelCycleReminder();
       return;
     }
@@ -4478,7 +4487,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _checkAndCreateCycleDiary() async {
-    if (!_calSettings.showCycleTracking) return;
+    if (!_auraSettings.cycleTrackingPurchased || !_calSettings.showCycleTracking) return;
     final now = DateTime.now();
     final todayNorm = DateTime(now.year, now.month, now.day);
     final months = localizedMonths();
@@ -5088,9 +5097,9 @@ class _CalendarPageState extends State<CalendarPage> {
                       _buildCategoryDots(eventsForDay, dotSize: 4),
                     if (holiday != null)
                       Text(holiday.emoji, style: const TextStyle(fontSize: 8)),
-                    if (_calSettings.showCycleTracking && _isCycleDay(day) && !isOutsideMonth)
+                    if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && _isCycleDay(day) && !isOutsideMonth)
                       Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 8))),
-                    if (_calSettings.showCycleTracking && !_isCycleDay(day) && !isOutsideMonth && _isPredictedCycleDay(day))
+                    if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && !_isCycleDay(day) && !isOutsideMonth && _isPredictedCycleDay(day))
                       Text('🩸', style: TextStyle(fontSize: 7, color: Colors.red.withValues(alpha: 0.3))),
                     if (isToday && !isOutsideMonth && _healthSnapshot?.allGoalsMet == true)
                       const Text('⭐', style: TextStyle(fontSize: 8)),
@@ -5242,8 +5251,8 @@ class _CalendarPageState extends State<CalendarPage> {
                 const Spacer(),
                 if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 13)),
                 if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 10)),
-                if (_calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 10))),
-                if (_calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 8, color: Colors.red.withValues(alpha: 0.3))),
+                if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 10))),
+                if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 8, color: Colors.red.withValues(alpha: 0.3))),
                 if (isToday && _healthSnapshot?.allGoalsMet == true) const Text('⭐', style: TextStyle(fontSize: 10)),
               ],
             ),
@@ -5339,7 +5348,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_calSettings.showCycleTracking)
+                            if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking)
                               Padding(
                                 padding: const EdgeInsets.only(right: 8),
                                 child: _isCycleDay(day)
@@ -5896,7 +5905,7 @@ class _CalendarPageState extends State<CalendarPage> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (_calSettings.showCycleTracking)
+                          if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking)
                             Padding(
                               padding: const EdgeInsets.only(right: 4),
                               child: _isCycleDay(_selectedDay!)
@@ -5962,7 +5971,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                   ],
                   // Health progress bar
-                  if (_calSettings.showCycleTracking && _isCycleDay(DateTime.now()))
+                  if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && _isCycleDay(DateTime.now()))
                     _buildCycleFlowBar(DateTime.now()),
                 ],
               ),
@@ -6061,8 +6070,8 @@ class _CalendarPageState extends State<CalendarPage> {
                         children: [
                           if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 16)),
                           if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 12)),
-                          if (_calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 12))),
-                          if (_calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 10, color: Colors.red.withValues(alpha: 0.3))),
+                          if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 12))),
+                          if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 10, color: Colors.red.withValues(alpha: 0.3))),
                         ],
                       ),
                     ],
@@ -7395,6 +7404,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   bool _isSearchingCity = false;
   Timer? _citySearchDebounce;
   DateTime? _nextPredictedCycleStart;
+  EthosAuraSettings _auraSettings = const EthosAuraSettings();
 
   static final _availableAlertMinutes = <int, String>{
     5: tr('5_min_before'),
@@ -7420,7 +7430,14 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     super.initState();
     _settings = widget.settings;
     _weatherCityController = TextEditingController(text: _settings.weatherCity ?? '');
+    _loadAuraSettings();
     _loadCyclePrediction();
+  }
+
+  Future<void> _loadAuraSettings() async {
+    final s = await EthosAuraSettings.load();
+    if (!mounted) return;
+    setState(() => _auraSettings = s);
   }
 
   Future<void> _loadCyclePrediction() async {
@@ -7577,7 +7594,19 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             // ── SECTION: Ciclo Mestruale ──
             _buildSectionHeader(tr('cycle_tracking'), Icons.water_drop),
             const SizedBox(height: 8),
-            _buildCycleTrackingSettingsCard(),
+            if (_auraSettings.cycleTrackingPurchased)
+              _buildCycleTrackingSettingsCard()
+            else
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                color: colorScheme.surfaceContainerLowest,
+                child: ListTile(
+                  leading: const Icon(Icons.lock_outline),
+                  title: Text(tr('cycle_tracking'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(tr('ethos_aura'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                ),
+              ),
             const SizedBox(height: 24),
 
             const SizedBox(height: 8),
@@ -12914,6 +12943,30 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
 
           const SizedBox(height: 24),
 
+          // SEZIONE: Riconoscimento Foto AI (stato acquisto Ethos Aura)
+          _buildSectionHeader(tr('photo_recognition'), Icons.image_search, sectionColor),
+          const SizedBox(height: 8),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            color: colorScheme.surfaceContainerLowest,
+            child: ListTile(
+              leading: Icon(
+                _auraSettings.photoRecognitionPurchased ? Icons.check_circle : Icons.lock_outline,
+                color: _auraSettings.photoRecognitionPurchased ? Colors.green : colorScheme.onSurfaceVariant,
+              ),
+              title: Text(tr('photo_recognition'), style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(
+                _auraSettings.photoRecognitionPurchased
+                    ? tr('purchased')
+                    : tr('ethos_aura'),
+                style: TextStyle(fontSize: 12, color: _auraSettings.photoRecognitionPurchased ? Colors.green : colorScheme.onSurfaceVariant),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           // SEZIONE B: Salvataggio flash note su Deep Note
           _buildSectionHeader(tr('save_flash_to_deep'), Icons.save_alt, sectionColor),
           const SizedBox(height: 8),
@@ -13096,12 +13149,14 @@ class EthosAuraSettings {
   final bool unlimitedVoicePurchased;
   final bool unlimitedProfilesPurchased;
   final bool photoRecognitionPurchased;
+  final bool cycleTrackingPurchased;
 
   const EthosAuraSettings({
     this.oroscopoPurchased = false,
     this.unlimitedVoicePurchased = false,
     this.unlimitedProfilesPurchased = false,
     this.photoRecognitionPurchased = false,
+    this.cycleTrackingPurchased = false,
   });
 
   EthosAuraSettings copyWith({
@@ -13109,12 +13164,14 @@ class EthosAuraSettings {
     bool? unlimitedVoicePurchased,
     bool? unlimitedProfilesPurchased,
     bool? photoRecognitionPurchased,
+    bool? cycleTrackingPurchased,
   }) {
     return EthosAuraSettings(
       oroscopoPurchased: oroscopoPurchased ?? this.oroscopoPurchased,
       unlimitedVoicePurchased: unlimitedVoicePurchased ?? this.unlimitedVoicePurchased,
       unlimitedProfilesPurchased: unlimitedProfilesPurchased ?? this.unlimitedProfilesPurchased,
       photoRecognitionPurchased: photoRecognitionPurchased ?? this.photoRecognitionPurchased,
+      cycleTrackingPurchased: cycleTrackingPurchased ?? this.cycleTrackingPurchased,
     );
   }
 
@@ -13123,6 +13180,7 @@ class EthosAuraSettings {
     'unlimitedVoicePurchased': unlimitedVoicePurchased,
     'unlimitedProfilesPurchased': unlimitedProfilesPurchased,
     'photoRecognitionPurchased': photoRecognitionPurchased,
+    'cycleTrackingPurchased': cycleTrackingPurchased,
   };
 
   factory EthosAuraSettings.fromJson(Map<String, dynamic> json) =>
@@ -13131,6 +13189,7 @@ class EthosAuraSettings {
         unlimitedVoicePurchased: json['unlimitedVoicePurchased'] ?? false,
         unlimitedProfilesPurchased: json['unlimitedProfilesPurchased'] ?? false,
         photoRecognitionPurchased: json['photoRecognitionPurchased'] ?? false,
+        cycleTrackingPurchased: json['cycleTrackingPurchased'] ?? false,
       );
 
   static Future<EthosAuraSettings> load() async {
@@ -13196,6 +13255,9 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
         break;
       case 'photo_recognition':
         updated = _auraSettings.copyWith(photoRecognitionPurchased: true);
+        break;
+      case 'cycle_tracking':
+        updated = _auraSettings.copyWith(cycleTrackingPurchased: true);
         break;
       default:
         return;
@@ -13275,6 +13337,16 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                   price: '€0,99',
                   purchased: _auraSettings.photoRecognitionPurchased,
                   onTap: () => _simulatePurchase('photo_recognition'),
+                  colorScheme: colorScheme,
+                ),
+
+                // Cycle Tracking
+                _buildPurchaseTile(
+                  icon: Icons.water_drop,
+                  title: tr('unlock_cycle_tracking'),
+                  price: '€1,99',
+                  purchased: _auraSettings.cycleTrackingPurchased,
+                  onTap: () => _simulatePurchase('cycle_tracking'),
                   colorScheme: colorScheme,
                 ),
               ],
