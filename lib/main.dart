@@ -12413,7 +12413,10 @@ Future<void> _saveContactToDevice(
     addresses: address.isNotEmpty ? [contacts_pkg.Address(address)] : [],
     websites: website.isNotEmpty ? [contacts_pkg.Website(website)] : [],
   );
-  await contacts_pkg.FlutterContacts.insertContact(contact);
+  // Use the native contact editor to let the user choose the account
+  // and avoid Samsung's "Cannot add contacts to local/SIM when default
+  // account is cloud" crash.
+  await contacts_pkg.FlutterContacts.openExternalInsert(contact);
 
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
