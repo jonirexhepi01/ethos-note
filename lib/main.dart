@@ -435,6 +435,12 @@ const _translations = <String, Map<String, String>>{
   'company': {'it': 'Azienda', 'en': 'Company', 'fr': 'Entreprise', 'es': 'Empresa'},
   'role_title': {'it': 'Ruolo', 'en': 'Role', 'fr': 'Rôle', 'es': 'Cargo'},
   'address': {'it': 'Indirizzo', 'en': 'Address', 'fr': 'Adresse', 'es': 'Dirección'},
+  'street': {'it': 'Via', 'en': 'Street', 'fr': 'Rue', 'es': 'Calle'},
+  'city': {'it': 'Città', 'en': 'City', 'fr': 'Ville', 'es': 'Ciudad'},
+  'postal_code': {'it': 'CAP', 'en': 'Postal Code', 'fr': 'Code postal', 'es': 'Código postal'},
+  'province': {'it': 'Provincia', 'en': 'Province', 'fr': 'Province', 'es': 'Provincia'},
+  'add_phone': {'it': 'Aggiungi telefono', 'en': 'Add phone', 'fr': 'Ajouter téléphone', 'es': 'Añadir teléfono'},
+  'add_email': {'it': 'Aggiungi email', 'en': 'Add email', 'fr': 'Ajouter email', 'es': 'Añadir email'},
   'website': {'it': 'Sito Web', 'en': 'Website', 'fr': 'Site web', 'es': 'Sitio web'},
   'contacts_permission_denied': {'it': 'Permesso contatti negato', 'en': 'Contacts permission denied', 'fr': 'Autorisation contacts refusée', 'es': 'Permiso de contactos denegado'},
 
@@ -12308,7 +12314,18 @@ Rispondi SOLO con un JSON valido (senza markdown code fences) in questo formato:
   }
 }
 
-Per business_card i fields devono essere: nome, telefono, email, azienda, ruolo, indirizzo, sito_web (se presenti).
+Per business_card i fields devono essere (se presenti):
+- nome (nome completo della persona)
+- telefoni (array JSON di numeri, es. ["+39 02 1234567", "+39 333 1234567"])
+- email (array JSON di indirizzi email, es. ["info@azienda.it", "nome@azienda.it"])
+- azienda
+- ruolo
+- via (nome della via con numero civico)
+- citta
+- cap (codice postale)
+- provincia (sigla o nome)
+- sito_web
+Importante: telefoni e email DEVONO essere array JSON anche se c'è un solo valore.
 Per receipt: negozio, importo, data.
 Per document: tipo_documento, testo_chiave.
 Per handwritten: testo_trascritto.
@@ -12331,7 +12348,7 @@ Per normal: fields vuoto {}.''';
 
     final parsed = json.decode(jsonStr) as Map<String, dynamic>;
     final fieldsRaw = parsed['fields'] as Map<String, dynamic>? ?? {};
-    final fields = fieldsRaw.map((k, v) => MapEntry(k, v.toString()));
+    final fields = fieldsRaw.map((k, v) => MapEntry(k, v is List ? json.encode(v) : v.toString()));
 
     return PhotoRecognitionResult(
       category: parsed['category'] ?? 'normal',
@@ -12383,11 +12400,14 @@ Future<void> _saveContactToDevice(
   BuildContext context, {
   required String firstName,
   required String lastName,
-  required String phone,
-  required String email,
+  required List<String> phones,
+  required List<String> emails,
   required String company,
   required String role,
-  required String address,
+  required String street,
+  required String city,
+  required String postalCode,
+  required String province,
   required String website,
 }) async {
   final granted = await contacts_pkg.FlutterContacts.requestPermission();
@@ -12403,20 +12423,22 @@ Future<void> _saveContactToDevice(
     return;
   }
 
-  final contact = contacts_pkg.Contact(
-    name: contacts_pkg.Name(first: firstName, last: lastName),
-    phones: phone.isNotEmpty ? [contacts_pkg.Phone(phone)] : [],
-    emails: email.isNotEmpty ? [contacts_pkg.Email(email)] : [],
-    organizations: (company.isNotEmpty || role.isNotEmpty)
-        ? [contacts_pkg.Organization(company: company, title: role)]
-        : [],
-    addresses: address.isNotEmpty ? [contacts_pkg.Address(address)] : [],
-    websites: website.isNotEmpty ? [contacts_pkg.Website(website)] : [],
-  );
-  // Use the native contact editor to let the user choose the account
-  // and avoid Samsung's "Cannot add contacts to local/SIM when default
-  // account is cloud" crash.
-  await contacts_pkg.FlutterContacts.openExternalInsert(contact);
+  // Use native MethodChannel to open contact editor with full support
+  // for multiple emails/phones and structured address fields.
+  const channel = MethodChannel('com.ethosnote.app/contacts');
+  final fullName = '$firstName $lastName'.trim();
+  await channel.invokeMethod('openContactInsert', {
+    'name': fullName,
+    'phones': phones,
+    'emails': emails,
+    'company': company,
+    'jobTitle': role,
+    'street': street,
+    'city': city,
+    'postalCode': postalCode,
+    'province': province,
+    'website': website,
+  });
 
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
@@ -12434,11 +12456,37 @@ Future<void> _saveContactToDevice(
   );
 }
 
+/// Parses a JSON array string into a List<String>, falling back to treating
+/// the value as a single item.
+List<String> _parseJsonArray(String? value) {
+  if (value == null || value.isEmpty) return [];
+  try {
+    final parsed = json.decode(value);
+    if (parsed is List) return parsed.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
+  } catch (_) {}
+  // Fallback: split by comma/semicolon or treat as single value
+  return value.contains(RegExp(r'[,;]'))
+      ? value.split(RegExp(r'\s*[,;]\s*')).where((s) => s.isNotEmpty).toList()
+      : [value];
+}
+
+/// Returns empty string if value is null-like ("null", "N/A", etc.)
+String _cleanField(String? value) {
+  if (value == null) return '';
+  final v = value.trim();
+  if (v.isEmpty || v.toLowerCase() == 'null' || v.toLowerCase() == 'n/a') return '';
+  return v;
+}
+
 /// Shows a contact form bottom sheet pre-filled from photo recognition.
 void showContactFormSheet(BuildContext context, PhotoRecognitionResult result) {
   final fields = result.fields;
-  final fullName = fields['nome'] ?? '';
+  final fullName = _cleanField(fields['nome']);
   final (first, last) = _splitContactName(fullName);
+
+  // Parse phone/email arrays (new format) with fallback to old single-value format
+  final phones = _parseJsonArray(fields['telefoni'] ?? fields['telefono']);
+  final emails = _parseJsonArray(fields['email']);
 
   showModalBottomSheet(
     context: context,
@@ -12449,12 +12497,15 @@ void showContactFormSheet(BuildContext context, PhotoRecognitionResult result) {
     builder: (ctx) => _ContactFormSheetContent(
       firstName: first,
       lastName: last,
-      phone: fields['telefono'] ?? '',
-      email: fields['email'] ?? '',
-      company: fields['azienda'] ?? '',
-      role: fields['ruolo'] ?? '',
-      address: fields['indirizzo'] ?? '',
-      website: fields['sito_web'] ?? '',
+      phones: phones,
+      emails: emails,
+      company: _cleanField(fields['azienda']),
+      role: _cleanField(fields['ruolo']),
+      street: _cleanField(fields['via'] ?? fields['indirizzo']),
+      city: _cleanField(fields['citta']),
+      postalCode: _cleanField(fields['cap']),
+      province: _cleanField(fields['provincia']),
+      website: _cleanField(fields['sito_web']),
     ),
   );
 }
@@ -12462,21 +12513,27 @@ void showContactFormSheet(BuildContext context, PhotoRecognitionResult result) {
 class _ContactFormSheetContent extends StatefulWidget {
   final String firstName;
   final String lastName;
-  final String phone;
-  final String email;
+  final List<String> phones;
+  final List<String> emails;
   final String company;
   final String role;
-  final String address;
+  final String street;
+  final String city;
+  final String postalCode;
+  final String province;
   final String website;
 
   const _ContactFormSheetContent({
     required this.firstName,
     required this.lastName,
-    required this.phone,
-    required this.email,
+    required this.phones,
+    required this.emails,
     required this.company,
     required this.role,
-    required this.address,
+    required this.street,
+    required this.city,
+    required this.postalCode,
+    required this.province,
     required this.website,
   });
 
@@ -12487,11 +12544,14 @@ class _ContactFormSheetContent extends StatefulWidget {
 class _ContactFormSheetContentState extends State<_ContactFormSheetContent> {
   late final TextEditingController _firstNameCtrl;
   late final TextEditingController _lastNameCtrl;
-  late final TextEditingController _phoneCtrl;
-  late final TextEditingController _emailCtrl;
+  late final List<TextEditingController> _phoneCtrls;
+  late final List<TextEditingController> _emailCtrls;
   late final TextEditingController _companyCtrl;
   late final TextEditingController _roleCtrl;
-  late final TextEditingController _addressCtrl;
+  late final TextEditingController _streetCtrl;
+  late final TextEditingController _cityCtrl;
+  late final TextEditingController _postalCodeCtrl;
+  late final TextEditingController _provinceCtrl;
   late final TextEditingController _websiteCtrl;
   bool _saving = false;
 
@@ -12500,11 +12560,18 @@ class _ContactFormSheetContentState extends State<_ContactFormSheetContent> {
     super.initState();
     _firstNameCtrl = TextEditingController(text: widget.firstName);
     _lastNameCtrl = TextEditingController(text: widget.lastName);
-    _phoneCtrl = TextEditingController(text: widget.phone);
-    _emailCtrl = TextEditingController(text: widget.email);
+    _phoneCtrls = widget.phones.isNotEmpty
+        ? widget.phones.map((p) => TextEditingController(text: p)).toList()
+        : [TextEditingController()];
+    _emailCtrls = widget.emails.isNotEmpty
+        ? widget.emails.map((e) => TextEditingController(text: e)).toList()
+        : [TextEditingController()];
     _companyCtrl = TextEditingController(text: widget.company);
     _roleCtrl = TextEditingController(text: widget.role);
-    _addressCtrl = TextEditingController(text: widget.address);
+    _streetCtrl = TextEditingController(text: widget.street);
+    _cityCtrl = TextEditingController(text: widget.city);
+    _postalCodeCtrl = TextEditingController(text: widget.postalCode);
+    _provinceCtrl = TextEditingController(text: widget.province);
     _websiteCtrl = TextEditingController(text: widget.website);
   }
 
@@ -12512,11 +12579,14 @@ class _ContactFormSheetContentState extends State<_ContactFormSheetContent> {
   void dispose() {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
-    _phoneCtrl.dispose();
-    _emailCtrl.dispose();
+    for (final c in _phoneCtrls) c.dispose();
+    for (final c in _emailCtrls) c.dispose();
     _companyCtrl.dispose();
     _roleCtrl.dispose();
-    _addressCtrl.dispose();
+    _streetCtrl.dispose();
+    _cityCtrl.dispose();
+    _postalCodeCtrl.dispose();
+    _provinceCtrl.dispose();
     _websiteCtrl.dispose();
     super.dispose();
   }
@@ -12556,20 +12626,50 @@ class _ContactFormSheetContentState extends State<_ContactFormSheetContent> {
               ],
             ),
             const SizedBox(height: 20),
-            // Fields
+            // Name
             _buildField(_firstNameCtrl, tr('name'), Icons.person_outline),
             const SizedBox(height: 12),
             _buildField(_lastNameCtrl, tr('surname'), Icons.person_outline),
-            const SizedBox(height: 12),
-            _buildField(_phoneCtrl, tr('phone'), Icons.phone_outlined, keyboardType: TextInputType.phone),
-            const SizedBox(height: 12),
-            _buildField(_emailCtrl, tr('email'), Icons.email_outlined, keyboardType: TextInputType.emailAddress),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+            // Phones (dynamic list)
+            ..._buildMultiFields(
+              controllers: _phoneCtrls,
+              label: tr('phone'),
+              icon: Icons.phone_outlined,
+              keyboardType: TextInputType.phone,
+              addLabel: tr('add_phone'),
+              onAdd: () => setState(() => _phoneCtrls.add(TextEditingController())),
+              onRemove: (i) => setState(() { _phoneCtrls[i].dispose(); _phoneCtrls.removeAt(i); }),
+            ),
+            const SizedBox(height: 16),
+            // Emails (dynamic list)
+            ..._buildMultiFields(
+              controllers: _emailCtrls,
+              label: tr('email'),
+              icon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              addLabel: tr('add_email'),
+              onAdd: () => setState(() => _emailCtrls.add(TextEditingController())),
+              onRemove: (i) => setState(() { _emailCtrls[i].dispose(); _emailCtrls.removeAt(i); }),
+            ),
+            const SizedBox(height: 16),
+            // Company & Role
             _buildField(_companyCtrl, tr('company'), Icons.business_outlined),
             const SizedBox(height: 12),
             _buildField(_roleCtrl, tr('role_title'), Icons.badge_outlined),
+            const SizedBox(height: 16),
+            // Address (structured)
+            _buildField(_streetCtrl, tr('street'), Icons.location_on_outlined),
             const SizedBox(height: 12),
-            _buildField(_addressCtrl, tr('address'), Icons.location_on_outlined),
+            Row(
+              children: [
+                Expanded(flex: 2, child: _buildField(_cityCtrl, tr('city'), Icons.location_city)),
+                const SizedBox(width: 8),
+                Expanded(flex: 1, child: _buildField(_postalCodeCtrl, tr('postal_code'), Icons.markunread_mailbox_outlined, keyboardType: TextInputType.number)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildField(_provinceCtrl, tr('province'), Icons.map_outlined),
             const SizedBox(height: 12),
             _buildField(_websiteCtrl, tr('website'), Icons.language, keyboardType: TextInputType.url),
             const SizedBox(height: 24),
@@ -12609,6 +12709,45 @@ class _ContactFormSheetContentState extends State<_ContactFormSheetContent> {
     );
   }
 
+  List<Widget> _buildMultiFields({
+    required List<TextEditingController> controllers,
+    required String label,
+    required IconData icon,
+    required String addLabel,
+    required VoidCallback onAdd,
+    required void Function(int) onRemove,
+    TextInputType? keyboardType,
+  }) {
+    final widgets = <Widget>[];
+    for (var i = 0; i < controllers.length; i++) {
+      widgets.add(
+        Row(
+          children: [
+            Expanded(child: _buildField(controllers[i], controllers.length > 1 ? '$label ${i + 1}' : label, icon, keyboardType: keyboardType)),
+            if (controllers.length > 1)
+              IconButton(
+                icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.error, size: 20),
+                onPressed: () => onRemove(i),
+              ),
+          ],
+        ),
+      );
+      if (i < controllers.length - 1) widgets.add(const SizedBox(height: 8));
+    }
+    widgets.add(const SizedBox(height: 4));
+    widgets.add(
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: onAdd,
+          icon: const Icon(Icons.add, size: 18),
+          label: Text(addLabel, style: const TextStyle(fontSize: 13)),
+        ),
+      ),
+    );
+    return widgets;
+  }
+
   Widget _buildField(TextEditingController controller, String label, IconData icon, {TextInputType? keyboardType}) {
     return TextField(
       controller: controller,
@@ -12636,11 +12775,14 @@ class _ContactFormSheetContentState extends State<_ContactFormSheetContent> {
         context,
         firstName: _firstNameCtrl.text.trim(),
         lastName: _lastNameCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
-        email: _emailCtrl.text.trim(),
+        phones: _phoneCtrls.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList(),
+        emails: _emailCtrls.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList(),
         company: _companyCtrl.text.trim(),
         role: _roleCtrl.text.trim(),
-        address: _addressCtrl.text.trim(),
+        street: _streetCtrl.text.trim(),
+        city: _cityCtrl.text.trim(),
+        postalCode: _postalCodeCtrl.text.trim(),
+        province: _provinceCtrl.text.trim(),
         website: _websiteCtrl.text.trim(),
       );
       if (!mounted) return;
