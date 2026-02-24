@@ -3540,6 +3540,56 @@ class _SlideInItem extends StatelessWidget {
   }
 }
 
+/// A widget that applies a breathing pulse animation to its child.
+class _PulsingWidget extends StatefulWidget {
+  final Widget child;
+  final bool pulsing;
+  const _PulsingWidget({required this.child, required this.pulsing});
+
+  @override
+  State<_PulsingWidget> createState() => _PulsingWidgetState();
+}
+
+class _PulsingWidgetState extends State<_PulsingWidget> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _scale = Tween<double>(begin: 1.0, end: 1.18).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    if (widget.pulsing) _ctrl.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PulsingWidget old) {
+    super.didUpdateWidget(old);
+    if (widget.pulsing && !old.pulsing) {
+      _ctrl.repeat(reverse: true);
+    } else if (!widget.pulsing && old.pulsing) {
+      _ctrl.stop();
+      _ctrl.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.pulsing) return widget.child;
+    return AnimatedBuilder(
+      animation: _scale,
+      builder: (context, child) => Transform.scale(scale: _scale.value, child: child),
+      child: widget.child,
+    );
+  }
+}
+
 class HomePage extends StatefulWidget {
   final String themeMode;
   final Function(String) onThemeModeChanged;
@@ -14713,6 +14763,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   bool _isAiAvailable = false;
   // Guard: prevents double-opening audio sheet
   bool _isAudioSheetOpen = false;
+  // Photo recognition pulse animation
+  bool _isAnalyzingPhoto = false;
 
   @override
   void initState() {
@@ -14984,37 +15036,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     final bytes = await file.readAsBytes();
     final base64Image = base64Encode(bytes);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-            const SizedBox(width: 12),
-            Text(tr('analyzing_photo')),
-          ],
-        ),
-        duration: const Duration(seconds: 30),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    setState(() => _isAnalyzingPhoto = true);
 
     final result = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    setState(() => _isAnalyzingPhoto = false);
 
-    if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('recognition_failed')),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-      return;
-    }
-
-    if (!result.isActionable) return;
+    if (result == null || !result.isActionable) return;
     if (!mounted) return;
     _showPhotoRecognitionDialog(result, imagePath);
   }
@@ -16997,10 +17025,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton.filled(
-                      onPressed: _addPhotoNote,
-                      icon: const Icon(Icons.camera_alt, size: 22),
-                      style: IconButton.styleFrom(backgroundColor: accentColor.withValues(alpha: 0.12), foregroundColor: accentColor),
+                    _PulsingWidget(
+                      pulsing: _isAnalyzingPhoto,
+                      child: IconButton.filled(
+                        onPressed: _addPhotoNote,
+                        icon: const Icon(Icons.camera_alt, size: 22),
+                        style: IconButton.styleFrom(backgroundColor: accentColor.withValues(alpha: _isAnalyzingPhoto ? 0.3 : 0.12), foregroundColor: accentColor),
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(tr('photo'), style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
