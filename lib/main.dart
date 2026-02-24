@@ -12413,7 +12413,7 @@ Future<void> _saveContactToDevice(
     addresses: address.isNotEmpty ? [contacts_pkg.Address(address)] : [],
     websites: website.isNotEmpty ? [contacts_pkg.Website(website)] : [],
   );
-  await contact.insert();
+  await contacts_pkg.FlutterContacts.insertContact(contact);
 
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
