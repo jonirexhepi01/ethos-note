@@ -37,6 +37,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:home_widget/home_widget.dart';
 import 'dart:io' show Directory, File;
 import 'package:archive/archive.dart' as archive;
+import 'package:flutter_contacts/flutter_contacts.dart' as contacts_pkg;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -428,6 +429,14 @@ const _translations = <String, Map<String, String>>{
   'recognition_failed': {'it': 'Riconoscimento non riuscito', 'en': 'Recognition failed', 'fr': 'Reconnaissance échouée', 'es': 'Reconocimiento fallido'},
   'extracted_data': {'it': 'Dati estratti', 'en': 'Extracted data', 'fr': 'Données extraites', 'es': 'Datos extraídos'},
   'saved_to_deep_note': {'it': 'Salvato in Deep Note', 'en': 'Saved to Deep Note', 'fr': 'Enregistré dans Deep Note', 'es': 'Guardado en Deep Note'},
+  'save_to_contacts': {'it': 'Salva in Rubrica', 'en': 'Save to Contacts', 'fr': 'Enregistrer dans les contacts', 'es': 'Guardar en contactos'},
+  'saved_to_contacts': {'it': 'Contatto salvato in rubrica', 'en': 'Contact saved', 'fr': 'Contact enregistré', 'es': 'Contacto guardado'},
+  'contact_form_title': {'it': 'Nuovo Contatto', 'en': 'New Contact', 'fr': 'Nouveau contact', 'es': 'Nuevo contacto'},
+  'company': {'it': 'Azienda', 'en': 'Company', 'fr': 'Entreprise', 'es': 'Empresa'},
+  'role_title': {'it': 'Ruolo', 'en': 'Role', 'fr': 'Rôle', 'es': 'Cargo'},
+  'address': {'it': 'Indirizzo', 'en': 'Address', 'fr': 'Adresse', 'es': 'Dirección'},
+  'website': {'it': 'Sito Web', 'en': 'Website', 'fr': 'Site web', 'es': 'Sitio web'},
+  'contacts_permission_denied': {'it': 'Permesso contatti negato', 'en': 'Contacts permission denied', 'fr': 'Autorisation contacts refusée', 'es': 'Permiso de contactos denegado'},
 
   // ── Trash ──
   'empty_trash': {'it': 'Svuota Cestino', 'en': 'Empty Trash', 'fr': 'Vider la corbeille', 'es': 'Vaciar papelera'},
@@ -12249,7 +12258,7 @@ Rispondi SOLO con un JSON valido (senza markdown code fences) in questo formato:
   }
 }
 
-Per business_card i fields devono essere: nome, telefono, email, azienda, indirizzo (se presenti).
+Per business_card i fields devono essere: nome, telefono, email, azienda, ruolo, indirizzo, sito_web (se presenti).
 Per receipt: negozio, importo, data.
 Per document: tipo_documento, testo_chiave.
 Per handwritten: testo_trascritto.
@@ -12310,6 +12319,291 @@ String formatRecognitionAsDeepNote(PhotoRecognitionResult result) {
     }
   }
   return buf.toString().trim();
+}
+
+/// Splits a full name into (firstName, lastName).
+(String, String) _splitContactName(String fullName) {
+  final parts = fullName.trim().split(RegExp(r'\s+'));
+  if (parts.length <= 1) return (fullName.trim(), '');
+  return (parts.first, parts.sublist(1).join(' '));
+}
+
+/// Saves a contact to the device address book.
+Future<void> _saveContactToDevice(
+  BuildContext context, {
+  required String firstName,
+  required String lastName,
+  required String phone,
+  required String email,
+  required String company,
+  required String role,
+  required String address,
+  required String website,
+}) async {
+  final granted = await contacts_pkg.FlutterContacts.requestPermission();
+  if (!granted) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tr('contacts_permission_denied')),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+    return;
+  }
+
+  final contact = contacts_pkg.Contact(
+    name: contacts_pkg.Name(first: firstName, last: lastName),
+    phones: phone.isNotEmpty ? [contacts_pkg.Phone(phone)] : [],
+    emails: email.isNotEmpty ? [contacts_pkg.Email(email)] : [],
+    organizations: (company.isNotEmpty || role.isNotEmpty)
+        ? [contacts_pkg.Organization(company: company, title: role)]
+        : [],
+    addresses: address.isNotEmpty ? [contacts_pkg.Address(address)] : [],
+    websites: website.isNotEmpty ? [contacts_pkg.Website(website)] : [],
+  );
+  await contact.insert();
+
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          const Icon(Icons.check_circle, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Text(tr('saved_to_contacts')),
+        ],
+      ),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+  );
+}
+
+/// Shows a contact form bottom sheet pre-filled from photo recognition.
+void showContactFormSheet(BuildContext context, PhotoRecognitionResult result) {
+  final fields = result.fields;
+  final fullName = fields['nome'] ?? '';
+  final (first, last) = _splitContactName(fullName);
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) => _ContactFormSheetContent(
+      firstName: first,
+      lastName: last,
+      phone: fields['telefono'] ?? '',
+      email: fields['email'] ?? '',
+      company: fields['azienda'] ?? '',
+      role: fields['ruolo'] ?? '',
+      address: fields['indirizzo'] ?? '',
+      website: fields['sito_web'] ?? '',
+    ),
+  );
+}
+
+class _ContactFormSheetContent extends StatefulWidget {
+  final String firstName;
+  final String lastName;
+  final String phone;
+  final String email;
+  final String company;
+  final String role;
+  final String address;
+  final String website;
+
+  const _ContactFormSheetContent({
+    required this.firstName,
+    required this.lastName,
+    required this.phone,
+    required this.email,
+    required this.company,
+    required this.role,
+    required this.address,
+    required this.website,
+  });
+
+  @override
+  State<_ContactFormSheetContent> createState() => _ContactFormSheetContentState();
+}
+
+class _ContactFormSheetContentState extends State<_ContactFormSheetContent> {
+  late final TextEditingController _firstNameCtrl;
+  late final TextEditingController _lastNameCtrl;
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _companyCtrl;
+  late final TextEditingController _roleCtrl;
+  late final TextEditingController _addressCtrl;
+  late final TextEditingController _websiteCtrl;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _firstNameCtrl = TextEditingController(text: widget.firstName);
+    _lastNameCtrl = TextEditingController(text: widget.lastName);
+    _phoneCtrl = TextEditingController(text: widget.phone);
+    _emailCtrl = TextEditingController(text: widget.email);
+    _companyCtrl = TextEditingController(text: widget.company);
+    _roleCtrl = TextEditingController(text: widget.role);
+    _addressCtrl = TextEditingController(text: widget.address);
+    _websiteCtrl = TextEditingController(text: widget.website);
+  }
+
+  @override
+  void dispose() {
+    _firstNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
+    _companyCtrl.dispose();
+    _roleCtrl.dispose();
+    _addressCtrl.dispose();
+    _websiteCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollController) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + bottomInset),
+        child: ListView(
+          controller: scrollController,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Title
+            Row(
+              children: [
+                Icon(Icons.person_add, color: const Color(0xFF1565C0)),
+                const SizedBox(width: 8),
+                Text(tr('contact_form_title'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Fields
+            _buildField(_firstNameCtrl, tr('name'), Icons.person_outline),
+            const SizedBox(height: 12),
+            _buildField(_lastNameCtrl, tr('surname'), Icons.person_outline),
+            const SizedBox(height: 12),
+            _buildField(_phoneCtrl, tr('phone'), Icons.phone_outlined, keyboardType: TextInputType.phone),
+            const SizedBox(height: 12),
+            _buildField(_emailCtrl, tr('email'), Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+            const SizedBox(height: 12),
+            _buildField(_companyCtrl, tr('company'), Icons.business_outlined),
+            const SizedBox(height: 12),
+            _buildField(_roleCtrl, tr('role_title'), Icons.badge_outlined),
+            const SizedBox(height: 12),
+            _buildField(_addressCtrl, tr('address'), Icons.location_on_outlined),
+            const SizedBox(height: 12),
+            _buildField(_websiteCtrl, tr('website'), Icons.language, keyboardType: TextInputType.url),
+            const SizedBox(height: 24),
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(tr('cancel')),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _saving ? null : _onSave,
+                    icon: _saving
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.save, size: 18),
+                    label: Text(tr('save')),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF1565C0),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField(TextEditingController controller, String label, IconData icon, {TextInputType? keyboardType}) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF1565C0), width: 2),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onSave() async {
+    setState(() => _saving = true);
+    try {
+      await _saveContactToDevice(
+        context,
+        firstName: _firstNameCtrl.text.trim(),
+        lastName: _lastNameCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        company: _companyCtrl.text.trim(),
+        role: _roleCtrl.text.trim(),
+        address: _addressCtrl.text.trim(),
+        website: _websiteCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
 }
 
 class FlashNotesSettingsPage extends StatefulWidget {
@@ -13812,12 +14106,13 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     if (result == null || !result.isActionable) return;
     if (!mounted) return;
 
-    final confirmed = await showDialog<bool>(
+    final action = await showDialog<String>(
       context: context,
       builder: (ctx) {
         final colorScheme = Theme.of(ctx).colorScheme;
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          actionsOverflowButtonSpacing: 8,
           title: Row(
             children: [
               Icon(result.folderIcon, color: result.folderColor),
@@ -13860,11 +14155,17 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
+              onPressed: () => Navigator.pop(ctx),
               child: Text(tr('keep_as_flash')),
             ),
+            if (result.category == 'business_card')
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(ctx, 'contact'),
+                icon: const Icon(Icons.person_add, size: 18),
+                label: Text(tr('save_to_contacts')),
+              ),
             FilledButton.icon(
-              onPressed: () => Navigator.pop(ctx, true),
+              onPressed: () => Navigator.pop(ctx, 'deep_note'),
               icon: const Icon(Icons.note_add, size: 18),
               label: Text(tr('save_to_deep_note')),
               style: FilledButton.styleFrom(backgroundColor: result.folderColor),
@@ -13874,7 +14175,9 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       },
     );
 
-    if (confirmed == true && mounted) {
+    if (action == 'contact' && mounted) {
+      showContactFormSheet(context, result);
+    } else if (action == 'deep_note' && mounted) {
       try {
         await ensurePhotoFolder(result.folderName, result.folderIcon, result.folderColor);
         final content = formatRecognitionAsDeepNote(result);
@@ -14812,37 +15115,86 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               ],
               const SizedBox(height: 16),
               // Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.flash_on, size: 18),
-                      label: Text(tr('keep_as_flash'), style: const TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+              if (result.category == 'business_card') ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      showContactFormSheet(context, result);
+                    },
+                    icon: const Icon(Icons.person_add, size: 18),
+                    label: Text(tr('save_to_contacts')),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF1565C0),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () async {
-                        Navigator.pop(ctx);
-                        await _saveAsDeepNote(result, imagePath);
-                      },
-                      icon: const Icon(Icons.note_add, size: 18),
-                      label: Text(tr('save_to_deep_note'), style: const TextStyle(fontSize: 12)),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: result.folderColor,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.flash_on, size: 18),
+                        label: Text(tr('keep_as_flash'), style: const TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await _saveAsDeepNote(result, imagePath);
+                        },
+                        icon: const Icon(Icons.note_add, size: 18),
+                        label: Text(tr('save_to_deep_note'), style: const TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.flash_on, size: 18),
+                        label: Text(tr('keep_as_flash'), style: const TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await _saveAsDeepNote(result, imagePath);
+                        },
+                        icon: const Icon(Icons.note_add, size: 18),
+                        label: Text(tr('save_to_deep_note'), style: const TextStyle(fontSize: 12)),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: result.folderColor,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
