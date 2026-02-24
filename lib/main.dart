@@ -35,7 +35,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:home_widget/home_widget.dart';
-import 'dart:io' show File;
+import 'dart:io' show Directory, File;
+import 'package:archive/archive.dart' as archive;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -1257,7 +1258,7 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -1286,6 +1287,10 @@ class DatabaseHelper {
     if (oldVersion < 7) {
       await db.execute('ALTER TABLE pro_notes ADD COLUMN updated_at INTEGER');
     }
+    if (oldVersion < 8) {
+      await db.execute('ALTER TABLE flash_notes ADD COLUMN image_path TEXT');
+      await db.execute('ALTER TABLE pro_notes ADD COLUMN image_path TEXT');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -1296,7 +1301,7 @@ class DatabaseHelper {
         header_text TEXT, footer_text TEXT, template_preset TEXT,
         folder TEXT NOT NULL DEFAULT 'Generale',
         linked_date INTEGER, created_at INTEGER NOT NULL,
-        image_base64 TEXT, updated_at INTEGER
+        image_base64 TEXT, updated_at INTEGER, image_path TEXT
       )
     ''');
     await db.execute('CREATE INDEX idx_pro_notes_folder ON pro_notes(folder)');
@@ -1306,7 +1311,7 @@ class DatabaseHelper {
       CREATE TABLE flash_notes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         content TEXT NOT NULL, audio_path TEXT, audio_duration_ms INTEGER,
-        image_base64 TEXT, created_at INTEGER NOT NULL
+        image_base64 TEXT, created_at INTEGER NOT NULL, image_path TEXT
       )
     ''');
     await db.execute('CREATE INDEX idx_flash_notes_created_at ON flash_notes(created_at)');
@@ -1363,7 +1368,7 @@ class DatabaseHelper {
   // ── Pro Notes CRUD ──
 
   Future<int> insertProNote(ProNote note) async {
-    if (_webMode) { final id = _nextId(); _wProNotes.insert(0, ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, createdAt: note.createdAt)); return id; }
+    if (_webMode) { final id = _nextId(); _wProNotes.insert(0, ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt)); return id; }
     final db = await database;
     return await db.insert('pro_notes', note.toDbMap());
   }
@@ -1374,14 +1379,16 @@ class DatabaseHelper {
     // Load without image_base64 first to avoid CursorWindow overflow
     final maps = await db.query('pro_notes',
       columns: ['id', 'title', 'content', 'content_delta', 'header_text', 'footer_text',
-                 'template_preset', 'folder', 'linked_date', 'created_at', 'updated_at'],
+                 'template_preset', 'folder', 'linked_date', 'created_at', 'updated_at', 'image_path'],
       orderBy: 'created_at DESC',
     );
     final notes = <ProNote>[];
     for (final m in maps) {
       final noteId = m['id'] as int?;
+      final imgPath = m['image_path'] as String?;
       String? imgB64;
-      if (noteId != null) {
+      // Only load base64 if no file path exists (legacy data)
+      if (noteId != null && (imgPath == null || imgPath.isEmpty)) {
         try {
           final imgRows = await db.query('pro_notes',
             columns: ['image_base64'],
@@ -1403,13 +1410,14 @@ class DatabaseHelper {
         createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
         updatedAt: m['updated_at'] != null ? DateTime.fromMillisecondsSinceEpoch(m['updated_at'] as int) : null,
         imageBase64: imgB64,
+        imagePath: imgPath,
       ));
     }
     return notes;
   }
 
   Future<int> updateProNote(int id, ProNote note) async {
-    if (_webMode) { final i = _wProNotes.indexWhere((n) => n.id == id); if (i >= 0) _wProNotes[i] = ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, createdAt: note.createdAt); return 1; }
+    if (_webMode) { final i = _wProNotes.indexWhere((n) => n.id == id); if (i >= 0) _wProNotes[i] = ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt); return 1; }
     final db = await database;
     return await db.update('pro_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
   }
@@ -1423,7 +1431,7 @@ class DatabaseHelper {
   // ── Flash Notes CRUD ──
 
   Future<int> insertFlashNote(FlashNote note) async {
-    if (_webMode) { final id = _nextId(); _wFlashNotes.insert(0, FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, createdAt: note.createdAt)); return id; }
+    if (_webMode) { final id = _nextId(); _wFlashNotes.insert(0, FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt)); return id; }
     final db = await database;
     return await db.insert('flash_notes', note.toDbMap());
   }
@@ -1433,14 +1441,16 @@ class DatabaseHelper {
     final db = await database;
     // Load without image_base64 first to avoid CursorWindow overflow
     final maps = await db.query('flash_notes',
-      columns: ['id', 'content', 'created_at', 'audio_path', 'audio_duration_ms'],
+      columns: ['id', 'content', 'created_at', 'audio_path', 'audio_duration_ms', 'image_path'],
       orderBy: 'created_at DESC',
     );
     final notes = <FlashNote>[];
     for (final m in maps) {
       final noteId = m['id'] as int?;
+      final imgPath = m['image_path'] as String?;
       String? imgB64;
-      if (noteId != null) {
+      // Only load base64 if no file path exists (legacy data)
+      if (noteId != null && (imgPath == null || imgPath.isEmpty)) {
         try {
           final imgRows = await db.query('flash_notes',
             columns: ['image_base64'],
@@ -1456,13 +1466,14 @@ class DatabaseHelper {
         audioPath: m['audio_path'] as String?,
         audioDurationMs: m['audio_duration_ms'] as int?,
         imageBase64: imgB64,
+        imagePath: imgPath,
       ));
     }
     return notes;
   }
 
   Future<int> updateFlashNote(int id, FlashNote note) async {
-    if (_webMode) { final i = _wFlashNotes.indexWhere((n) => n.id == id); if (i >= 0) _wFlashNotes[i] = FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, createdAt: note.createdAt); return 1; }
+    if (_webMode) { final i = _wFlashNotes.indexWhere((n) => n.id == id); if (i >= 0) _wFlashNotes[i] = FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt); return 1; }
     final db = await database;
     return await db.update('flash_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
   }
@@ -1564,6 +1575,20 @@ class DatabaseHelper {
     if (_webMode) { final cutoff = DateTime.now().subtract(Duration(days: retentionDays)); _wTrashed.removeWhere((n) => n.deletedAt.isBefore(cutoff)); return; }
     final db = await database;
     final cutoff = DateTime.now().subtract(Duration(days: retentionDays)).millisecondsSinceEpoch;
+    // Delete image files before removing DB records
+    final expiredRows = await db.query('trashed_notes', where: 'deleted_at < ?', whereArgs: [cutoff]);
+    final imgHelper = ImageStorageHelper();
+    for (final row in expiredRows) {
+      try {
+        final noteJson = json.decode(row['note_json'] as String) as Map<String, dynamic>;
+        final type = row['type'] as String;
+        if (type == 'flash' || type == 'pro') {
+          await imgHelper.deleteImageFile(noteJson['imagePath'] as String?);
+        } else if (type == 'event') {
+          await imgHelper.deleteImageFile(noteJson['attachmentPath'] as String?);
+        }
+      } catch (_) {}
+    }
     await db.delete('trashed_notes', where: 'deleted_at < ?', whereArgs: [cutoff]);
   }
 
@@ -1749,6 +1774,129 @@ class DatabaseHelper {
   }
 }
 
+// ─── Image Storage Helper ──────────────────────────────────────────────────
+
+class ImageStorageHelper {
+  static final ImageStorageHelper _instance = ImageStorageHelper._internal();
+  factory ImageStorageHelper() => _instance;
+  ImageStorageHelper._internal();
+
+  Directory? _imagesDir;
+
+  Future<Directory> get imagesDir async {
+    if (_imagesDir != null) return _imagesDir!;
+    final appDir = await getApplicationDocumentsDirectory();
+    _imagesDir = Directory(p.join(appDir.path, 'images'));
+    if (!await _imagesDir!.exists()) {
+      await _imagesDir!.create(recursive: true);
+    }
+    return _imagesDir!;
+  }
+
+  String generateFileName(String prefix) {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final rand = math.Random().nextInt(9999).toString().padLeft(4, '0');
+    return '${prefix}_${ts}_$rand.jpg';
+  }
+
+  Future<String> saveBase64ToFile(String base64Str, String fileName) async {
+    final dir = await imagesDir;
+    final filePath = p.join(dir.path, fileName);
+    final bytes = base64Decode(base64Str);
+    await File(filePath).writeAsBytes(bytes);
+    return filePath;
+  }
+
+  Future<String> saveBytesToFile(Uint8List bytes, String fileName) async {
+    final dir = await imagesDir;
+    final filePath = p.join(dir.path, fileName);
+    await File(filePath).writeAsBytes(bytes);
+    return filePath;
+  }
+
+  Future<Uint8List?> loadImageBytes({String? filePath, String? base64Str}) async {
+    if (filePath != null && filePath.isNotEmpty) {
+      final file = File(filePath);
+      if (await file.exists()) return await file.readAsBytes();
+    }
+    if (base64Str != null && base64Str.isNotEmpty) {
+      try { return base64Decode(base64Str); } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<void> deleteImageFile(String? filePath) async {
+    if (filePath == null || filePath.isEmpty) return;
+    try {
+      final file = File(filePath);
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+  }
+}
+
+class StoredImage extends StatelessWidget {
+  final String? imagePath;
+  final String? imageBase64;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final BorderRadius? borderRadius;
+
+  const StoredImage({
+    super.key,
+    this.imagePath,
+    this.imageBase64,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.borderRadius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget image;
+    if (imagePath != null && imagePath!.isNotEmpty) {
+      image = Image.file(
+        File(imagePath!),
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (_, __, ___) => _placeholder(context),
+      );
+    } else if (imageBase64 != null && imageBase64!.isNotEmpty) {
+      try {
+        image = Image.memory(
+          base64Decode(imageBase64!),
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (_, __, ___) => _placeholder(context),
+        );
+      } catch (_) {
+        image = _placeholder(context);
+      }
+    } else {
+      image = _placeholder(context);
+    }
+    if (borderRadius != null) {
+      return ClipRRect(borderRadius: borderRadius!, child: image);
+    }
+    return image;
+  }
+
+  Widget _placeholder(BuildContext context) {
+    return Container(
+      width: width,
+      height: height ?? 100,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: borderRadius ?? BorderRadius.circular(12),
+      ),
+      child: Center(child: Icon(Icons.broken_image, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+    );
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (kIsWeb) {
@@ -1773,9 +1921,81 @@ void main() async {
     await db.delete('user_profile');
     await prefs.setBool('db_wiped_v1', true);
   }
+  if (!kIsWeb) {
+    await _migrateBase64ToFiles();
+  }
   await NotificationService.init();
   await initializeDateFormatting();
   runApp(const EthosNoteApp());
+}
+
+Future<void> _migrateBase64ToFiles() async {
+  final db = await DatabaseHelper().database;
+  // Check if already migrated
+  final rows = await db.query('settings', where: 'key = ?', whereArgs: ['images_migrated_v8']);
+  if (rows.isNotEmpty && rows.first['value'] == 'true') return;
+
+  final imgHelper = ImageStorageHelper();
+
+  // Migrate flash_notes
+  final flashRows = await db.rawQuery(
+    "SELECT id FROM flash_notes WHERE image_base64 IS NOT NULL AND image_base64 != '' AND (image_path IS NULL OR image_path = '')"
+  );
+  for (final row in flashRows) {
+    final id = row['id'] as int;
+    try {
+      final imgData = await db.query('flash_notes', columns: ['image_base64'], where: 'id = ?', whereArgs: [id]);
+      if (imgData.isEmpty) continue;
+      final b64 = imgData.first['image_base64'] as String?;
+      if (b64 == null || b64.isEmpty) continue;
+      final fileName = imgHelper.generateFileName('flash');
+      final filePath = await imgHelper.saveBase64ToFile(b64, fileName);
+      await db.update('flash_notes', {'image_path': filePath, 'image_base64': null}, where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      if (kDebugMode) debugPrint('Migration error flash $id: $e');
+    }
+  }
+
+  // Migrate pro_notes
+  final proRows = await db.rawQuery(
+    "SELECT id FROM pro_notes WHERE image_base64 IS NOT NULL AND image_base64 != '' AND (image_path IS NULL OR image_path = '')"
+  );
+  for (final row in proRows) {
+    final id = row['id'] as int;
+    try {
+      final imgData = await db.query('pro_notes', columns: ['image_base64'], where: 'id = ?', whereArgs: [id]);
+      if (imgData.isEmpty) continue;
+      final b64 = imgData.first['image_base64'] as String?;
+      if (b64 == null || b64.isEmpty) continue;
+      final fileName = imgHelper.generateFileName('pro');
+      final filePath = await imgHelper.saveBase64ToFile(b64, fileName);
+      await db.update('pro_notes', {'image_path': filePath, 'image_base64': null}, where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      if (kDebugMode) debugPrint('Migration error pro $id: $e');
+    }
+  }
+
+  // Migrate calendar_events attachment_base64
+  final eventRows = await db.rawQuery(
+    "SELECT id FROM calendar_events WHERE attachment_base64 IS NOT NULL AND attachment_base64 != '' AND (attachment_path IS NULL OR attachment_path = '')"
+  );
+  for (final row in eventRows) {
+    final id = row['id'] as int;
+    try {
+      final imgData = await db.query('calendar_events', columns: ['attachment_base64'], where: 'id = ?', whereArgs: [id]);
+      if (imgData.isEmpty) continue;
+      final b64 = imgData.first['attachment_base64'] as String?;
+      if (b64 == null || b64.isEmpty) continue;
+      final fileName = imgHelper.generateFileName('event');
+      final filePath = await imgHelper.saveBase64ToFile(b64, fileName);
+      await db.update('calendar_events', {'attachment_path': filePath, 'attachment_base64': null}, where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      if (kDebugMode) debugPrint('Migration error event $id: $e');
+    }
+  }
+
+  // Mark as migrated
+  await db.insert('settings', {'key': 'images_migrated_v8', 'value': 'true'}, conflictAlgorithm: ConflictAlgorithm.replace);
 }
 
 Future<void> _migrateSharedPrefsToSqlite() async {
@@ -5190,7 +5410,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                           ],
                                         ),
                                       ),
-                                      if (event.attachmentBase64 != null)
+                                      if (event.attachmentBase64 != null || event.attachmentPath != null)
                                         Padding(
                                           padding: const EdgeInsets.only(right: 8),
                                           child: Icon(Icons.image_outlined, size: 18, color: colorScheme.onSurfaceVariant),
@@ -5277,21 +5497,15 @@ class _CalendarPageState extends State<CalendarPage> {
               Text(event.notes!, style: TextStyle(fontSize: 14, color: colorScheme.onSurface, height: 1.5)),
             ],
             // Attachment image
-            if (event.attachmentBase64 != null) ...[
+            if (event.attachmentPath != null || event.attachmentBase64 != null) ...[
               const SizedBox(height: 16),
-              ClipRRect(
+              StoredImage(
+                imagePath: event.attachmentPath,
+                imageBase64: event.attachmentBase64,
+                width: double.infinity,
+                height: 180,
+                fit: BoxFit.cover,
                 borderRadius: BorderRadius.circular(12),
-                child: Image.memory(
-                  base64Decode(event.attachmentBase64!),
-                  width: double.infinity,
-                  height: 180,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 100,
-                    decoration: BoxDecoration(color: colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
-                    child: Center(child: Icon(Icons.broken_image, color: colorScheme.onSurfaceVariant)),
-                  ),
-                ),
               ),
             ],
             const SizedBox(height: 20),
@@ -8916,6 +9130,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
   List<String> _availableFriends = [];
   String? _attachmentBase64;
   String? _attachmentFileName;
+  String? _attachmentFilePath;
   String? _recurrence; // null/daily/weekly/monthly/yearly
   DateTime? _recurrenceEndDate;
 
@@ -8946,6 +9161,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
       _selectedReminder = existing.reminder;
       _sharedWith = List<String>.from(existing.sharedWith);
       _attachmentBase64 = existing.attachmentBase64;
+      _attachmentFilePath = existing.attachmentPath;
       _recurrence = existing.recurrence;
       _recurrenceEndDate = existing.recurrenceEndDate != null ? DateTime.tryParse(existing.recurrenceEndDate!) : null;
     } else {
@@ -8973,7 +9189,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
   void _saveEvent() {
     final title = _titleController.text.isNotEmpty
         ? _titleController.text
-        : (_attachmentBase64 != null ? tr('event') : null);
+        : ((_attachmentBase64 != null || _attachmentFilePath != null) ? tr('event') : null);
     if (title != null) {
       final baseEvent = CalendarEventFull(
         title: title,
@@ -8983,6 +9199,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
         reminder: _selectedReminder,
         sharedWith: _sharedWith,
         attachmentBase64: _attachmentBase64,
+        attachmentPath: _attachmentFilePath,
         recurrence: _recurrence,
         recurrenceEndDate: _recurrenceEndDate?.toIso8601String(),
       );
@@ -9091,14 +9308,19 @@ class _EventEditorPageState extends State<EventEditorPage> {
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
+        maxWidth: 1200,
+        maxHeight: 1200,
         imageQuality: 80,
       );
       if (image != null) {
         final bytes = await image.readAsBytes();
+        final imgHelper = ImageStorageHelper();
+        final fileName = imgHelper.generateFileName('event');
+        final filePath = await imgHelper.saveBytesToFile(bytes, fileName);
+        if (!mounted) return;
         setState(() {
-          _attachmentBase64 = base64Encode(bytes);
+          _attachmentFilePath = filePath;
+          _attachmentBase64 = null;
         });
       }
     } catch (e) {
@@ -9428,7 +9650,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            if (_attachmentBase64 != null) ...[
+            if (_attachmentBase64 != null || _attachmentFilePath != null) ...[
               if (_attachmentFileName != null) ...[
                 // File attachment preview
                 Container(
@@ -9444,7 +9666,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
                       const SizedBox(width: 12),
                       Expanded(child: Text(_attachmentFileName!, overflow: TextOverflow.ellipsis)),
                       GestureDetector(
-                        onTap: () => setState(() { _attachmentBase64 = null; _attachmentFileName = null; }),
+                        onTap: () => setState(() { _attachmentBase64 = null; _attachmentFileName = null; _attachmentFilePath = null; }),
                         child: Icon(Icons.close, color: colorScheme.error, size: 20),
                       ),
                     ],
@@ -9454,20 +9676,19 @@ class _EventEditorPageState extends State<EventEditorPage> {
                 // Image attachment preview
                 Stack(
                   children: [
-                    ClipRRect(
+                    StoredImage(
+                      imagePath: _attachmentFilePath,
+                      imageBase64: _attachmentBase64,
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.memory(
-                        base64Decode(_attachmentBase64!),
-                        width: double.infinity,
-                        height: 200,
-                        fit: BoxFit.cover,
-                      ),
                     ),
                     Positioned(
                       top: 8,
                       right: 8,
                       child: GestureDetector(
-                        onTap: () => setState(() => _attachmentBase64 = null),
+                        onTap: () => setState(() { _attachmentBase64 = null; _attachmentFilePath = null; }),
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
@@ -10575,17 +10796,34 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       if (!await sourceFile.exists()) return;
 
       final now = DateTime.now();
-      final fileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.db';
+      final zipFileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.zip';
 
-      final dir = await getApplicationDocumentsDirectory();
-      final backupFile = File(p.join(dir.path, fileName));
-      await sourceFile.copy(backupFile.path);
+      // Build ZIP archive
+      final zip = archive.Archive();
 
-      // Also try to save to Downloads via file picker
+      // Add database file
+      final dbBytes = await sourceFile.readAsBytes();
+      zip.addFile(archive.ArchiveFile('ethos_note.db', dbBytes.length, dbBytes));
+
+      // Add images directory
+      final imgDir = await ImageStorageHelper().imagesDir;
+      if (await imgDir.exists()) {
+        await for (final entity in imgDir.list()) {
+          if (entity is File) {
+            final fileName = p.basename(entity.path);
+            final fileBytes = await entity.readAsBytes();
+            zip.addFile(archive.ArchiveFile('images/$fileName', fileBytes.length, fileBytes));
+          }
+        }
+      }
+
+      final zipBytes = Uint8List.fromList(archive.ZipEncoder().encode(zip));
+
+      // Save via file picker
       final result = await FilePicker.platform.saveFile(
         dialogTitle: tr('backup_export'),
-        fileName: fileName,
-        bytes: await sourceFile.readAsBytes(),
+        fileName: zipFileName,
+        bytes: zipBytes,
       );
 
       if (!mounted) return;
@@ -10634,14 +10872,33 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       if (confirmed != true || !mounted) return;
 
       final pickedFile = File(result.files.single.path!);
+      final fileBytes = await pickedFile.readAsBytes();
       final dbPath = await getDatabasesPath();
       final targetPath = p.join(dbPath, 'ethos_note.db');
 
       // Close the current database connection
       await DatabaseHelper().close();
 
-      // Copy backup over existing database
-      await pickedFile.copy(targetPath);
+      // Detect format: ZIP (PK magic) vs legacy .db
+      final isZip = fileBytes.length >= 4 && fileBytes[0] == 0x50 && fileBytes[1] == 0x4B;
+
+      if (isZip) {
+        final zip = archive.ZipDecoder().decodeBytes(fileBytes);
+        for (final file in zip) {
+          if (file.isFile) {
+            if (file.name == 'ethos_note.db') {
+              await File(targetPath).writeAsBytes(file.content as List<int>);
+            } else if (file.name.startsWith('images/')) {
+              final imgDir = await ImageStorageHelper().imagesDir;
+              final imgFile = File(p.join(imgDir.path, p.basename(file.name)));
+              await imgFile.writeAsBytes(file.content as List<int>);
+            }
+          }
+        }
+      } else {
+        // Legacy .db file — copy directly, migration will run on next restart
+        await pickedFile.copy(targetPath);
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -11774,12 +12031,13 @@ class FlashNote {
   final String? audioPath;
   final int? audioDurationMs;
   final String? imageBase64;
+  final String? imagePath;
 
-  FlashNote({this.id, required this.content, DateTime? createdAt, this.audioPath, this.audioDurationMs, this.imageBase64})
+  FlashNote({this.id, required this.content, DateTime? createdAt, this.audioPath, this.audioDurationMs, this.imageBase64, this.imagePath})
     : createdAt = createdAt ?? DateTime.now();
 
   bool get isAudioNote => audioPath != null && audioPath!.isNotEmpty;
-  bool get isPhotoNote => imageBase64 != null && imageBase64!.isNotEmpty;
+  bool get isPhotoNote => (imagePath != null && imagePath!.isNotEmpty) || (imageBase64 != null && imageBase64!.isNotEmpty);
 
   Map<String, dynamic> toJson() => {
     'content': content,
@@ -11787,6 +12045,7 @@ class FlashNote {
     if (audioPath != null) 'audioPath': audioPath,
     if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
     if (imageBase64 != null) 'imageBase64': imageBase64,
+    if (imagePath != null) 'imagePath': imagePath,
   };
 
   factory FlashNote.fromJson(Map<String, dynamic> json) => FlashNote(
@@ -11795,6 +12054,7 @@ class FlashNote {
     audioPath: json['audioPath'],
     audioDurationMs: json['audioDurationMs'],
     imageBase64: json['imageBase64'],
+    imagePath: json['imagePath'],
   );
 
   Map<String, dynamic> toDbMap() => {
@@ -11803,6 +12063,7 @@ class FlashNote {
     'audio_path': audioPath,
     'audio_duration_ms': audioDurationMs,
     'image_base64': imageBase64,
+    'image_path': imagePath,
   };
 
   factory FlashNote.fromDbMap(Map<String, dynamic> m) => FlashNote(
@@ -11812,6 +12073,7 @@ class FlashNote {
     audioPath: m['audio_path'] as String?,
     audioDurationMs: m['audio_duration_ms'] as int?,
     imageBase64: m['image_base64'] as String?,
+    imagePath: m['image_path'] as String?,
   );
 }
 
@@ -13058,6 +13320,18 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
 
   Future<void> _deletePermanently(int index) async {
     final trashed = _trashedNotes[index];
+    // Delete associated image file
+    final imgHelper = ImageStorageHelper();
+    try {
+      final noteData = trashed.noteJson;
+      if (trashed.type == 'flash') {
+        await imgHelper.deleteImageFile(noteData['imagePath'] as String?);
+      } else if (trashed.type == 'pro') {
+        await imgHelper.deleteImageFile(noteData['imagePath'] as String?);
+      } else if (trashed.type == 'event') {
+        await imgHelper.deleteImageFile(noteData['attachmentPath'] as String?);
+      }
+    } catch (_) {}
     if (trashed.id != null) {
       await DatabaseHelper().deleteTrashedNote(trashed.id!);
     }
@@ -13078,6 +13352,18 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
       ),
     );
     if (confirmed == true) {
+      // Delete all associated image files
+      final imgHelper = ImageStorageHelper();
+      for (final trashed in _trashedNotes) {
+        try {
+          final noteData = trashed.noteJson;
+          if (trashed.type == 'flash' || trashed.type == 'pro') {
+            await imgHelper.deleteImageFile(noteData['imagePath'] as String?);
+          } else if (trashed.type == 'event') {
+            await imgHelper.deleteImageFile(noteData['attachmentPath'] as String?);
+          }
+        } catch (_) {}
+      }
       setState(() => _trashedNotes.clear());
       await TrashedNote.saveAll([]);
     }
@@ -13301,6 +13587,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   late FocusNode _bodyFocusNode;
   bool _hasChanges = false;
   String? _attachedImageBase64;
+  String? _attachedImagePath;
   String _prevText = '';
   // Audio playback (for audio notes opened as text)
   ap.AudioPlayer? _editorAudioPlayer;
@@ -13324,6 +13611,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     _bodyController = TextEditingController(text: widget.existingNote?.content ?? '');
     _bodyController.addListener(_onChanged);
     _attachedImageBase64 = widget.existingNote?.imageBase64;
+    _attachedImagePath = widget.existingNote?.imagePath;
     _prevText = _bodyController.text;
     _bodyController.addListener(_handleListContinuation);
     // New notes start in edit mode
@@ -13383,6 +13671,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       content: content,
       createdAt: widget.existingNote?.createdAt ?? DateTime.now(),
       imageBase64: _attachedImageBase64 ?? widget.existingNote?.imageBase64,
+      imagePath: _attachedImagePath ?? widget.existingNote?.imagePath,
     );
     widget.onSave(note);
     Navigator.pop(context);
@@ -13470,21 +13759,36 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 80,
       );
       if (image != null) {
         final bytes = await image.readAsBytes();
         if (!mounted) return;
-        final b64 = base64Encode(bytes);
-        setState(() => _attachedImageBase64 = b64);
-        _tryPhotoRecognition(b64);
+        final imgHelper = ImageStorageHelper();
+        final fileName = imgHelper.generateFileName('flash');
+        final filePath = await imgHelper.saveBytesToFile(bytes, fileName);
+        if (!mounted) return;
+        setState(() {
+          _attachedImagePath = filePath;
+          _attachedImageBase64 = null;
+        });
+        _tryPhotoRecognition(filePath);
       }
     } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
   }
 
-  Future<void> _tryPhotoRecognition(String base64Image) async {
+  Future<void> _tryPhotoRecognition(String imagePath) async {
     final settings = await FlashNotesSettings.load();
     if (!settings.photoRecognitionEnabled || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
     if (!mounted) return;
+
+    // Read file for Gemini
+    final file = File(imagePath);
+    if (!await file.exists()) return;
+    final bytes = await file.readAsBytes();
+    final base64Image = base64Encode(bytes);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -13574,11 +13878,16 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       try {
         await ensurePhotoFolder(result.folderName, result.folderIcon, result.folderColor);
         final content = formatRecognitionAsDeepNote(result);
+        // Copy image file for Deep Note
+        final imgHelper = ImageStorageHelper();
+        final proBytes = await File(imagePath).readAsBytes();
+        final proFileName = imgHelper.generateFileName('pro');
+        final proImagePath = await imgHelper.saveBytesToFile(proBytes, proFileName);
         final proNote = ProNote(
           title: result.title.isNotEmpty ? result.title : result.categoryLabel,
           content: content,
           folder: result.folderName,
-          imageBase64: base64Image,
+          imagePath: proImagePath,
         );
         await DatabaseHelper().insertProNote(proNote);
         if (!mounted) return;
@@ -13872,18 +14181,17 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                   const SizedBox(height: 16),
                 ],
                 // Attached image preview
-                if (_attachedImageBase64 != null) ...[
+                if (_attachedImagePath != null || _attachedImageBase64 != null) ...[
                   Stack(
                     alignment: Alignment.topRight,
                     children: [
-                      ClipRRect(
+                      StoredImage(
+                        imagePath: _attachedImagePath,
+                        imageBase64: _attachedImageBase64,
+                        height: _imageExpanded ? null : 160,
+                        width: double.infinity,
+                        fit: _imageExpanded ? BoxFit.contain : BoxFit.cover,
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.memory(
-                          base64Decode(_attachedImageBase64!),
-                          height: _imageExpanded ? null : 160,
-                          width: double.infinity,
-                          fit: _imageExpanded ? BoxFit.contain : BoxFit.cover,
-                        ),
                       ),
                       Padding(
                         padding: const EdgeInsets.all(4),
@@ -13909,7 +14217,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                               child: IconButton(
                                 icon: const Icon(Icons.close, size: 14, color: Colors.white),
                                 padding: EdgeInsets.zero,
-                                onPressed: () => setState(() => _attachedImageBase64 = null),
+                                onPressed: () => setState(() { _attachedImageBase64 = null; _attachedImagePath = null; }),
                               ),
                             ),
                           ],
@@ -14276,10 +14584,17 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 80,
       );
       if (image == null) return;
       final bytes = await image.readAsBytes();
-      final base64Str = base64Encode(bytes);
+
+      // Save to file
+      final imgHelper = ImageStorageHelper();
+      final fileName = imgHelper.generateFileName('flash');
+      final filePath = await imgHelper.saveBytesToFile(bytes, fileName);
 
       // Show caption sheet
       if (!mounted) return;
@@ -14332,11 +14647,14 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
       if (saved == true && mounted) {
         final caption = captionCtrl.text.isNotEmpty ? captionCtrl.text : '📷 ${tr('photo')}';
-        final note = FlashNote(content: caption, imageBase64: base64Str);
+        final note = FlashNote(content: caption, imagePath: filePath);
         await DatabaseHelper().insertFlashNote(note);
         if (mounted) await _loadNotes();
         // Run photo recognition in background if enabled
-        if (mounted) _runPhotoRecognition(base64Str);
+        if (mounted) _runPhotoRecognition(filePath);
+      } else {
+        // User cancelled, delete the file
+        await imgHelper.deleteImageFile(filePath);
       }
       captionCtrl.dispose();
     } catch (e) {
@@ -14352,10 +14670,16 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     }
   }
 
-  Future<void> _runPhotoRecognition(String base64Image) async {
+  Future<void> _runPhotoRecognition(String imagePath) async {
     final settings = await FlashNotesSettings.load();
     if (!settings.photoRecognitionEnabled || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
     if (!mounted) return;
+
+    // Read file for Gemini
+    final file = File(imagePath);
+    if (!await file.exists()) return;
+    final bytes = await file.readAsBytes();
+    final base64Image = base64Encode(bytes);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -14389,12 +14713,11 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
     if (!result.isActionable) return;
     if (!mounted) return;
-    _showPhotoRecognitionDialog(result, base64Image);
+    _showPhotoRecognitionDialog(result, imagePath);
   }
 
-  void _showPhotoRecognitionDialog(PhotoRecognitionResult result, String base64Image) {
+  void _showPhotoRecognitionDialog(PhotoRecognitionResult result, String imagePath) {
     final colorScheme = Theme.of(context).colorScheme;
-    final imageBytes = base64Decode(base64Image);
 
     showModalBottomSheet(
       context: context,
@@ -14417,9 +14740,12 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               Text(tr('photo_recognized'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               // Image preview
-              ClipRRect(
+              StoredImage(
+                imagePath: imagePath,
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
                 borderRadius: BorderRadius.circular(12),
-                child: Image.memory(imageBytes, height: 180, width: double.infinity, fit: BoxFit.cover),
               ),
               const SizedBox(height: 16),
               // Category chip
@@ -14504,7 +14830,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                     child: FilledButton.icon(
                       onPressed: () async {
                         Navigator.pop(ctx);
-                        await _saveAsDeepNote(result, base64Image);
+                        await _saveAsDeepNote(result, imagePath);
                       },
                       icon: const Icon(Icons.note_add, size: 18),
                       label: Text(tr('save_to_deep_note'), style: const TextStyle(fontSize: 12)),
@@ -14524,15 +14850,20 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     );
   }
 
-  Future<void> _saveAsDeepNote(PhotoRecognitionResult result, String base64Image) async {
+  Future<void> _saveAsDeepNote(PhotoRecognitionResult result, String imagePath) async {
     try {
       await ensurePhotoFolder(result.folderName, result.folderIcon, result.folderColor);
       final content = formatRecognitionAsDeepNote(result);
+      // Copy image file for Deep Note (separate from flash note's copy)
+      final imgHelper = ImageStorageHelper();
+      final bytes = await File(imagePath).readAsBytes();
+      final fileName = imgHelper.generateFileName('pro');
+      final proImagePath = await imgHelper.saveBytesToFile(bytes, fileName);
       final proNote = ProNote(
         title: result.title.isNotEmpty ? result.title : result.categoryLabel,
         content: content,
         folder: result.folderName,
-        imageBase64: base64Image,
+        imagePath: proImagePath,
       );
       await DatabaseHelper().insertProNote(proNote);
       if (!mounted) return;
@@ -14750,6 +15081,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         deletedAt: DateTime.now(),
       );
       await DatabaseHelper().insertTrashedNote(trashed);
+    } else {
+      // No trash — delete image file immediately
+      await ImageStorageHelper().deleteImageFile(note.imagePath);
     }
     if (note.id != null) {
       await DatabaseHelper().deleteFlashNote(note.id!);
@@ -14776,6 +15110,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                 if (settings.trashEnabled) {
                   final trashed = TrashedNote(type: 'flash', noteJson: note.toJson(), deletedAt: DateTime.now());
                   await DatabaseHelper().insertTrashedNote(trashed);
+                } else {
+                  await ImageStorageHelper().deleteImageFile(note.imagePath);
                 }
                 await DatabaseHelper().deleteFlashNote(noteId);
               }
@@ -14855,6 +15191,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         createdAt: note.createdAt,
         folder: chosen,
         imageBase64: note.imageBase64,
+        imagePath: note.imagePath,
       );
       await DatabaseHelper().insertProNote(proNote);
       await DatabaseHelper().deleteFlashNote(noteId);
@@ -16011,14 +16348,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                           ),
                                         )
                                       : note.isPhotoNote
-                                        ? ClipRRect(
+                                        ? StoredImage(
+                                            imagePath: note.imagePath,
+                                            imageBase64: note.imageBase64,
+                                            fit: BoxFit.cover,
+                                            width: double.infinity,
+                                            height: double.infinity,
                                             borderRadius: BorderRadius.circular(8),
-                                            child: Image.memory(
-                                              base64Decode(note.imageBase64!),
-                                              fit: BoxFit.cover,
-                                              width: double.infinity,
-                                              height: double.infinity,
-                                            ),
                                           )
                                         : Text(
                                             note.content,
@@ -16182,14 +16518,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                         ),
                                       )
                                     else if (note.isPhotoNote)
-                                      ClipRRect(
+                                      StoredImage(
+                                        imagePath: note.imagePath,
+                                        imageBase64: note.imageBase64,
+                                        width: 44,
+                                        height: 44,
+                                        fit: BoxFit.cover,
                                         borderRadius: BorderRadius.circular(8),
-                                        child: Image.memory(
-                                          base64Decode(note.imageBase64!),
-                                          width: 44,
-                                          height: 44,
-                                          fit: BoxFit.cover,
-                                        ),
                                       )
                                     else
                                       CircleAvatar(
@@ -16937,6 +17272,7 @@ class ProNote {
   final String folder;
   final DateTime? linkedDate;
   final String? imageBase64;
+  final String? imagePath;
 
   ProNote({
     this.id,
@@ -16949,6 +17285,7 @@ class ProNote {
     this.folder = 'Generale',
     this.linkedDate,
     this.imageBase64,
+    this.imagePath,
     this.updatedAt,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -16968,6 +17305,7 @@ class ProNote {
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt?.toIso8601String(),
     'imageBase64': imageBase64,
+    if (imagePath != null) 'imagePath': imagePath,
   };
 
   factory ProNote.fromJson(Map<String, dynamic> json) => ProNote(
@@ -16982,6 +17320,7 @@ class ProNote {
     createdAt: DateTime.parse(json['createdAt']),
     updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
     imageBase64: json['imageBase64'],
+    imagePath: json['imagePath'],
   );
 
   Map<String, dynamic> toDbMap() => {
@@ -16996,6 +17335,7 @@ class ProNote {
     'created_at': createdAt.millisecondsSinceEpoch,
     'updated_at': updatedAt?.millisecondsSinceEpoch,
     'image_base64': imageBase64,
+    'image_path': imagePath,
   };
 
   factory ProNote.fromDbMap(Map<String, dynamic> m) => ProNote(
@@ -17011,6 +17351,7 @@ class ProNote {
     createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
     updatedAt: m['updated_at'] != null ? DateTime.fromMillisecondsSinceEpoch(m['updated_at'] as int) : null,
     imageBase64: m['image_base64'] as String?,
+    imagePath: m['image_path'] as String?,
   );
 }
 
@@ -18962,6 +19303,8 @@ class _NotesProPageState extends State<NotesProPage> {
             noteJson: note.toJson(),
             deletedAt: DateTime.now(),
           ));
+        } else {
+          await ImageStorageHelper().deleteImageFile(note.imagePath);
         }
         await db.deleteProNote(noteId);
       }
@@ -19015,6 +19358,7 @@ class _NotesProPageState extends State<NotesProPage> {
           updatedAt: DateTime.now(),
           linkedDate: note.linkedDate,
           imageBase64: note.imageBase64,
+          imagePath: note.imagePath,
         );
         await db.updateProNote(noteId, updated);
       }
@@ -19129,6 +19473,7 @@ class _NotesProPageState extends State<NotesProPage> {
       updatedAt: DateTime.now(),
       linkedDate: note.linkedDate,
       imageBase64: note.imageBase64,
+      imagePath: note.imagePath,
     );
     await DatabaseHelper().updateProNote(noteId, updated);
     await _loadNotes();
@@ -19171,6 +19516,8 @@ class _NotesProPageState extends State<NotesProPage> {
           noteJson: note.toJson(),
           deletedAt: DateTime.now(),
         ));
+      } else {
+        await ImageStorageHelper().deleteImageFile(note.imagePath);
       }
       await db.deleteProNote(noteId);
     }
@@ -19555,14 +19902,13 @@ class _NoteReadPageState extends State<NoteReadPage> {
             ),
             Divider(height: 24, thickness: 0.5, color: colorScheme.outlineVariant),
             // Image (from flash note move)
-            if (_currentNote.imageBase64 != null && _currentNote.imageBase64!.isNotEmpty) ...[
-              ClipRRect(
+            if ((_currentNote.imagePath != null && _currentNote.imagePath!.isNotEmpty) || (_currentNote.imageBase64 != null && _currentNote.imageBase64!.isNotEmpty)) ...[
+              StoredImage(
+                imagePath: _currentNote.imagePath,
+                imageBase64: _currentNote.imageBase64,
+                fit: BoxFit.contain,
+                width: double.infinity,
                 borderRadius: BorderRadius.circular(12),
-                child: Image.memory(
-                  base64Decode(_currentNote.imageBase64!),
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                ),
               ),
               const SizedBox(height: 16),
             ],
@@ -19988,6 +20334,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           templatePreset: _selectedTemplate,
           folder: _selectedFolder,
           linkedDate: _linkedDate,
+          imageBase64: widget.existingNote?.imageBase64,
+          imagePath: widget.existingNote?.imagePath,
         ),
       );
       Navigator.pop(context);
