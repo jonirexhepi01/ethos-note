@@ -24,7 +24,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:health/health.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, TargetPlatform, defaultTargetPlatform;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, MethodChannel, rootBundle;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, MethodChannel, SystemNavigator, rootBundle;
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:path_provider/path_provider.dart';
@@ -65,6 +65,33 @@ bool _isSalviaTheme(BuildContext context) =>
 bool _isSakuraTheme(BuildContext context) =>
     Theme.of(context).colorScheme.primary == const Color(0xFFB5838D);
 
+/// Returns true when the Yellow Note theme is active.
+bool _isYellowNoteTheme(BuildContext context) =>
+    Theme.of(context).colorScheme.primary == const Color(0xFF1E3A8A);
+
+/// Draws horizontal ruled lines (blue) and a double red margin line,
+/// simulating classic yellow legal-pad paper.
+class _LinedPaperPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const lineSpacing = 24.0;
+    final linePaint = Paint()
+      ..color = const Color(0x331E3A8A)
+      ..strokeWidth = 0.5;
+    for (double y = lineSpacing; y < size.height; y += lineSpacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
+    final marginPaint = Paint()
+      ..color = const Color(0x33EF4444)
+      ..strokeWidth = 0.8;
+    canvas.drawLine(const Offset(40, 0), Offset(40, size.height), marginPaint);
+    canvas.drawLine(const Offset(42, 0), Offset(42, size.height), marginPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 /// Maps a theme mode string to [bgColor, iconCircleColor, separatorColor]
 /// for the Flash Notes Shortcuts home-screen widget.
 List<int> _widgetColorsForTheme(String mode) {
@@ -85,6 +112,7 @@ List<int> _widgetColorsForTheme(String mode) {
     'cabina_tempo':  [0xFF001529, 0xFF1565C0, 0x33FFFFFF],
     'sottosopra':    [0xFF0A0A0A, 0xFFD50000, 0x33FFFFFF],
     'rifugio':       [0xFF1A1A0A, 0xFF32CD32, 0x33FFFFFF],
+    'yellow_note':   [0xFFFEF9C3, 0xFF1E3A8A, 0x33000000],
   };
   return map[mode] ?? map['default']!;
 }
@@ -129,6 +157,7 @@ Color _sectionAccent(BuildContext context, int section) {
     0xFF003B6F: [Color(0xFF1565C0), Color(0xFF003B6F), Color(0xFF90CAF9)], // Dr. Who
     0xFFB71C1C: [Color(0xFFD50000), Color(0xFFB71C1C), Color(0xFFFF1744)], // Stranger Things
     0xFF32CD32: [Color(0xFF32CD32), Color(0xFF005FB8), Color(0xFFFFEB3B)], // Fallout
+    0xFF1E3A8A: [Color(0xFFEF4444), Color(0xFF1E3A8A), Color(0xFFFFA726)], // Yellow Note
   };
   return map[v]?[section] ?? const [Color(0xFFE53935), Color(0xFF1E88E5), Color(0xFFFFA726)][section];
 }
@@ -142,6 +171,7 @@ String? _themedFont(BuildContext context) {
     0xFFB5838D: 'Libre Baskerville',
     0xFF691212: 'Caveat', // Jiraiya — calligraphic brush
     0xFF32CD32: 'Share Tech Mono', // Fallout — monospaced terminal
+    0xFF1E3A8A: 'Courier Prime', // Yellow Note — typewriter
   };
   return map[v];
 }
@@ -152,7 +182,7 @@ bool _hasCustomTheme(BuildContext context) {
   return const {
     0xFFA3274F, 0xFF795548, 0xFF78909C, 0xFF6B8F71, 0xFFB5838D,
     0xFF1B4D3E, 0xFFD32F2F, 0xFFE6A800, 0xFF7C4DFF, 0xFFE65100,
-    0xFF691212, 0xFF003B6F, 0xFFB71C1C, 0xFF32CD32,
+    0xFF691212, 0xFF003B6F, 0xFFB71C1C, 0xFF32CD32, 0xFF1E3A8A,
   }.contains(v);
 }
 
@@ -174,6 +204,7 @@ String _themedHighlight(BuildContext context) {
     0xFF003B6F: '#0D2137', // Dr. Who — TARDIS dark
     0xFFB71C1C: '#0A0A1A', // Stranger Things — abyss
     0xFF32CD32: '#1A1A1A', // Fallout — terminal dark
+    0xFF1E3A8A: '#FEF9C3', // Yellow Note — pad yellow
   };
   return map[v] ?? '#FFF9C4';
 }
@@ -189,6 +220,7 @@ Color? _themeOverlayColor(BuildContext context) {
     0xFF691212: Color(0x08691212), // Jiraiya — scroll texture
     0xFF003B6F: Color(0x06003B6F), // Dr. Who — retro screen
     0xFF32CD32: Color(0x0832CD32), // Fallout — terminal glow
+    0xFF1E3A8A: Color(0x061E3A8A), // Yellow Note — subtle paper tint
   };
   return map[v];
 }
@@ -1041,6 +1073,8 @@ const _translations = <String, Map<String, String>>{
   'sottosopra_desc': {'it': 'Misterioso, anni \'80 e inquietante', 'en': 'Mysterious, 80s and eerie', 'fr': 'Mystérieux, années 80 et inquiétant', 'es': 'Misterioso, años 80 e inquietante'},
   'rifugio_theme': {'it': 'Rifugio Atomico', 'en': 'Atomic Shelter', 'fr': 'Refuge Atomique', 'es': 'Refugio Atómico'},
   'rifugio_desc': {'it': 'Post-apocalittico e industriale', 'en': 'Post-apocalyptic and industrial', 'fr': 'Post-apocalyptique et industriel', 'es': 'Postapocalíptico e industrial'},
+  'yellow_note_theme': {'it': 'Yellow Note', 'en': 'Yellow Note', 'fr': 'Yellow Note', 'es': 'Yellow Note'},
+  'yellow_note_desc': {'it': 'Blocco note giallo, penna a sfera e nostalgia analogica', 'en': 'Yellow notepad, ballpoint pen and analog nostalgia', 'fr': 'Bloc-notes jaune, stylo bille et nostalgie analogique', 'es': 'Bloc de notas amarillo, bolígrafo y nostalgia analógica'},
   'collection_oceano': {'it': 'Oltre l\'Oceano', 'en': 'Beyond the Ocean', 'fr': 'Au-delà de l\'Océan', 'es': 'Más allá del Océano'},
   'collection_foglia': {'it': 'Spirito della Foglia', 'en': 'Spirit of the Leaf', 'fr': 'Esprit de la Feuille', 'es': 'Espíritu de la Hoja'},
   'collection_cult': {'it': 'Serie Cult', 'en': 'Cult Series', 'fr': 'Séries Cultes', 'es': 'Series de Culto'},
@@ -1948,14 +1982,14 @@ class DatabaseHelper {
     await db.delete('cycle_days', where: 'day_key = ?', whereArgs: [dayKey]);
   }
 
-  Future<void> replaceAllCycleDays(List<String> days) async {
-    if (_webMode) { _wCycleDays.clear(); _wCycleDays.addAll(days); return; }
+  Future<void> replaceAllCycleDays(List<Map<String, dynamic>> days) async {
+    if (_webMode) { _wCycleDays.clear(); _wCycleDays.addAll(days.map((d) => d['day_key'] as String)); return; }
     final db = await database;
     await db.transaction((txn) async {
       await txn.delete('cycle_days');
       final batch = txn.batch();
       for (final d in days) {
-        batch.insert('cycle_days', {'day_key': d});
+        batch.insert('cycle_days', d);
       }
       await batch.commit(noResult: true);
     });
@@ -1992,15 +2026,17 @@ class DatabaseHelper {
   Future<void> deleteAllData() async {
     if (_webMode) { _wProNotes.clear(); _wFlashNotes.clear(); _wEvents.clear(); _wProfile = null; _wTrashed.clear(); _wFolders.clear(); _wSettings.clear(); _wCache.clear(); _wCycleDays.clear(); return; }
     final db = await database;
-    await db.delete('pro_notes');
-    await db.delete('flash_notes');
-    await db.delete('calendar_events');
-    await db.delete('user_profile');
-    await db.delete('trashed_notes');
-    await db.delete('custom_folders');
-    await db.delete('settings');
-    await db.delete('cache');
-    await db.delete('cycle_days');
+    await db.transaction((txn) async {
+      await txn.delete('pro_notes');
+      await txn.delete('flash_notes');
+      await txn.delete('calendar_events');
+      await txn.delete('user_profile');
+      await txn.delete('trashed_notes');
+      await txn.delete('custom_folders');
+      await txn.delete('settings');
+      await txn.delete('cache');
+      await txn.delete('cycle_days');
+    });
   }
 }
 
@@ -2299,7 +2335,7 @@ Future<void> _migrateSharedPrefsToSqlite() async {
     // ── Cycle Days ──
     final cycleDays = prefs.getStringList('cycle_tracking_private') ?? [];
     if (cycleDays.isNotEmpty) {
-      await db.replaceAllCycleDays(cycleDays);
+      await db.replaceAllCycleDays(cycleDays.map((d) => {'day_key': d, 'flow_intensity': 'medium'}).toList());
     }
   } finally {
     await prefs.setBool('db_migration_complete', true);
@@ -3513,6 +3549,72 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
     );
   }
 
+  // ── Yellow Note Theme (Analogic Legacy) ──
+  static const _ynYellow = Color(0xFFFEF9C3);
+  static const _ynCard = Color(0xFFFFFDE7);
+  static const _ynBlue = Color(0xFF1E3A8A);
+  static const _ynRed = Color(0xFFEF4444);
+  static const _ynBorder = Color(0xFFE5D99B);
+
+  ThemeData _buildYellowNoteTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _ynBlue, brightness: Brightness.light,
+      primary: _ynBlue, onPrimary: Colors.white,
+      surface: _ynYellow, onSurface: const Color(0xFF1A1A1A),
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _ynYellow,
+      textTheme: GoogleFonts.courierPrimeTextTheme(ThemeData.light().textTheme).apply(
+        bodyColor: const Color(0xFF1A1A1A), displayColor: _ynBlue,
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _ynBlue,
+        titleTextStyle: GoogleFonts.courierPrime(fontSize: 20, fontWeight: FontWeight.bold, color: _ynBlue),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4),
+          side: const BorderSide(color: _ynBorder)),
+        color: _ynCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _ynBlue, foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          side: BorderSide(color: _ynBlue.withValues(alpha: 0.4)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _ynCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _ynBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _ynBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _ynBlue, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _ynBlue.withValues(alpha: 0.12),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _ynYellow, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      dividerTheme: DividerThemeData(color: _ynBorder.withValues(alpha: 0.5), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 0, backgroundColor: _ynRed, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _ynBlue : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
   ThemeData get _activeTheme {
     switch (_themeMode) {
       case 'dark': return _buildTheme(Brightness.dark);
@@ -3530,6 +3632,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
       case 'cabina_tempo': return _buildCabinaTempoTheme();
       case 'sottosopra': return _buildSottosopaTheme();
       case 'rifugio': return _buildRifugioTheme();
+      case 'yellow_note': return _buildYellowNoteTheme();
       default: return _buildTheme(Brightness.light);
     }
   }
@@ -3950,7 +4053,7 @@ class UserProfile {
       cognome: json['cognome'],
       email: json['email'],
       dataNascita: json['dataNascita'] != null
-          ? DateTime.parse(json['dataNascita'])
+          ? DateTime.tryParse(json['dataNascita'] ?? '')
           : null,
       isPro: json['isPro'] ?? false,
       photoPath: json['photoPath'],
@@ -4131,9 +4234,9 @@ class CalendarEventFull {
 
   factory CalendarEventFull.fromJson(Map<String, dynamic> json) {
     return CalendarEventFull(
-      title: json['title'],
-      startTime: DateTime.parse(json['startTime']),
-      endTime: DateTime.parse(json['endTime']),
+      title: json['title'] ?? '',
+      startTime: DateTime.tryParse(json['startTime'] ?? '') ?? DateTime.now(),
+      endTime: DateTime.tryParse(json['endTime'] ?? '') ?? DateTime.now(),
       calendar: json['calendar'] ?? tr('personal'),
       reminder: json['reminder'],
       preset: json['preset'],
@@ -4168,9 +4271,9 @@ class CalendarEventFull {
 
   factory CalendarEventFull.fromDbMap(Map<String, dynamic> m) => CalendarEventFull(
     id: m['id'] as int?,
-    title: m['title'] as String,
-    startTime: DateTime.fromMillisecondsSinceEpoch(m['start_time'] as int),
-    endTime: DateTime.fromMillisecondsSinceEpoch(m['end_time'] as int),
+    title: (m['title'] as String?) ?? '',
+    startTime: DateTime.fromMillisecondsSinceEpoch((m['start_time'] as int?) ?? 0),
+    endTime: DateTime.fromMillisecondsSinceEpoch((m['end_time'] as int?) ?? 0),
     calendar: (m['calendar'] as String?) ?? 'Personale',
     reminder: m['reminder'] as String?,
     preset: m['preset'] as String?,
@@ -4287,7 +4390,7 @@ class HoroscopeData {
   factory HoroscopeData.fromJson(Map<String, dynamic> json) => HoroscopeData(
     segno: json['segno'],
     testo: json['testo'],
-    fetchedAt: DateTime.parse(json['fetchedAt']),
+    fetchedAt: DateTime.tryParse(json['fetchedAt'] ?? '') ?? DateTime.now(),
   );
 
   static Future<HoroscopeData?> loadCached() async {
@@ -4412,7 +4515,7 @@ class DailyWeather {
   };
 
   factory DailyWeather.fromJson(Map<String, dynamic> json) => DailyWeather(
-    date: DateTime.parse(json['date']),
+    date: DateTime.tryParse(json['date'] ?? '') ?? DateTime.now(),
     weatherCode: json['weatherCode'],
     tempMax: (json['tempMax'] as num).toDouble(),
     tempMin: (json['tempMin'] as num).toDouble(),
@@ -4450,7 +4553,7 @@ class WeatherData {
     lat: (json['lat'] as num).toDouble(),
     lon: (json['lon'] as num).toDouble(),
     forecast: (json['forecast'] as List?)?.map((f) => DailyWeather.fromJson(f)).toList() ?? [],
-    fetchedAt: DateTime.parse(json['fetchedAt']),
+    fetchedAt: DateTime.tryParse(json['fetchedAt'] ?? '') ?? DateTime.now(),
   );
 
   static Future<WeatherData?> loadCached() async {
@@ -5001,6 +5104,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final sourcePath = p.join(dbPath, 'ethos_note.db');
     final sourceFile = File(sourcePath);
 
+    // Flush WAL data into the main DB file before reading
+    final db = await DatabaseHelper().database;
+    await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+
     final zip = archive.Archive();
 
     final dbBytes = await sourceFile.readAsBytes();
@@ -5437,6 +5544,12 @@ class _CalendarPageState extends State<CalendarPage> {
     // 2) Request notification permissions and wait for result
     await NotificationService.ensurePermissions();
 
+    // 2b) Request battery optimization exemption (Samsung kills background alarms)
+    final batteryOk = await NotificationService.isIgnoringBatteryOptimizations();
+    if (!batteryOk) {
+      await NotificationService.requestIgnoreBatteryOptimization();
+    }
+
     // 3) Now load events and schedule notifications (settings + permissions are ready)
     await _loadEvents();
 
@@ -5715,9 +5828,10 @@ class _CalendarPageState extends State<CalendarPage> {
       final now = DateTime.now();
       for (final e in events) {
         if (e.startTime.isAfter(now)) {
-          _scheduleNotification(e);
+          await _scheduleNotification(e);
         }
       }
+      debugPrint('NotificationService: scheduled notifications for ${events.where((e) => e.startTime.isAfter(now)).length} future Google events');
     }
   }
 
@@ -6039,15 +6153,30 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _rescheduleAllNotifications() async {
+    // Cancel all stale notifications before rescheduling
+    try {
+      await NotificationService.cancelAll();
+      debugPrint('NotificationService: cancelled all existing notifications');
+    } catch (e) {
+      debugPrint('NotificationService: cancelAll error: $e');
+    }
     final now = DateTime.now();
+    int scheduled = 0;
     for (final dayEvents in _events.values) {
       for (final event in dayEvents) {
         if (event.startTime.isAfter(now)) {
           await _scheduleNotification(event);
+          scheduled++;
         }
       }
     }
-    debugPrint('NotificationService: rescheduled all future notifications');
+    // Verify pending notifications
+    try {
+      final count = await NotificationService.pendingCount();
+      debugPrint('NotificationService: rescheduled $scheduled events, $count pending notifications');
+    } catch (e) {
+      debugPrint('NotificationService: rescheduled $scheduled events (pending check failed: $e)');
+    }
   }
 
   Future<void> _saveEvents() async {
@@ -6057,6 +6186,7 @@ class _CalendarPageState extends State<CalendarPage> {
   Future<void> _scheduleNotification(CalendarEventFull event) async {
     final baseId = event.startTime.millisecondsSinceEpoch ~/ 1000;
     final alertType = _calSettings.alertConfig.alertType;
+    debugPrint('_scheduleNotification: "${event.title}" at ${event.startTime}, reminder="${event.reminder}", alertType=$alertType, global alertMinutes=${_calSettings.alertMinutesBefore}');
 
     // 1) Schedule from event-specific reminder (if set)
     if (event.reminder != null && event.reminder!.isNotEmpty) {
@@ -6143,8 +6273,10 @@ class _CalendarPageState extends State<CalendarPage> {
               final key = _dateKey(_selectedDay!);
               _events.putIfAbsent(key, () => []).add(event);
             });
-            _saveEvents();
-            _scheduleNotification(event);
+            _saveEvents().then((_) async {
+              await _scheduleNotification(event);
+              debugPrint('NotificationService: scheduled notification for new event "${event.title}"');
+            });
             // Push to Google Calendar if connected
             if (GoogleCalendarService.isSignedIn) {
               _pushEventToGoogle(event);
@@ -6183,8 +6315,10 @@ class _CalendarPageState extends State<CalendarPage> {
               final key = _dateKey(day);
               _events[key]?[index] = updatedEvent;
             });
-            _saveEvents();
-            _scheduleNotification(updatedEvent);
+            _saveEvents().then((_) async {
+              await _scheduleNotification(updatedEvent);
+              debugPrint('NotificationService: rescheduled notification for updated event "${updatedEvent.title}"');
+            });
           },
         ),
       ),
@@ -6224,6 +6358,7 @@ class _CalendarPageState extends State<CalendarPage> {
       NotificationService.cancelReminder(notifId);
       // Remember signature so matching Google duplicate stays hidden
       _deletedEventSignatures.add('${event.title}|${event.startTime.millisecondsSinceEpoch}');
+      if (!mounted) return;
       setState(() {
         _events[key]?.removeAt(index);
         if (_events[key]?.isEmpty ?? false) _events.remove(key);
@@ -6640,6 +6775,7 @@ class _CalendarPageState extends State<CalendarPage> {
       lastDate: DateTime(2100),
     );
     if (picked != null) {
+      if (!mounted) return;
       setState(() {
         _focusedDay = picked;
         _selectedDay = picked;
@@ -7865,7 +8001,7 @@ class HealthSnapshot {
     weight: (json['weight'] as num?)?.toDouble(),
     bloodOxygen: (json['bloodOxygen'] as num?)?.toDouble(),
     waterLiters: (json['waterLiters'] as num?)?.toDouble(),
-    fetchedAt: DateTime.parse(json['fetchedAt']),
+    fetchedAt: DateTime.tryParse(json['fetchedAt'] ?? '') ?? DateTime.now(),
   );
 }
 
@@ -8321,9 +8457,9 @@ class NotificationService {
       return;
     }
     final permOk = await ensurePermissions();
+    debugPrint('NotificationService: scheduling #$id "$title" — ${minutesBefore}min before $eventTime (permissions=$permOk)');
     if (!permOk && !_permissionsGranted) {
-      debugPrint('NotificationService: skip #$id — permissions not granted');
-      // Still attempt scheduling — Android may allow alarms even without POST_NOTIFICATIONS
+      debugPrint('NotificationService: WARNING #$id — permissions not granted, attempting anyway');
     }
 
     final scheduledTime = eventTime.subtract(Duration(minutes: minutesBefore));
@@ -8479,6 +8615,33 @@ class NotificationService {
     await _plugin.cancelAll();
   }
 
+  static const _batteryChannel = MethodChannel('com.ethosnote.app/battery');
+
+  /// Check if battery optimization is already disabled for this app.
+  static Future<bool> isIgnoringBatteryOptimizations() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return true;
+    try {
+      final result = await _batteryChannel.invokeMethod<bool>('isIgnoringBatteryOptimizations');
+      return result ?? false;
+    } catch (e) {
+      debugPrint('NotificationService: battery check error: $e');
+      return false;
+    }
+  }
+
+  /// Request to disable battery optimization (Samsung/Android).
+  /// Shows a system dialog asking the user to allow unrestricted background usage.
+  static Future<bool> requestIgnoreBatteryOptimization() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return false;
+    try {
+      final result = await _batteryChannel.invokeMethod<bool>('requestIgnoreBatteryOptimizations');
+      return result ?? false;
+    } catch (e) {
+      debugPrint('NotificationService: battery optimization request error: $e');
+      return false;
+    }
+  }
+
   /// Immediate test notification — also requests permissions if needed.
   static Future<bool> showTestNotification({String alertType = 'sound_vibration'}) async {
     if (kIsWeb) return false;
@@ -8497,6 +8660,46 @@ class NotificationService {
     } catch (e) {
       debugPrint('NotificationService test error: $e');
       return false;
+    }
+  }
+
+  /// Schedule a test notification 10 seconds in the future to verify zonedSchedule works.
+  static Future<bool> showScheduledTestNotification({String alertType = 'sound_vibration'}) async {
+    if (kIsWeb) return false;
+    if (!_initialized) await init();
+    await ensurePermissions();
+    if (!_permissionsGranted) {
+      debugPrint('NotificationService: scheduled test FAILED — permissions not granted');
+      return false;
+    }
+    try {
+      final scheduledTime = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 10));
+      await _plugin.zonedSchedule(
+        99998,
+        'Ethos Note',
+        'Notifica programmata funziona! ⏰ (10s)',
+        scheduledTime,
+        _buildNotifDetails(alertType),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'scheduled_test',
+      );
+      debugPrint('NotificationService: scheduled test for $scheduledTime');
+      return true;
+    } catch (e) {
+      debugPrint('NotificationService scheduled test error: $e');
+      return false;
+    }
+  }
+
+  /// Returns the number of pending (scheduled) notifications.
+  static Future<int> pendingCount() async {
+    if (kIsWeb || !_initialized) return -1;
+    try {
+      final pending = await _plugin.pendingNotificationRequests();
+      return pending.length;
+    } catch (e) {
+      return -1;
     }
   }
 }
@@ -9299,35 +9502,68 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               ],
             ),
             const Divider(),
-            Center(
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  // First ensure permissions
-                  final permOk = await NotificationService.ensurePermissions();
-                  if (!permOk) {
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    // First ensure permissions
+                    final permOk = await NotificationService.ensurePermissions();
+                    if (!permOk) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(tr('notification_denied')),
+                          behavior: SnackBarBehavior.floating,
+                          duration: const Duration(seconds: 5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      );
+                      return;
+                    }
+                    final ok = await NotificationService.showTestNotification(alertType: _settings.alertConfig.alertType);
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(tr('notification_denied')),
+                        content: Text(ok ? tr('notification_sent') : tr('notification_error')),
                         behavior: SnackBarBehavior.floating,
-                        duration: const Duration(seconds: 5),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     );
-                    return;
-                  }
-                  final ok = await NotificationService.showTestNotification(alertType: _settings.alertConfig.alertType);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(ok ? tr('notification_sent') : tr('notification_error')),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
+                  },
+                  icon: const Icon(Icons.notifications_active, size: 18),
+                  label: Text(tr('test_notifications')),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final ok = await NotificationService.showScheduledTestNotification(alertType: _settings.alertConfig.alertType);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(ok ? 'Notifica programmata tra 10 secondi...' : 'Errore: controlla i permessi notifiche e sveglie esatte.'),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.schedule, size: 18),
+                  label: const Text('Test programmato'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: FutureBuilder<int>(
+                future: NotificationService.pendingCount(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? -1;
+                  return Text(
+                    'Notifiche in coda: ${count >= 0 ? count : '...'}',
+                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   );
                 },
-                icon: const Icon(Icons.notifications_active, size: 18),
-                label: Text(tr('test_notifications')),
               ),
             ),
           ],
@@ -10695,6 +10931,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
       lastDate: DateTime(2100),
     );
     if (date != null) {
+      if (!mounted) return;
       setState(() {
         if (isStart) {
           _startTime = DateTime(date.year, date.month, date.day, _startTime.hour, _startTime.minute);
@@ -10715,6 +10952,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
       initialEntryMode: TimePickerEntryMode.input,
     );
     if (time != null) {
+      if (!mounted) return;
       setState(() {
         if (isStart) {
           _startTime = DateTime(
@@ -10779,6 +11017,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
         withData: true,
       );
       if (result != null && result.files.single.bytes != null) {
+        if (!mounted) return;
         setState(() {
           _attachmentBase64 = base64Encode(result.files.single.bytes!);
           _attachmentFileName = result.files.single.name;
@@ -11040,7 +11279,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
                         firstDate: _startTime,
                         lastDate: DateTime(2100),
                       );
-                      if (picked != null) setState(() => _recurrenceEndDate = picked);
+                      if (picked != null && mounted) setState(() => _recurrenceEndDate = picked);
                     },
                     selectedColor: colorScheme.primaryContainer,
                   ),
@@ -11266,6 +11505,7 @@ class _SettingsPageState extends State<SettingsPage> {
       case 'cabina_tempo': return 'Cabina del Tempo';
       case 'sottosopra': return 'Sottosopra';
       case 'rifugio': return 'Rifugio Atomico';
+      case 'yellow_note': return 'Yellow Note';
       default: return 'Ethos';
     }
   }
@@ -11303,6 +11543,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
 
+      if (!mounted) return;
       if (action == 'remove') {
         setState(() {
           _profile.photoBase64 = null;
@@ -12233,6 +12474,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: Text(tr('sign_out'), style: TextStyle(color: colorScheme.error, fontWeight: FontWeight.w600)),
                     onTap: () async {
                       await GoogleCalendarService.signOut();
+                      if (!mounted) return;
                       _profile.googleCalendarConnected = false;
                       widget.onSave(_profile);
                       setState(() {});
@@ -12314,6 +12556,10 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     final dbPath = await getDatabasesPath();
     final sourcePath = p.join(dbPath, 'ethos_note.db');
     final sourceFile = File(sourcePath);
+
+    // Flush WAL data into the main DB file before reading
+    final db = await DatabaseHelper().database;
+    await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
 
     final zip = archive.Archive();
 
@@ -12435,15 +12681,27 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('backup_imported')),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('backup_imported')),
+          content: const Text('L\'app verrà chiusa. Riaprila per vedere i dati importati.'),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                SystemNavigator.pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
         ),
       );
     } catch (e) {
+      // Re-open DB on error so the app remains functional
+      await DatabaseHelper().database;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -12465,7 +12723,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     return ok;
   }
 
-  Future<void> _exportBackupToDrive() async {
+  Future<void> _exportBackupToDrive({int retryCount = 0}) async {
     setState(() => _isBackingUp = true);
     try {
       final signedIn = await _ensureGoogleDriveSignIn();
@@ -12534,12 +12792,13 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       if (!mounted) return;
       setState(() => _isBackingUp = false);
 
-      // Handle 403 scope upgrade: sign out and re-sign in
-      if (e.toString().contains('403') || e.toString().contains('insufficientPermissions')) {
+      // Handle 403 scope upgrade: sign out and re-sign in (max 1 retry)
+      if (retryCount < 1 &&
+          (e.toString().contains('403') || e.toString().contains('insufficientPermissions'))) {
         await GoogleCalendarService.signOut();
         final ok = await GoogleCalendarService.signIn();
         if (ok && mounted) {
-          _exportBackupToDrive(); // Retry after scope upgrade
+          _exportBackupToDrive(retryCount: retryCount + 1);
           return;
         }
       }
@@ -12659,15 +12918,27 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
 
       if (!mounted) return;
       setState(() => _isBackingUp = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('backup_imported')),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('backup_imported')),
+          content: const Text('L\'app verrà chiusa. Riaprila per vedere i dati importati.'),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                SystemNavigator.pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
         ),
       );
     } catch (e) {
+      // Re-open DB on error so the app remains functional
+      await DatabaseHelper().database;
       if (!mounted) return;
       setState(() => _isBackingUp = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -12786,6 +13057,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       // Activating: require PIN setup if no PIN, then set
       if (_biometricPin == null || _biometricPin!.length != 4) {
         await _showSetPinDialog();
+        if (!mounted) return;
         if (_biometricPin == null || _biometricPin!.length != 4) return;
       }
       setter(value);
@@ -12793,6 +13065,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     } else {
       // Deactivating: require biometric auth
       final authenticated = await _authenticateBiometric();
+      if (!mounted) return;
       if (!authenticated) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -12936,7 +13209,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                             ],
                           ),
                         );
-                        if (confirmed != true) return;
+                        if (confirmed != true || !mounted) return;
                         setState(() => _backupDestination = sel.first);
                         await DatabaseHelper().saveSetting('backup_destination', sel.first);
                         if (mounted) {
@@ -13998,8 +14271,8 @@ class FlashNote {
   };
 
   factory FlashNote.fromJson(Map<String, dynamic> json) => FlashNote(
-    content: json['content'],
-    createdAt: DateTime.parse(json['createdAt']),
+    content: json['content'] ?? '',
+    createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
     audioPath: json['audioPath'],
     audioDurationMs: json['audioDurationMs'],
     imageBase64: json['imageBase64'],
@@ -14017,8 +14290,8 @@ class FlashNote {
 
   factory FlashNote.fromDbMap(Map<String, dynamic> m) => FlashNote(
     id: m['id'] as int?,
-    content: m['content'] as String,
-    createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
+    content: (m['content'] as String?) ?? '',
+    createdAt: DateTime.fromMillisecondsSinceEpoch((m['created_at'] as int?) ?? 0),
     audioPath: m['audio_path'] as String?,
     audioDurationMs: m['audio_duration_ms'] as int?,
     imageBase64: m['image_base64'] as String?,
@@ -14805,6 +15078,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const IntegrationsPage())).then((_) async {
                   final updated = await FlashNotesSettings.load();
+                  if (!mounted) return;
                   setState(() {
                     _settings = updated;
                     _apiKeyController.text = updated.geminiApiKey;
@@ -15139,6 +15413,12 @@ class _ThemeCatalogPageState extends State<_ThemeCatalogPage> {
         color: const Color(0xFF32CD32), previewColors: const [Color(0xFF1A1A1A), Color(0xFF32CD32), Color(0xFF005FB8)],
       ));
     }
+    if (_auraSettings.yellowNotePurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'yellow_note', name: tr('yellow_note_theme'), description: tr('yellow_note_desc'), icon: Icons.edit_note,
+        color: const Color(0xFF1E3A8A), previewColors: const [Color(0xFFFEF9C3), Color(0xFF1E3A8A), Color(0xFFEF4444)],
+      ));
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -15293,6 +15573,7 @@ class EthosAuraSettings {
   final bool cabinaTempoPurchased;
   final bool sottosopraPurchased;
   final bool rifugioPurchased;
+  final bool yellowNotePurchased;
 
   const EthosAuraSettings({
     this.oroscopoPurchased = false,
@@ -15313,6 +15594,7 @@ class EthosAuraSettings {
     this.cabinaTempoPurchased = false,
     this.sottosopraPurchased = false,
     this.rifugioPurchased = false,
+    this.yellowNotePurchased = false,
   });
 
   EthosAuraSettings copyWith({
@@ -15334,6 +15616,7 @@ class EthosAuraSettings {
     bool? cabinaTempoPurchased,
     bool? sottosopraPurchased,
     bool? rifugioPurchased,
+    bool? yellowNotePurchased,
   }) {
     return EthosAuraSettings(
       oroscopoPurchased: oroscopoPurchased ?? this.oroscopoPurchased,
@@ -15354,6 +15637,7 @@ class EthosAuraSettings {
       cabinaTempoPurchased: cabinaTempoPurchased ?? this.cabinaTempoPurchased,
       sottosopraPurchased: sottosopraPurchased ?? this.sottosopraPurchased,
       rifugioPurchased: rifugioPurchased ?? this.rifugioPurchased,
+      yellowNotePurchased: yellowNotePurchased ?? this.yellowNotePurchased,
     );
   }
 
@@ -15376,6 +15660,7 @@ class EthosAuraSettings {
     'cabinaTempoPurchased': cabinaTempoPurchased,
     'sottosopraPurchased': sottosopraPurchased,
     'rifugioPurchased': rifugioPurchased,
+    'yellowNotePurchased': yellowNotePurchased,
   };
 
   factory EthosAuraSettings.fromJson(Map<String, dynamic> json) =>
@@ -15398,6 +15683,7 @@ class EthosAuraSettings {
         cabinaTempoPurchased: json['cabinaTempoPurchased'] ?? false,
         sottosopraPurchased: json['sottosopraPurchased'] ?? false,
         rifugioPurchased: json['rifugioPurchased'] ?? false,
+        yellowNotePurchased: json['yellowNotePurchased'] ?? false,
       );
 
   static Future<EthosAuraSettings> load() async {
@@ -15432,6 +15718,7 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
 
   Future<void> _loadSettings() async {
     final s = await EthosAuraSettings.load();
+    if (!mounted) return;
     setState(() { _auraSettings = s; _loading = false; });
   }
 
@@ -15505,6 +15792,9 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
         break;
       case 'rifugio_theme':
         updated = _auraSettings.copyWith(rifugioPurchased: true);
+        break;
+      case 'yellow_note_theme':
+        updated = _auraSettings.copyWith(yellowNotePurchased: true);
         break;
       default:
         return;
@@ -15706,6 +15996,7 @@ class _AuraThemeStorePageState extends State<_AuraThemeStorePage> {
       {'id': 'nordic_zen_theme', 'name': 'Nordic Zen', 'desc': tr('nordic_zen_desc'), 'color': const Color(0xFF78909C), 'price': '€0,99', 'purchased': _aura.nordicZenPurchased, 'preview': [const Color(0xFFF0F4F8), const Color(0xFF78909C), const Color(0xFF2D3748)]},
       {'id': 'green_salvia_theme', 'name': 'Green Salvia', 'desc': tr('green_salvia_desc'), 'color': const Color(0xFF6B8F71), 'price': '€0,99', 'purchased': _aura.greenSalviaPurchased, 'preview': [const Color(0xFFE2E8E4), const Color(0xFF6B8F71), const Color(0xFF2A3B32)]},
       {'id': 'sakura_theme', 'name': 'Sakura', 'desc': tr('sakura_desc'), 'color': const Color(0xFFB5838D), 'price': '€0,99', 'purchased': _aura.sakuraPurchased, 'preview': [const Color(0xFFF7E7E6), const Color(0xFFB5838D), const Color(0xFF2D3748)]},
+      {'id': 'yellow_note_theme', 'name': tr('yellow_note_theme'), 'desc': tr('yellow_note_desc'), 'color': const Color(0xFF1E3A8A), 'price': '€0,99', 'purchased': _aura.yellowNotePurchased, 'preview': [const Color(0xFFFEF9C3), const Color(0xFF1E3A8A), const Color(0xFFEF4444)]},
     ];
     final oceano = <Map<String, dynamic>>[
       {'id': 'spadaccino_theme', 'name': tr('spadaccino_theme'), 'desc': tr('spadaccino_desc'), 'color': const Color(0xFF1B4D3E), 'price': '€0,99', 'purchased': _aura.spadaccinoPurchased, 'preview': [const Color(0xFF0D2818), const Color(0xFF1B4D3E), const Color(0xFF2E7D5B)]},
@@ -15881,7 +16172,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
           ],
         ),
       );
-      if (name == null || name.isEmpty) return;
+      if (name == null || name.isEmpty || !mounted) return;
 
       final delta = [{'insert': '$text\n'}];
       final updated = List<Map<String, dynamic>>.from(_settings.customTemplates)
@@ -16290,6 +16581,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     if (trashed.id != null) {
       await db.deleteTrashedNote(trashed.id!);
     }
+    if (!mounted) return;
     setState(() => _trashedNotes.removeAt(index));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -16318,6 +16610,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     if (trashed.id != null) {
       await DatabaseHelper().deleteTrashedNote(trashed.id!);
     }
+    if (!mounted) return;
     setState(() => _trashedNotes.removeAt(index));
   }
 
@@ -16347,6 +16640,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
           }
         } catch (_) {}
       }
+      if (!mounted) return;
       setState(() => _trashedNotes.clear());
       await TrashedNote.saveAll([]);
     }
@@ -16580,6 +16874,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   bool _imageExpanded = false;
   bool _isEditing = false;
   bool _checkboxJustTapped = false;
+  final List<TapGestureRecognizer> _recognizers = [];
 
   static final _tokenRegex = RegExp(
     r'https?://[^\s<>\[\](){}\"]+|[☐☑]',
@@ -16613,6 +16908,8 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
 
   @override
   void dispose() {
+    for (final r in _recognizers) { r.dispose(); }
+    _recognizers.clear();
     _editorAudioPlayer?.dispose();
     _bodyController.removeListener(_handleListContinuation);
     _bodyController.dispose();
@@ -16952,6 +17249,10 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   }
 
   TextSpan _buildLinkifiedSpan(String text, TextStyle baseStyle, Color linkColor) {
+    // Dispose old recognizers before creating new ones
+    for (final r in _recognizers) { r.dispose(); }
+    _recognizers.clear();
+
     final colorScheme = Theme.of(context).colorScheme;
     final matches = _tokenRegex.allMatches(text).toList();
     if (matches.isEmpty) return TextSpan(text: text, style: baseStyle);
@@ -16965,13 +17266,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       if (token == '☐' || token == '☑') {
         final isChecked = token == '☑';
         final checkboxSize = (baseStyle.fontSize ?? 16) * 1.4;
-        spans.add(TextSpan(
-          text: token,
-          style: baseStyle.copyWith(
-            fontSize: checkboxSize,
-            color: isChecked ? linkColor : colorScheme.onSurfaceVariant,
-          ),
-          recognizer: TapGestureRecognizer()..onTap = () {
+        final recognizer = TapGestureRecognizer()..onTap = () {
             _checkboxJustTapped = true;
             final newChar = isChecked ? '☐' : '☑';
             final newText = text.substring(0, match.start) + newChar + text.substring(match.end);
@@ -16988,13 +17283,23 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
               );
               widget.onSave(note);
             }
-          },
+          };
+        _recognizers.add(recognizer);
+        spans.add(TextSpan(
+          text: token,
+          style: baseStyle.copyWith(
+            fontSize: checkboxSize,
+            color: isChecked ? linkColor : colorScheme.onSurfaceVariant,
+          ),
+          recognizer: recognizer,
         ));
       } else {
+        final recognizer = TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse(token), mode: LaunchMode.externalApplication);
+        _recognizers.add(recognizer);
         spans.add(TextSpan(
           text: token,
           style: baseStyle.copyWith(color: linkColor, decoration: TextDecoration.underline, decorationColor: linkColor),
-          recognizer: TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse(token), mode: LaunchMode.externalApplication),
+          recognizer: recognizer,
         ));
       }
       lastEnd = match.end;
@@ -17494,17 +17799,20 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   Future<void> _loadViewMode() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() => _isGridView = prefs.getBool('flash_view_mode_grid') ?? false);
   }
 
   Future<void> _toggleViewMode() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() => _isGridView = !_isGridView);
     await prefs.setBool('flash_view_mode_grid', _isGridView);
   }
 
   Future<void> _loadGroupingMode() async {
     final settings = await FlashNotesSettings.load();
+    if (!mounted) return;
     setState(() => _groupingMode = settings.groupingMode);
   }
 
@@ -17745,6 +18053,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     final file = File(imagePath);
     if (!await file.exists()) return;
     final bytes = await file.readAsBytes();
+    if (!mounted) return;
     final base64Image = base64Encode(bytes);
 
     setState(() => _isAnalyzingPhoto = true);
@@ -18219,7 +18528,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               Navigator.pop(ctx);
               final settings = await NoteProSettings.load();
               for (final noteId in _selectedNoteIds) {
-                final note = _notes.firstWhere((n) => n.id == noteId, orElse: () => _notes.first);
+                final idx = _notes.indexWhere((n) => n.id == noteId);
+                if (idx == -1) continue;
+                final note = _notes[idx];
                 if (settings.trashEnabled) {
                   final trashed = TrashedNote(type: 'flash', noteJson: note.toJson(), deletedAt: DateTime.now());
                   await DatabaseHelper().insertTrashedNote(trashed);
@@ -18228,6 +18539,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                 }
                 await DatabaseHelper().deleteFlashNote(noteId);
               }
+              if (!mounted) return;
               setState(() {
                 _selectionMode = false;
                 _selectedNoteIds.clear();
@@ -18296,7 +18608,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
     int count = 0;
     for (final noteId in _selectedNoteIds) {
-      final note = _notes.firstWhere((n) => n.id == noteId, orElse: () => _notes.first);
+      final idx = _notes.indexWhere((n) => n.id == noteId);
+      if (idx == -1) continue;
+      final note = _notes[idx];
       final title = note.content.length > 40 ? note.content.substring(0, 40) : note.content;
       final proNote = ProNote(
         title: title,
@@ -18376,6 +18690,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   await DatabaseHelper().deleteFlashNote(note.id!);
                 }
               }
+              if (!mounted) return;
               setState(() {
                 _selectedGroup = null;
                 _showGroupSidebar = false;
@@ -19358,7 +19673,16 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             margin: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
+                            decoration: _isYellowNoteTheme(context) && !isSelected
+                              ? BoxDecoration(
+                                  color: const [Color(0xFFFEF9C3), Color(0xFFFFCDD2), Color(0xFFB2EBF2), Color(0xFFE1BEE7)][groupKeys.indexOf(_getGroupKey(note.createdAt)).abs() % 4],
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(3), topRight: Radius.circular(3), bottomLeft: Radius.circular(3),
+                                    bottomRight: Radius.circular(0),
+                                  ),
+                                  boxShadow: const [BoxShadow(color: Color(0x29000000), offset: Offset(2, 3), blurRadius: 6)],
+                                )
+                              : BoxDecoration(
                               color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
@@ -19587,7 +19911,16 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                 duration: const Duration(milliseconds: 200),
                                 margin: const EdgeInsets.only(bottom: 8),
                                 padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
+                                decoration: _isYellowNoteTheme(context) && !isSelected
+                                  ? BoxDecoration(
+                                      color: const [Color(0xFFFEF9C3), Color(0xFFFFCDD2), Color(0xFFB2EBF2), Color(0xFFE1BEE7)][groupKeys.indexOf(_getGroupKey(note.createdAt)).abs() % 4],
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(3), topRight: Radius.circular(3), bottomLeft: Radius.circular(3),
+                                        bottomRight: Radius.circular(0),
+                                      ),
+                                      boxShadow: const [BoxShadow(color: Color(0x29000000), offset: Offset(2, 3), blurRadius: 6)],
+                                    )
+                                  : BoxDecoration(
                                   color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
@@ -19945,6 +20278,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     // If same note is playing, stop it
     if (_playingNoteIndex == noteIndex) {
       await _audioPlayer?.stop();
+      if (!mounted) return;
       setState(() { _playingNoteIndex = null; _audioPosition = Duration.zero; });
       return;
     }
@@ -19970,6 +20304,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       } else {
         await _audioPlayer!.play(ap.DeviceFileSource(audioPath));
       }
+      if (!mounted) return;
       setState(() { _playingNoteIndex = noteIndex; _audioPosition = Duration.zero; });
     } catch (_) {
       if (mounted) {
@@ -19988,6 +20323,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (_audioDuration.inMilliseconds > 0) {
       final newPos = Duration(milliseconds: (value * _audioDuration.inMilliseconds).toInt());
       await _audioPlayer?.seek(newPos);
+      if (!mounted) return;
       setState(() => _audioPosition = newPos);
     }
   }
@@ -20447,16 +20783,16 @@ class ProNote {
   };
 
   factory ProNote.fromJson(Map<String, dynamic> json) => ProNote(
-    title: json['title'],
-    content: json['content'],
+    title: json['title'] ?? '',
+    content: json['content'] ?? '',
     contentDelta: json['contentDelta'],
     headerText: json['headerText'],
     footerText: json['footerText'],
     templatePreset: json['templatePreset'],
     folder: json['folder'] ?? 'Generale',
-    linkedDate: json['linkedDate'] != null ? DateTime.parse(json['linkedDate']) : null,
-    createdAt: DateTime.parse(json['createdAt']),
-    updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+    linkedDate: json['linkedDate'] != null ? DateTime.tryParse(json['linkedDate'] ?? '') : null,
+    createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+    updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'] ?? '') : null,
     imageBase64: json['imageBase64'],
     imagePath: json['imagePath'],
   );
@@ -20478,15 +20814,15 @@ class ProNote {
 
   factory ProNote.fromDbMap(Map<String, dynamic> m) => ProNote(
     id: m['id'] as int?,
-    title: m['title'] as String,
-    content: m['content'] as String,
+    title: (m['title'] as String?) ?? '',
+    content: (m['content'] as String?) ?? '',
     contentDelta: m['content_delta'] as String?,
     headerText: m['header_text'] as String?,
     footerText: m['footer_text'] as String?,
     templatePreset: m['template_preset'] as String?,
     folder: (m['folder'] as String?) ?? 'Generale',
     linkedDate: m['linked_date'] != null ? DateTime.fromMillisecondsSinceEpoch(m['linked_date'] as int) : null,
-    createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
+    createdAt: DateTime.fromMillisecondsSinceEpoch((m['created_at'] as int?) ?? 0),
     updatedAt: m['updated_at'] != null ? DateTime.fromMillisecondsSinceEpoch(m['updated_at'] as int) : null,
     imageBase64: m['image_base64'] as String?,
     imagePath: m['image_path'] as String?,
@@ -20610,9 +20946,9 @@ class TrashedNote {
   };
 
   factory TrashedNote.fromJson(Map<String, dynamic> j) => TrashedNote(
-    type: j['type'],
-    noteJson: Map<String, dynamic>.from(j['noteJson']),
-    deletedAt: DateTime.parse(j['deletedAt']),
+    type: j['type'] ?? 'flash',
+    noteJson: Map<String, dynamic>.from(j['noteJson'] ?? {}),
+    deletedAt: DateTime.tryParse(j['deletedAt'] ?? '') ?? DateTime.now(),
   );
 
   Map<String, dynamic> toDbMap() => {
@@ -20623,9 +20959,9 @@ class TrashedNote {
 
   factory TrashedNote.fromDbMap(Map<String, dynamic> m) => TrashedNote(
     id: m['id'] as int?,
-    type: m['type'] as String,
-    noteJson: Map<String, dynamic>.from(json.decode(m['note_json'] as String)),
-    deletedAt: DateTime.fromMillisecondsSinceEpoch(m['deleted_at'] as int),
+    type: (m['type'] as String?) ?? 'flash',
+    noteJson: Map<String, dynamic>.from(json.decode((m['note_json'] as String?) ?? '{}')),
+    deletedAt: DateTime.fromMillisecondsSinceEpoch((m['deleted_at'] as int?) ?? 0),
   );
 
   int daysRemaining(int retentionDays) {
@@ -20703,6 +21039,7 @@ class _NotesProPageState extends State<NotesProPage> {
 
   Future<void> _loadViewMode() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() => _isGridView = prefs.getBool('notes_view_mode_grid') ?? false);
   }
 
@@ -20716,6 +21053,7 @@ class _NotesProPageState extends State<NotesProPage> {
 
   Future<void> _toggleViewMode() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() => _isGridView = !_isGridView);
     await prefs.setBool('notes_view_mode_grid', _isGridView);
   }
@@ -20956,6 +21294,7 @@ class _NotesProPageState extends State<NotesProPage> {
     if (isPrivateFolder || isCycleDiaryFolder) {
       // Reload settings from DB to pick up any biometric changes
       final freshSettings = await NoteProSettings.load();
+      if (!mounted) return;
       setState(() => _settings = freshSettings);
 
       if (_settings.securityPin == null) {
@@ -21402,6 +21741,7 @@ class _NotesProPageState extends State<NotesProPage> {
                     }
                   }
                   await _saveNotes();
+                  if (!mounted) return;
                   setState(() {
                     _folders.remove(oldName);
                     _folders[newName] = newStyle;
@@ -21460,6 +21800,7 @@ class _NotesProPageState extends State<NotesProPage> {
                 }
               }
               await _saveNotes();
+              if (!mounted) return;
               setState(() {
                 _folders.remove(folderName);
                 if (_selectedFolder == folderName) _selectedFolder = tr('all_items');
@@ -21998,7 +22339,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                     margin: const EdgeInsets.all(2),
                                     decoration: BoxDecoration(
                                       color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(_isYellowNoteTheme(context) ? 2 : 16),
                                       border: Border.all(
                                         color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
                                         width: isSelected ? 2 : 1,
@@ -22134,7 +22475,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
                                           color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
-                                          borderRadius: BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(_isYellowNoteTheme(context) ? 2 : 16),
                                           border: Border.all(
                                             color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
                                             width: isSelected ? 2 : 1,
@@ -22373,8 +22714,9 @@ class _NotesProPageState extends State<NotesProPage> {
   Future<void> _exportSelectedNotePdf() async {
     if (_selectedNoteIds.length != 1) return;
     final noteId = _selectedNoteIds.first;
-    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
-    if (note.id != noteId) return;
+    final idx = _proNotes.indexWhere((n) => n.id == noteId);
+    if (idx == -1) return;
+    final note = _proNotes[idx];
 
     // Detect images and text
     final (hasImages, hasText) = _analyzeContentDelta(note.contentDelta);
@@ -22471,20 +22813,21 @@ class _NotesProPageState extends State<NotesProPage> {
     if (confirmed != true || !mounted) return;
     final db = DatabaseHelper();
     for (final noteId in _selectedNoteIds) {
-      final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
-      if (note.id == noteId) {
-        if (_settings.trashEnabled) {
-          await db.insertTrashedNote(TrashedNote(
-            type: 'pro',
-            noteJson: note.toJson(),
-            deletedAt: DateTime.now(),
-          ));
-        } else {
-          await ImageStorageHelper().deleteImageFile(note.imagePath);
-        }
-        await db.deleteProNote(noteId);
+      final idx = _proNotes.indexWhere((n) => n.id == noteId);
+      if (idx == -1) continue;
+      final note = _proNotes[idx];
+      if (_settings.trashEnabled) {
+        await db.insertTrashedNote(TrashedNote(
+          type: 'pro',
+          noteJson: note.toJson(),
+          deletedAt: DateTime.now(),
+        ));
+      } else {
+        await ImageStorageHelper().deleteImageFile(note.imagePath);
       }
+      await db.deleteProNote(noteId);
     }
+    if (!mounted) return;
     setState(() {
       _selectionMode = false;
       _selectedNoteIds.clear();
@@ -22520,25 +22863,26 @@ class _NotesProPageState extends State<NotesProPage> {
     if (targetFolder == null || !mounted) return;
     final db = DatabaseHelper();
     for (final noteId in _selectedNoteIds) {
-      final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
-      if (note.id == noteId) {
-        final updated = ProNote(
-          title: note.title,
-          content: note.content,
-          contentDelta: note.contentDelta,
-          headerText: note.headerText,
-          footerText: note.footerText,
-          templatePreset: note.templatePreset,
-          folder: targetFolder,
-          createdAt: note.createdAt,
-          updatedAt: DateTime.now(),
-          linkedDate: note.linkedDate,
-          imageBase64: note.imageBase64,
-          imagePath: note.imagePath,
-        );
-        await db.updateProNote(noteId, updated);
-      }
+      final idx = _proNotes.indexWhere((n) => n.id == noteId);
+      if (idx == -1) continue;
+      final note = _proNotes[idx];
+      final updated = ProNote(
+        title: note.title,
+        content: note.content,
+        contentDelta: note.contentDelta,
+        headerText: note.headerText,
+        footerText: note.footerText,
+        templatePreset: note.templatePreset,
+        folder: targetFolder,
+        createdAt: note.createdAt,
+        updatedAt: DateTime.now(),
+        linkedDate: note.linkedDate,
+        imageBase64: note.imageBase64,
+        imagePath: note.imagePath,
+      );
+      await db.updateProNote(noteId, updated);
     }
+    if (!mounted) return;
     setState(() {
       _selectionMode = false;
       _selectedNoteIds.clear();
@@ -22557,8 +22901,9 @@ class _NotesProPageState extends State<NotesProPage> {
 
   /// Export a single note as PDF (used by 3-dot menu on card).
   Future<void> _exportNotePdfById(int noteId) async {
-    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
-    if (note.id != noteId) return;
+    final idx = _proNotes.indexWhere((n) => n.id == noteId);
+    if (idx == -1) return;
+    final note = _proNotes[idx];
 
     final (hasImages, hasText) = _analyzeContentDelta(note.contentDelta);
     bool photosFullPage = false;
@@ -22635,8 +22980,9 @@ class _NotesProPageState extends State<NotesProPage> {
       ),
     );
     if (targetFolder == null || !mounted) return;
-    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
-    if (note.id != noteId) return;
+    final idx = _proNotes.indexWhere((n) => n.id == noteId);
+    if (idx == -1) return;
+    final note = _proNotes[idx];
     final updated = ProNote(
       title: note.title,
       content: note.content,
@@ -22683,20 +23029,20 @@ class _NotesProPageState extends State<NotesProPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    final note = _proNotes.firstWhere((n) => n.id == noteId, orElse: () => _proNotes.first);
-    if (note.id == noteId) {
-      final db = DatabaseHelper();
-      if (_settings.trashEnabled) {
-        await db.insertTrashedNote(TrashedNote(
-          type: 'pro',
-          noteJson: note.toJson(),
-          deletedAt: DateTime.now(),
-        ));
-      } else {
-        await ImageStorageHelper().deleteImageFile(note.imagePath);
-      }
-      await db.deleteProNote(noteId);
+    final idx = _proNotes.indexWhere((n) => n.id == noteId);
+    if (idx == -1) return;
+    final note = _proNotes[idx];
+    final db = DatabaseHelper();
+    if (_settings.trashEnabled) {
+      await db.insertTrashedNote(TrashedNote(
+        type: 'pro',
+        noteJson: note.toJson(),
+        deletedAt: DateTime.now(),
+      ));
+    } else {
+      await ImageStorageHelper().deleteImageFile(note.imagePath);
     }
+    await db.deleteProNote(noteId);
     await _loadNotes();
   }
 
@@ -22792,6 +23138,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
       ),
     );
     if (result != null) {
+      if (!mounted) return;
       setState(() {
         _currentNote = result;
         _buildQuillController();
@@ -23431,8 +23778,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       final response = await model.generateContent([gemini.Content.text(prompt)]);
       final result = response.text ?? tr('no_results');
 
-      setState(() => _isAiLoading = false);
       if (!mounted) return;
+      setState(() => _isAiLoading = false);
 
       showModalBottomSheet(
         context: context,
@@ -23518,8 +23865,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         },
       );
     } catch (e) {
-      setState(() => _isAiLoading = false);
       if (!mounted) return;
+      setState(() => _isAiLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${tr('error')}: $e'),
@@ -23906,6 +24253,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       lastDate: DateTime(2030),
     );
     if (picked != null) {
+      if (!mounted) return;
       setState(() => _linkedDate = picked);
     }
   }
@@ -24538,6 +24886,13 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           if (_themeOverlayColor(context) != null)
             Positioned.fill(
               child: Container(color: _themeOverlayColor(context)),
+            ),
+          // Yellow Note ruled lines
+          if (_isYellowNoteTheme(context))
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: _LinedPaperPainter()),
+              ),
             ),
           // Main editor column
           Padding(

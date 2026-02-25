@@ -7,8 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -18,6 +20,7 @@ class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.ethosnote.app/share"
     private val DEEP_LINK_CHANNEL = "com.ethosnote.app/deeplink"
     private val CONTACTS_CHANNEL = "com.ethosnote.app/contacts"
+    private val BATTERY_CHANNEL = "com.ethosnote.app/battery"
     private var sharedFilePath: String? = null
     private var pendingDeepLink: String? = null
 
@@ -181,6 +184,27 @@ class MainActivity : FlutterFragmentActivity() {
             }
         }
 
+        // Battery optimization channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BATTERY_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isIgnoringBatteryOptimizations" -> {
+                    val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                    result.success(pm.isIgnoringBatteryOptimizations(packageName))
+                }
+                "requestIgnoreBatteryOptimizations" -> {
+                    try {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                        intent.data = Uri.parse("package:$packageName")
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         handleIntent(intent)
     }
 
@@ -188,12 +212,13 @@ class MainActivity : FlutterFragmentActivity() {
         super.onNewIntent(intent)
         handleIntent(intent)
         // Push deep link to Flutter immediately (warm start)
+        // Note: do NOT clear pendingDeepLink here — the Dart side clears it
+        // via the getDeepLink call. Clearing here causes a race condition if
+        // the Dart side isn't ready yet.
         if (pendingDeepLink != null) {
-            val link = pendingDeepLink
-            pendingDeepLink = null // Clear before sending to prevent re-delivery
             flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
                 MethodChannel(messenger, DEEP_LINK_CHANNEL)
-                    .invokeMethod("onDeepLink", link)
+                    .invokeMethod("onDeepLink", pendingDeepLink)
             }
         }
         // Replace activity intent with a clean one to prevent stale re-delivery
@@ -225,8 +250,7 @@ class MainActivity : FlutterFragmentActivity() {
             if (uri != null) {
                 // Copy shared file to app's cache directory
                 try {
-                    val inputStream = contentResolver.openInputStream(uri)
-                    if (inputStream != null) {
+                    contentResolver.openInputStream(uri)?.use { inputStream ->
                         val mimeType = contentResolver.getType(uri) ?: ""
                         val ext = when {
                             mimeType.contains("opus") -> ".opus"
@@ -237,15 +261,23 @@ class MainActivity : FlutterFragmentActivity() {
                             mimeType.startsWith("audio/") -> ".audio"
                             else -> ""
                         }
+                        // Clean old shared files before creating a new one
+                        cacheDir.listFiles()?.filter { it.name.startsWith("shared_") }?.forEach {
+                            try { it.delete() } catch (_: Exception) {}
+                        }
                         val outFile = File(cacheDir, "shared_${System.currentTimeMillis()}$ext")
                         outFile.outputStream().use { out ->
                             inputStream.copyTo(out)
                         }
-                        inputStream.close()
                         sharedFilePath = outFile.absolutePath
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
+                }
+            } else if (intent.hasExtra(Intent.EXTRA_TEXT)) {
+                val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                if (sharedText != null) {
+                    pendingDeepLink = "ethosnote://flash?text=${java.net.URLEncoder.encode(sharedText, "UTF-8")}"
                 }
             }
         }
