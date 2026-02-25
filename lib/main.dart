@@ -467,13 +467,14 @@ const _translations = <String, Map<String, String>>{
   // ── Calendar Settings ──
   'show_horoscope': {'it': 'Mostra Oroscopo', 'en': 'Show Horoscope', 'fr': 'Afficher l\'horoscope', 'es': 'Mostrar horóscopo'},
   'show_weather': {'it': 'Mostra Meteo', 'en': 'Show Weather', 'fr': 'Afficher la météo', 'es': 'Mostrar clima'},
+  'weather_in_calendar': {'it': 'Visualizza le previsioni nel calendario', 'en': 'Show forecast in calendar', 'fr': 'Afficher les prévisions dans le calendrier', 'es': 'Mostrar pronóstico en el calendario'},
   'weather_city': {'it': 'Città meteo', 'en': 'Weather city', 'fr': 'Ville météo', 'es': 'Ciudad del clima'},
   'show_zodiac': {'it': 'Mostra Segno Zodiacale', 'en': 'Show Zodiac Sign', 'fr': 'Afficher le signe du zodiaque', 'es': 'Mostrar signo zodiacal'},
   'zodiac_display': {'it': 'Visualizzazione Zodiacale', 'en': 'Zodiac Display', 'fr': 'Affichage du zodiaque', 'es': 'Visualización del zodíaco'},
   'icon_and_text': {'it': 'Icona e testo', 'en': 'Icon and text', 'fr': 'Icône et texte', 'es': 'Icono y texto'},
   'icon_only': {'it': 'Solo icona', 'en': 'Icon only', 'fr': 'Icône seule', 'es': 'Solo icono'},
   'text_only': {'it': 'Solo testo', 'en': 'Text only', 'fr': 'Texte seul', 'es': 'Solo texto'},
-  'show_next_month': {'it': 'Mostra Anteprima Mese Successivo', 'en': 'Show Next Month Preview', 'fr': 'Aperçu du mois suivant', 'es': 'Vista previa del mes siguiente'},
+  'show_next_month': {'it': 'Anteprima Mese Successivo', 'en': 'Next Month Preview', 'fr': 'Aperçu mois suivant', 'es': 'Vista previa mes siguiente'},
   'calendar_layout': {'it': 'Layout Calendario', 'en': 'Calendar Layout', 'fr': 'Disposition du calendrier', 'es': 'Diseño del calendario'},
   'calendar_view': {'it': 'Vista Calendario', 'en': 'Calendar View', 'fr': 'Vue du calendrier', 'es': 'Vista del calendario'},
   'alert_sound': {'it': 'Suono Avviso', 'en': 'Alert Sound', 'fr': 'Son d\'alerte', 'es': 'Sonido de alerta'},
@@ -6021,14 +6022,8 @@ class _CalendarPageState extends State<CalendarPage> {
       setState(() {
         _googleEvents = mapped;
       });
-      // Schedule Ethos Note notifications for future Google events
-      final now = DateTime.now();
-      for (final e in events) {
-        if (e.startTime.isAfter(now)) {
-          await _scheduleNotification(e);
-        }
-      }
-      debugPrint('NotificationService: scheduled notifications for ${events.where((e) => e.startTime.isAfter(now)).length} future Google events');
+      // Google events are scheduled via _rescheduleAllNotifications() —
+      // no separate loop here to avoid duplicate notifications.
     }
   }
 
@@ -8813,19 +8808,22 @@ class NotificationService {
     final scheduledTime = eventTime.subtract(Duration(minutes: minutesBefore));
     final now = DateTime.now();
 
-    // If the reminder time has passed but the event itself is still upcoming,
-    // show an immediate notification so the user doesn't miss it entirely.
+    // If the reminder time has passed, only show immediate notification
+    // if the event is truly imminent (within the next 2 hours).
+    // For events farther out, skip silently — the reminder window was missed.
     if (scheduledTime.isBefore(now)) {
-      if (eventTime.isAfter(now)) {
-        debugPrint('NotificationService: reminder time passed for #$id, showing immediate');
-        final minutesLeft = eventTime.difference(now).inMinutes;
-        final body = minutesLeft <= 0
+      final minutesUntilEvent = eventTime.difference(now).inMinutes;
+      if (eventTime.isAfter(now) && minutesUntilEvent <= 120) {
+        debugPrint('NotificationService: reminder time passed for #$id, event imminent ($minutesUntilEvent min), showing immediate');
+        final body = minutesUntilEvent <= 0
             ? '$title — adesso!'
-            : '$title tra $minutesLeft ${minutesLeft == 1 ? "minuto" : "minuti"}';
+            : '$title tra $minutesUntilEvent ${minutesUntilEvent == 1 ? "minuto" : "minuti"}';
         final details = _buildNotifDetails(alertType);
         try {
           await _plugin.show(id, tr('reminder'), body, details, payload: 'event_$id');
         } catch (e) { debugPrint('NotificationService immediate show error: $e'); }
+      } else {
+        debugPrint('NotificationService: reminder time passed for #$id but event is ${minutesUntilEvent}min away, skipping');
       }
       return;
     }
@@ -9648,7 +9646,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           children: [
             SwitchListTile(
               title: Text(tr('show_next_month'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(tr('show_next_month')),
+              subtitle: Text(tr('next_month_lighter')),
               value: _settings.showNextMonthPreview,
               activeColor: Color(_settings.calendarColorValue),
               contentPadding: EdgeInsets.zero,
@@ -9765,155 +9763,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                 style: const ButtonStyle(visualDensity: VisualDensity.compact),
               ),
             ),
-
-            // Timing
-            const Divider(),
-            Text(tr('reminder'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 4),
-            Text(
-              'Puoi selezionare più avvisi contemporaneamente',
-              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                ..._availableAlertMinutes.entries.map((entry) {
-                  final isSelected = _settings.alertMinutesBefore.contains(entry.key);
-                  return FilterChip(
-                    label: Text(entry.value),
-                    selected: isSelected,
-                    selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
-                    checkmarkColor: Color(_settings.calendarColorValue),
-                    onSelected: (selected) {
-                      final newList = List<int>.from(_settings.alertMinutesBefore);
-                      if (selected) {
-                        newList.add(entry.key);
-                        newList.sort();
-                      } else {
-                        newList.remove(entry.key);
-                      }
-                      if (newList.isNotEmpty) {
-                        _updateSettings(_settings.copyWith(alertMinutesBefore: newList));
-                      }
-                    },
-                  );
-                }),
-                FilterChip(
-                  label: Text(_customAlertMinutes.isNotEmpty
-                      ? '${tr('custom')} (${_customAlertMinutes.map(_formatCustomMinutes).join(', ')})'
-                      : tr('custom')),
-                  selected: _customAlertMinutes.isNotEmpty,
-                  selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
-                  checkmarkColor: Color(_settings.calendarColorValue),
-                  onSelected: (_) => _showCustomAlertTimeDialog(),
-                ),
-              ],
-            ),
-
-            // Duration
-            const Divider(),
-            Text(tr('alert_sound'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                ..._alertDurations.entries.map((entry) {
-                  final isSelected = _settings.alertConfig.durationSeconds == entry.key;
-                  return ChoiceChip(
-                    label: Text(entry.value),
-                    selected: isSelected,
-                    selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
-                    onSelected: (selected) {
-                      if (selected) {
-                        _updateSettings(_settings.copyWith(
-                          alertConfig: CalendarAlertConfig(
-                            alertType: _settings.alertConfig.alertType,
-                            durationSeconds: entry.key,
-                          ),
-                        ));
-                      }
-                    },
-                  );
-                }),
-                ChoiceChip(
-                  label: Text(_isCustomDuration
-                      ? '${tr('custom')} (${_settings.alertConfig.durationSeconds}s)'
-                      : tr('custom')),
-                  selected: _isCustomDuration,
-                  selectedColor: Color(_settings.calendarColorValue).withValues(alpha: 0.2),
-                  onSelected: (selected) {
-                    if (selected) _showCustomDurationDialog();
-                  },
-                ),
-              ],
-            ),
-            const Divider(),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    // First ensure permissions
-                    final permOk = await NotificationService.ensurePermissions();
-                    if (!permOk) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(tr('notification_denied')),
-                          behavior: SnackBarBehavior.floating,
-                          duration: const Duration(seconds: 5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      );
-                      return;
-                    }
-                    final ok = await NotificationService.showTestNotification(alertType: _settings.alertConfig.alertType);
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(ok ? tr('notification_sent') : tr('notification_error')),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.notifications_active, size: 18),
-                  label: Text(tr('test_notifications')),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final ok = await NotificationService.showScheduledTestNotification(alertType: _settings.alertConfig.alertType);
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(ok ? tr('scheduled_notification_10s') : tr('notification_schedule_error')),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.schedule, size: 18),
-                  label: Text(tr('scheduled_test')),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: FutureBuilder<int>(
-                future: NotificationService.pendingCount(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? -1;
-                  return Text(
-                    'Notifiche in coda: ${count >= 0 ? count : '...'}',
-                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  );
-                },
-              ),
-            ),
           ],
         ),
       ),
@@ -9933,7 +9782,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           children: [
             SwitchListTile(
               title: Text(tr('show_weather'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(tr('show_weather')),
+              subtitle: Text(tr('weather_in_calendar')),
               value: _settings.showWeather,
               activeColor: calColor,
               contentPadding: EdgeInsets.zero,
@@ -11987,15 +11836,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   Text('@${_profile.nickname}', style: TextStyle(fontSize: 15, color: colorScheme.primary)),
                 if (_profile.eta != null)
                   Text('${_profile.eta} ${tr('years_old')}', style: TextStyle(color: colorScheme.onSurfaceVariant)),
-                if (_profile.email != null && _profile.email!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Chip(
-                    avatar: Icon(Icons.email, size: 16, color: colorScheme.primary),
-                    label: Text(_profile.email!, style: TextStyle(fontSize: 13, color: colorScheme.primary)),
-                    backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.4),
-                    side: BorderSide.none,
-                  ),
-                ],
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   onPressed: () { Navigator.pop(ctx); _showProfileEditor(); },
@@ -12004,16 +11844,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 ),
 
-                // Account e Sicurezza
                 const Divider(height: 32),
-                Row(
-                  children: [
-                    Icon(Icons.shield_outlined, color: colorScheme.primary, size: 20),
-                    const SizedBox(width: 8),
-                    Text(tr('account_security'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 if (!_profile.hasAccount) ...[
                   Text(tr('email'),
                       style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14)),
@@ -12526,15 +12357,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   if (_profile.nickname != null && _profile.nickname!.isNotEmpty)
                     Text('@${_profile.nickname}', style: TextStyle(fontSize: 14, color: colorScheme.primary)),
-                  if (_profile.email != null && _profile.email!.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Chip(
-                      avatar: Icon(Icons.email, size: 16, color: colorScheme.primary),
-                      label: Text(_profile.email!, style: TextStyle(fontSize: 13, color: colorScheme.primary)),
-                      backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.4),
-                      side: BorderSide.none,
-                    ),
-                  ],
                   const SizedBox(height: 4),
                   Text(tr('profile'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
                 ],
@@ -16633,66 +16455,6 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // SEZIONE: Sicurezza
-          _buildSectionHeader(tr('account_security'), Icons.lock_outline, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr('private'),
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(tr('show_private_folder')),
-                    value: _settings.showPrivateFolder,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(showPrivateFolder: value));
-                    },
-                  ),
-                  if (_settings.showPrivateFolder) ...[
-                    const SizedBox(height: 12),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(tr('biometric_auth'),
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(tr('biometric_desc')),
-                      secondary: const Icon(Icons.fingerprint),
-                      value: _settings.biometricEnabled,
-                      onChanged: (value) async {
-                        if (value) {
-                          final localAuth = LocalAuthentication();
-                          final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
-                          if (!canAuth) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(tr('biometric_not_available')),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            );
-                            return;
-                          }
-                        }
-                        final newSettings = _settings.copyWith(biometricEnabled: value);
-                        setState(() => _settings = newSettings);
-                        newSettings.save();
-                      },
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
           // SEZIONE: Esportazione PDF
           _buildSectionHeader(tr('export_pdf'), Icons.picture_as_pdf, sectionColor),
           const SizedBox(height: 8),
@@ -16700,39 +16462,13 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                children: [
-                  RadioListTile<String>(
-                    title: Text(tr('local')),
-                    subtitle: Text(tr('save_on_device')),
-                    value: 'local',
-                    groupValue: _settings.pdfSaveMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(pdfSaveMode: value));
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Google Drive') /* brand */,
-                    subtitle: Text(tr('sync_to_cloud')),
-                    value: 'google_drive',
-                    groupValue: _settings.pdfSaveMode,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(pdfSaveMode: value));
-                    },
-                  ),
-                  const Divider(height: 1),
-                  SwitchListTile(
-                    title: Text(tr('pdf_show_logo')),
-                    subtitle: Text(tr('pdf_show_logo_desc')),
-                    value: _settings.pdfShowLogo,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(pdfShowLogo: value));
-                    },
-                  ),
-                ],
-              ),
+            child: SwitchListTile(
+              title: Text(tr('pdf_show_logo')),
+              subtitle: Text(tr('pdf_show_logo_desc')),
+              value: _settings.pdfShowLogo,
+              onChanged: (value) {
+                _updateSettings(_settings.copyWith(pdfShowLogo: value));
+              },
             ),
           ),
 
@@ -16822,7 +16558,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                     contentPadding: EdgeInsets.zero,
                     title: Text(tr('enable_trash'),
                         style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(tr('enable_trash')),
+                    subtitle: Text(tr('keep_notes_for')),
                     value: _settings.trashEnabled,
                     onChanged: (value) {
                       _updateSettings(_settings.copyWith(trashEnabled: value));
@@ -16830,28 +16566,23 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
                   ),
                   if (_settings.trashEnabled) ...[
                     const SizedBox(height: 12),
-                    Text(
-                      tr('keep_notes_for'),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<int>(
+                        segments: const [
+                          ButtonSegment(value: 7, label: Text('7', style: TextStyle(fontSize: 12))),
+                          ButtonSegment(value: 14, label: Text('14', style: TextStyle(fontSize: 12))),
+                          ButtonSegment(value: 30, label: Text('30', style: TextStyle(fontSize: 12))),
+                          ButtonSegment(value: 60, label: Text('60', style: TextStyle(fontSize: 12))),
+                          ButtonSegment(value: 90, label: Text('90', style: TextStyle(fontSize: 12))),
+                        ],
+                        selected: {_settings.trashRetentionDays},
+                        onSelectionChanged: (sel) {
+                          _updateSettings(_settings.copyWith(trashRetentionDays: sel.first));
+                        },
+                        showSelectedIcon: false,
+                        style: const ButtonStyle(visualDensity: VisualDensity.compact),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [7, 14, 30, 60, 90].map((days) {
-                        final isSelected = _settings.trashRetentionDays == days;
-                        return ChoiceChip(
-                          label: Text(tr('n_days_label').replaceAll('{n}', '$days')),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            if (selected) {
-                              _updateSettings(_settings.copyWith(trashRetentionDays: days));
-                            }
-                          },
-                        );
-                      }).toList(),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -17069,37 +16800,12 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
         ],
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.center,
           tabs: [
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.description, size: 18),
-                  const SizedBox(width: 6),
-                  Text('Deep Note (${proNotes.length})'),
-                ],
-              ),
-            ),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.flash_on, size: 18),
-                  const SizedBox(width: 6),
-                  Text('Flash (${flashNotes.length})'),
-                ],
-              ),
-            ),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.calendar_today, size: 18),
-                  const SizedBox(width: 6),
-                  Text('${tr('calendar')} (${eventNotes.length})'),
-                ],
-              ),
-            ),
+            Tab(text: 'Deep Note (${proNotes.length})'),
+            Tab(text: 'Flash (${flashNotes.length})'),
+            Tab(text: '${tr('calendar')} (${eventNotes.length})'),
           ],
         ),
       ),
