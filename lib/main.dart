@@ -35,11 +35,15 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:home_widget/home_widget.dart';
-import 'dart:io' show Directory, File;
+import 'dart:io' show Directory, File, FileMode;
 import 'package:archive/archive.dart' as archive;
+import 'package:share_plus/share_plus.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter_contacts/flutter_contacts.dart' as contacts_pkg;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart';
 
 /// Returns true when the Ethos (Bordeaux) theme is active.
 bool _isEthosTheme(BuildContext context) {
@@ -249,6 +253,9 @@ const _translations = <String, Map<String, String>>{
   // ── Navigation ──
   'calendar': {'it': 'Calendario', 'en': 'Calendar', 'fr': 'Calendrier', 'es': 'Calendario'},
 
+  // ── Connectivity ──
+  'offline_mode': {'it': 'Sei offline', 'en': 'You are offline', 'fr': 'Vous êtes hors ligne', 'es': 'Estás sin conexión'},
+
   // ── Common actions ──
   'save': {'it': 'Salva', 'en': 'Save', 'fr': 'Enregistrer', 'es': 'Guardar'},
   'cancel': {'it': 'Annulla', 'en': 'Cancel', 'fr': 'Annuler', 'es': 'Cancelar'},
@@ -279,9 +286,17 @@ const _translations = <String, Map<String, String>>{
   'view': {'it': 'Vedi', 'en': 'View', 'fr': 'Voir', 'es': 'Ver'},
   'rename': {'it': 'Rinomina', 'en': 'Rename', 'fr': 'Renommer', 'es': 'Renombrar'},
   'move': {'it': 'Sposta', 'en': 'Move', 'fr': 'Déplacer', 'es': 'Mover'},
+  'pin': {'it': 'Fissa', 'en': 'Pin', 'fr': 'Épingler', 'es': 'Fijar'},
+  'unpin': {'it': 'Rimuovi fissata', 'en': 'Unpin', 'fr': 'Désépingler', 'es': 'Desfijar'},
+  'pinned': {'it': 'Fissata', 'en': 'Pinned', 'fr': 'Épinglé', 'es': 'Fijado'},
   'reset': {'it': 'Reset', 'en': 'Reset', 'fr': 'Réinitialiser', 'es': 'Restablecer'},
   'download': {'it': 'Scarica', 'en': 'Download', 'fr': 'Télécharger', 'es': 'Descargar'},
   'open': {'it': 'Apri', 'en': 'Open', 'fr': 'Ouvrir', 'es': 'Abrir'},
+  'sort': {'it': 'Ordina', 'en': 'Sort', 'fr': 'Trier', 'es': 'Ordenar'},
+  'newest_first': {'it': 'Più recenti', 'en': 'Newest first', 'fr': 'Plus récents', 'es': 'Más recientes'},
+  'oldest_first': {'it': 'Più vecchi', 'en': 'Oldest first', 'fr': 'Plus anciens', 'es': 'Más antiguos'},
+  'alphabetical_az': {'it': 'A-Z', 'en': 'A-Z', 'fr': 'A-Z', 'es': 'A-Z'},
+  'alphabetical_za': {'it': 'Z-A', 'en': 'Z-A', 'fr': 'Z-A', 'es': 'Z-A'},
 
   // ── Months ──
   'january': {'it': 'Gennaio', 'en': 'January', 'fr': 'Janvier', 'es': 'Enero'},
@@ -431,6 +446,8 @@ const _translations = <String, Map<String, String>>{
   'attachment': {'it': 'Allegato', 'en': 'Attachment', 'fr': 'Pièce jointe', 'es': 'Adjunto'},
   'share_with': {'it': 'Condividi con', 'en': 'Share with', 'fr': 'Partager avec', 'es': 'Compartir con'},
   'no_events': {'it': 'Nessun evento', 'en': 'No events', 'fr': 'Aucun événement', 'es': 'Sin eventos'},
+  'no_events_hint': {'it': 'Tocca + per aggiungere un evento', 'en': 'Tap + to add an event', 'fr': 'Appuyez sur + pour ajouter', 'es': 'Toca + para añadir un evento'},
+  'search_events': {'it': 'Cerca eventi...', 'en': 'Search events...', 'fr': 'Rechercher des événements...', 'es': 'Buscar eventos...'},
   'no_events_for_day': {'it': 'Nessun evento per questo giorno', 'en': 'No events for this day', 'fr': 'Aucun événement pour ce jour', 'es': 'Sin eventos para este día'},
   'today': {'it': 'Oggi', 'en': 'Today', 'fr': 'Aujourd\'hui', 'es': 'Hoy'},
   'tomorrow': {'it': 'Domani', 'en': 'Tomorrow', 'fr': 'Demain', 'es': 'Mañana'},
@@ -550,6 +567,8 @@ const _translations = <String, Map<String, String>>{
   'search_notes': {'it': 'Cerca deep note...', 'en': 'Search deep notes...', 'fr': 'Rechercher deep notes...', 'es': 'Buscar deep notes...'},
   'delete_note_confirm': {'it': 'Eliminare questa nota?', 'en': 'Delete this note?', 'fr': 'Supprimer cette note ?', 'es': '¿Eliminar esta nota?'},
   'note_deleted': {'it': 'Nota eliminata', 'en': 'Note deleted', 'fr': 'Note supprimée', 'es': 'Nota eliminada'},
+  'notes_deleted': {'it': 'Note eliminate', 'en': 'Notes deleted', 'fr': 'Notes supprimées', 'es': 'Notas eliminadas'},
+  'permanently_deleted': {'it': 'Eliminato definitivamente', 'en': 'Permanently deleted', 'fr': 'Supprimé définitivement', 'es': 'Eliminado permanentemente'},
   'note_moved_to_trash': {'it': 'Nota spostata nel cestino', 'en': 'Note moved to trash', 'fr': 'Note déplacée dans la corbeille', 'es': 'Nota movida a la papelera'},
   'open_in_deep_note': {'it': 'Apri in Deep Note', 'en': 'Open in Deep Note', 'fr': 'Ouvrir dans Deep Note', 'es': 'Abrir en Deep Note'},
   'create_event': {'it': 'Crea Evento', 'en': 'Create Event', 'fr': 'Créer un événement', 'es': 'Crear evento'},
@@ -1476,6 +1495,42 @@ const _translations = <String, Map<String, String>>{
   'welcome_feature_1': {'it': 'Note ricche con editor avanzato', 'en': 'Rich notes with advanced editor', 'fr': 'Notes riches avec éditeur avancé', 'es': 'Notas ricas con editor avanzado'},
   'welcome_feature_2': {'it': 'Calendario con sync Google', 'en': 'Calendar with Google sync', 'fr': 'Calendrier avec sync Google', 'es': 'Calendario con sincronización Google'},
   'welcome_feature_3': {'it': 'Flash Notes con AI', 'en': 'Flash Notes with AI', 'fr': 'Flash Notes avec IA', 'es': 'Flash Notes con IA'},
+
+  // ── Hardcoded string fixes ──
+  'redo': {'it': 'Ripeti', 'en': 'Redo', 'fr': 'Rétablir', 'es': 'Rehacer'},
+  'ok': {'it': 'OK', 'en': 'OK', 'fr': 'OK', 'es': 'OK'},
+  'cut': {'it': 'Taglia', 'en': 'Cut', 'fr': 'Couper', 'es': 'Cortar'},
+  'paste': {'it': 'Incolla', 'en': 'Paste', 'fr': 'Coller', 'es': 'Pegar'},
+  'show_label': {'it': 'Mostra', 'en': 'Show', 'fr': 'Afficher', 'es': 'Mostrar'},
+  'hide_label': {'it': 'Nascondi', 'en': 'Hide', 'fr': 'Masquer', 'es': 'Ocultar'},
+  'list_view_tooltip': {'it': 'Vista elenco', 'en': 'List view', 'fr': 'Vue liste', 'es': 'Vista lista'},
+  'grid_view_tooltip': {'it': 'Vista griglia', 'en': 'Grid view', 'fr': 'Vue grille', 'es': 'Vista cuadrícula'},
+  'enter_api_key': {'it': 'Inserisci API Key', 'en': 'Enter API Key', 'fr': 'Entrer la clé API', 'es': 'Introducir clave API'},
+  'edit_api_key': {'it': 'Modifica API Key', 'en': 'Edit API Key', 'fr': 'Modifier la clé API', 'es': 'Editar clave API'},
+  'api_key_copied': {'it': 'API Key copiata', 'en': 'API Key copied', 'fr': 'Clé API copiée', 'es': 'Clave API copiada'},
+  'paste_gemini_api_key': {'it': 'Incolla la tua chiave API di Gemini ottenuta da Google AI Studio.', 'en': 'Paste your Gemini API key obtained from Google AI Studio.', 'fr': 'Collez votre clé API Gemini obtenue sur Google AI Studio.', 'es': 'Pega tu clave API de Gemini obtenida en Google AI Studio.'},
+  'auth_for_api_key': {'it': 'Autenticati per accedere alla API Key', 'en': 'Authenticate to access the API Key', 'fr': 'Authentifiez-vous pour accéder à la clé API', 'es': 'Autentícate para acceder a la clave API'},
+  'photo_in_pdf': {'it': 'Foto nel PDF', 'en': 'Photos in PDF', 'fr': 'Photos dans le PDF', 'es': 'Fotos en PDF'},
+  'photo_in_pdf_question': {'it': 'Come vuoi le foto nel PDF?', 'en': 'How do you want photos in the PDF?', 'fr': 'Comment voulez-vous les photos dans le PDF ?', 'es': '¿Cómo quieres las fotos en el PDF?'},
+  'same_page': {'it': 'Stessa pagina', 'en': 'Same page', 'fr': 'Même page', 'es': 'Misma página'},
+  'separate_page': {'it': 'Pagina separata', 'en': 'Separate page', 'fr': 'Page séparée', 'es': 'Página separada'},
+  'create_pdf': {'it': 'Crea PDF', 'en': 'Create PDF', 'fr': 'Créer PDF', 'es': 'Crear PDF'},
+  'correct': {'it': 'Correggi', 'en': 'Correct', 'fr': 'Corriger', 'es': 'Corregir'},
+  'correct_and_format': {'it': 'Correggi e formatta', 'en': 'Correct and format', 'fr': 'Corriger et formater', 'es': 'Corregir y formatear'},
+  'move_to_deep_note': {'it': 'Sposta in Deep Note', 'en': 'Move to Deep Note', 'fr': 'Déplacer vers Deep Note', 'es': 'Mover a Deep Note'},
+  'cycle_label': {'it': 'Ciclo', 'en': 'Period', 'fr': 'Règles', 'es': 'Periodo'},
+  'remove_cycle': {'it': 'Rimuovi ciclo', 'en': 'Remove period', 'fr': 'Retirer les règles', 'es': 'Quitar periodo'},
+  'mark_cycle': {'it': 'Segna ciclo', 'en': 'Mark period', 'fr': 'Marquer les règles', 'es': 'Marcar periodo'},
+  'scheduled_test': {'it': 'Test programmato', 'en': 'Scheduled test', 'fr': 'Test programmé', 'es': 'Prueba programada'},
+  'scheduled_notification_10s': {'it': 'Notifica programmata tra 10 secondi...', 'en': 'Scheduled notification in 10 seconds...', 'fr': 'Notification programmée dans 10 secondes...', 'es': 'Notificación programada en 10 segundos...'},
+  'notification_schedule_error': {'it': 'Errore: controlla i permessi notifiche e sveglie esatte.', 'en': 'Error: check notification and exact alarm permissions.', 'fr': 'Erreur : vérifiez les autorisations de notifications et d\'alarmes exactes.', 'es': 'Error: comprueba los permisos de notificaciones y alarmas exactas.'},
+  'app_will_close_reopen': {'it': 'L\'app verrà chiusa. Riaprila per vedere i dati importati.', 'en': 'The app will close. Reopen it to see imported data.', 'fr': 'L\'app va se fermer. Rouvrez-la pour voir les données importées.', 'es': 'La app se cerrará. Ábrela de nuevo para ver los datos importados.'},
+  'transcription_in_progress': {'it': 'Trascrizione in corso...', 'en': 'Transcription in progress...', 'fr': 'Transcription en cours...', 'es': 'Transcripción en curso...'},
+  'apply_transcription': {'it': 'Applica trascrizione', 'en': 'Apply transcription', 'fr': 'Appliquer la transcription', 'es': 'Aplicar transcripción'},
+  'apply_correction': {'it': 'Applica correzione', 'en': 'Apply correction', 'fr': 'Appliquer la correction', 'es': 'Aplicar corrección'},
+  'align_left_short': {'it': 'Sinistra', 'en': 'Left', 'fr': 'Gauche', 'es': 'Izquierda'},
+  'align_center_short': {'it': 'Centro', 'en': 'Center', 'fr': 'Centre', 'es': 'Centro'},
+  'align_right_short': {'it': 'Destra', 'en': 'Right', 'fr': 'Droite', 'es': 'Derecha'},
 };
 
 // ─── SQLite Database Helper ──────────────────────────────────────────────────
@@ -1522,7 +1577,7 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -1555,6 +1610,10 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE flash_notes ADD COLUMN image_path TEXT');
       await db.execute('ALTER TABLE pro_notes ADD COLUMN image_path TEXT');
     }
+    if (oldVersion < 9) {
+      await db.execute('ALTER TABLE flash_notes ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE pro_notes ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -1565,7 +1624,8 @@ class DatabaseHelper {
         header_text TEXT, footer_text TEXT, template_preset TEXT,
         folder TEXT NOT NULL DEFAULT 'Generale',
         linked_date INTEGER, created_at INTEGER NOT NULL,
-        image_base64 TEXT, updated_at INTEGER, image_path TEXT
+        image_base64 TEXT, updated_at INTEGER, image_path TEXT,
+        is_pinned INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('CREATE INDEX idx_pro_notes_folder ON pro_notes(folder)');
@@ -1575,7 +1635,8 @@ class DatabaseHelper {
       CREATE TABLE flash_notes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         content TEXT NOT NULL, audio_path TEXT, audio_duration_ms INTEGER,
-        image_base64 TEXT, created_at INTEGER NOT NULL, image_path TEXT
+        image_base64 TEXT, created_at INTEGER NOT NULL, image_path TEXT,
+        is_pinned INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('CREATE INDEX idx_flash_notes_created_at ON flash_notes(created_at)');
@@ -1643,7 +1704,7 @@ class DatabaseHelper {
     // Load without image_base64 first to avoid CursorWindow overflow
     final maps = await db.query('pro_notes',
       columns: ['id', 'title', 'content', 'content_delta', 'header_text', 'footer_text',
-                 'template_preset', 'folder', 'linked_date', 'created_at', 'updated_at', 'image_path'],
+                 'template_preset', 'folder', 'linked_date', 'created_at', 'updated_at', 'image_path', 'is_pinned'],
       orderBy: 'created_at DESC',
     );
     final notes = <ProNote>[];
@@ -1675,13 +1736,14 @@ class DatabaseHelper {
         updatedAt: m['updated_at'] != null ? DateTime.fromMillisecondsSinceEpoch(m['updated_at'] as int) : null,
         imageBase64: imgB64,
         imagePath: imgPath,
+        isPinned: (m['is_pinned'] as int?) == 1,
       ));
     }
     return notes;
   }
 
   Future<int> updateProNote(int id, ProNote note) async {
-    if (_webMode) { final i = _wProNotes.indexWhere((n) => n.id == id); if (i >= 0) _wProNotes[i] = ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt); return 1; }
+    if (_webMode) { final i = _wProNotes.indexWhere((n) => n.id == id); if (i >= 0) _wProNotes[i] = ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt, isPinned: note.isPinned); return 1; }
     final db = await database;
     return await db.update('pro_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
   }
@@ -1705,7 +1767,7 @@ class DatabaseHelper {
     final db = await database;
     // Load without image_base64 first to avoid CursorWindow overflow
     final maps = await db.query('flash_notes',
-      columns: ['id', 'content', 'created_at', 'audio_path', 'audio_duration_ms', 'image_path'],
+      columns: ['id', 'content', 'created_at', 'audio_path', 'audio_duration_ms', 'image_path', 'is_pinned'],
       orderBy: 'created_at DESC',
     );
     final notes = <FlashNote>[];
@@ -1731,13 +1793,14 @@ class DatabaseHelper {
         audioDurationMs: m['audio_duration_ms'] as int?,
         imageBase64: imgB64,
         imagePath: imgPath,
+        isPinned: (m['is_pinned'] as int?) == 1,
       ));
     }
     return notes;
   }
 
   Future<int> updateFlashNote(int id, FlashNote note) async {
-    if (_webMode) { final i = _wFlashNotes.indexWhere((n) => n.id == id); if (i >= 0) _wFlashNotes[i] = FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt); return 1; }
+    if (_webMode) { final i = _wFlashNotes.indexWhere((n) => n.id == id); if (i >= 0) _wFlashNotes[i] = FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt, isPinned: note.isPinned); return 1; }
     final db = await database;
     return await db.update('flash_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
   }
@@ -2163,36 +2226,70 @@ class StoredImage extends StatelessWidget {
   }
 }
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  if (kIsWeb) {
-    // Web: use in-memory storage, re-create demo data each session
-    DatabaseHelper.enableWebMode();
+Future<void> _logError(Object error, StackTrace? stack) async {
+  if (kDebugMode) {
+    debugPrint('ERROR: $error');
+    debugPrint('STACK: $stack');
+  }
+  try {
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/crash_log.txt');
+    final timestamp = DateTime.now().toIso8601String();
+    final entry = '[$timestamp] $error\n${stack ?? ''}\n---\n';
+    await file.writeAsString(entry, mode: FileMode.append);
+    // Keep file size manageable - truncate if > 1MB
+    if (await file.length() > 1024 * 1024) {
+      final content = await file.readAsString();
+      await file.writeAsString(content.substring(content.length ~/ 2));
+    }
+  } catch (_) {}
+}
+
+void main() {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      _logError(details.exception, details.stack);
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      _logError(error, stack);
+      return true;
+    };
+
+    if (kIsWeb) {
+      // Web: use in-memory storage, re-create demo data each session
+      DatabaseHelper.enableWebMode();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('demo_data_loaded', false);
+    } else {
+      // Mobile/Desktop: use SQLite
+      await DatabaseHelper().database;
+      await _migrateSharedPrefsToSqlite();
+    }
+    // await _initDemoDataIfNeeded(); // Demo data disabled
+    // One-time DB wipe to start clean
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('demo_data_loaded', false);
-  } else {
-    // Mobile/Desktop: use SQLite
-    await DatabaseHelper().database;
-    await _migrateSharedPrefsToSqlite();
-  }
-  // await _initDemoDataIfNeeded(); // Demo data disabled
-  // One-time DB wipe to start clean
-  final prefs = await SharedPreferences.getInstance();
-  if (prefs.getBool('db_wiped_v1') != true) {
-    final db = await DatabaseHelper().database;
-    await db.delete('pro_notes');
-    await db.delete('flash_notes');
-    await db.delete('calendar_events');
-    await db.delete('trashed_notes');
-    await db.delete('user_profile');
-    await prefs.setBool('db_wiped_v1', true);
-  }
-  if (!kIsWeb) {
-    await _migrateBase64ToFiles();
-  }
-  await NotificationService.init();
-  await initializeDateFormatting();
-  runApp(const EthosNoteApp());
+    if (prefs.getBool('db_wiped_v1') != true) {
+      final db = await DatabaseHelper().database;
+      await db.delete('pro_notes');
+      await db.delete('flash_notes');
+      await db.delete('calendar_events');
+      await db.delete('trashed_notes');
+      await db.delete('user_profile');
+      await prefs.setBool('db_wiped_v1', true);
+    }
+    if (!kIsWeb) {
+      await _migrateBase64ToFiles();
+    }
+    await NotificationService.init();
+    await initializeDateFormatting();
+    runApp(const EthosNoteApp());
+  }, (error, stack) {
+    _logError(error, stack);
+  });
 }
 
 Future<void> _migrateBase64ToFiles() async {
@@ -4866,10 +4963,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String? _pendingDeepLink;
   DateTime? _lastDeepLinkTime;
   late final AnimationController _calIconController;
+  List<ConnectivityResult> _connectivityStatus = [];
+  late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
+      if (mounted) setState(() => _connectivityStatus = result);
+    });
     _calIconController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -4880,6 +4982,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _checkSharedFile();
     _checkDeepLink();
     _checkAutoBackup();
+    _checkBootReschedule();
     _refreshWidgets();
     _syncThemeToWidget(widget.themeMode);
     NotificationService.onNotificationTap = _handleNotificationPayload;
@@ -4896,6 +4999,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _connectivitySubscription.cancel();
     _deepLinkChannel.setMethodCallHandler(null);
     _calIconController.dispose();
     NotificationService.onNotificationTap = null;
@@ -5064,6 +5168,79 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _saveUserProfile() async {
     await DatabaseHelper().saveProfile(_userProfile);
+  }
+
+  /// After a device reboot, the BootReceiver sets a flag so that the next
+  /// app launch reschedules all calendar-event notifications.
+  Future<void> _checkBootReschedule() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('needs_reschedule') ?? false) {
+        await prefs.remove('needs_reschedule');
+        // Load all calendar events and reschedule their notifications
+        final events = await DatabaseHelper().getAllEvents();
+        final now = DateTime.now();
+        final calSettings = await CalendarSettings.load();
+        final alertType = calSettings.alertConfig.alertType;
+        try {
+          await NotificationService.cancelAll();
+        } catch (_) {}
+        int scheduled = 0;
+        for (final dayEvents in events.values) {
+          for (final event in dayEvents) {
+            if (!event.startTime.isAfter(now)) continue;
+            final baseId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+
+            // 1) Event-specific reminder (mirrors _CalendarPageState._scheduleNotification)
+            if (event.reminder != null && event.reminder!.isNotEmpty) {
+              final r = event.reminder!;
+              int minutesBefore = 15;
+              if (r == tr('10_min_before')) {
+                minutesBefore = 10;
+              } else if (r == tr('15_min_before')) {
+                minutesBefore = 15;
+              } else if (r == tr('30_min_before')) {
+                minutesBefore = 30;
+              } else if (r == tr('1_hour_before')) {
+                minutesBefore = 60;
+              } else if (r == tr('day_before') || r == tr('1_day_before')) {
+                minutesBefore = 1440;
+              } else if (r == tr('1_week_before')) {
+                minutesBefore = 10080;
+              } else {
+                final numMatch = RegExp(r'(\d+)').firstMatch(r);
+                if (numMatch != null) minutesBefore = int.tryParse(numMatch.group(1)!) ?? 15;
+              }
+              await NotificationService.scheduleEventReminder(
+                id: baseId,
+                title: event.title,
+                eventTime: event.startTime,
+                minutesBefore: minutesBefore,
+                alertType: alertType,
+              );
+              scheduled++;
+              continue;
+            }
+
+            // 2) Fallback: global alertMinutesBefore from CalendarSettings
+            for (int i = 0; i < calSettings.alertMinutesBefore.length; i++) {
+              final mins = calSettings.alertMinutesBefore[i];
+              await NotificationService.scheduleEventReminder(
+                id: baseId + i + 1,
+                title: event.title,
+                eventTime: event.startTime,
+                minutesBefore: mins,
+                alertType: alertType,
+              );
+            }
+            scheduled++;
+          }
+        }
+        debugPrint('BootReschedule: rescheduled $scheduled events after reboot');
+      }
+    } catch (e) {
+      debugPrint('BootReschedule error: $e');
+    }
   }
 
   Future<void> _checkAutoBackup() async {
@@ -5380,17 +5557,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
         scrolledUnderElevation: 2,
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeInOut,
-        switchOutCurve: Curves.easeInOut,
-        transitionBuilder: (child, animation) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        child: KeyedSubtree(
-          key: ValueKey<String>('${_selectedIndex}_$_refreshKey'),
-          child: pages[_selectedIndex],
-        ),
+      body: Column(
+        children: [
+          if (_connectivityStatus.contains(ConnectivityResult.none))
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.wifi_off, size: 16, color: Theme.of(context).colorScheme.onErrorContainer),
+                  const SizedBox(width: 8),
+                  Text(tr('offline_mode'), style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onErrorContainer)),
+                ],
+              ),
+            ),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeInOut,
+              switchOutCurve: Curves.easeInOut,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: KeyedSubtree(
+                key: ValueKey<String>('${_selectedIndex}_$_refreshKey'),
+                child: pages[_selectedIndex],
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
@@ -6346,9 +6543,11 @@ class _CalendarPageState extends State<CalendarPage> {
       );
       if (confirmed != true || !mounted) return;
       // Move to trash if enabled
+      final db = DatabaseHelper();
       final settings = await NoteProSettings.load();
+      int? trashedId;
       if (settings.trashEnabled) {
-        await DatabaseHelper().insertTrashedNote(TrashedNote(
+        trashedId = await db.insertTrashedNote(TrashedNote(
           type: 'event',
           noteJson: event.toJson(),
           deletedAt: DateTime.now(),
@@ -6357,13 +6556,35 @@ class _CalendarPageState extends State<CalendarPage> {
       final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
       NotificationService.cancelReminder(notifId);
       // Remember signature so matching Google duplicate stays hidden
-      _deletedEventSignatures.add('${event.title}|${event.startTime.millisecondsSinceEpoch}');
+      final sig = '${event.title}|${event.startTime.millisecondsSinceEpoch}';
+      _deletedEventSignatures.add(sig);
       if (!mounted) return;
       setState(() {
         _events[key]?.removeAt(index);
         if (_events[key]?.isEmpty ?? false) _events.remove(key);
       });
       await _saveEvents();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('event_deleted')),
+        action: SnackBarAction(
+          label: tr('undo'),
+          onPressed: () async {
+            _deletedEventSignatures.remove(sig);
+            setState(() {
+              _events.putIfAbsent(key, () => []).insert(index.clamp(0, (_events[key]?.length ?? 0)), event);
+            });
+            await _saveEvents();
+            if (trashedId != null) {
+              await db.deleteTrashedNote(trashedId);
+            }
+            _scheduleNotification(event);
+          },
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ));
     } else {
       // Google Calendar event
       final events = _getEventsForDay(_selectedDay!);
@@ -6783,6 +7004,123 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
+  void _showEventSearchDialog() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final searchCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final query = searchCtrl.text.toLowerCase();
+
+            // Gather all events from local + Google
+            final List<MapEntry<DateTime, CalendarEventFull>> results = [];
+            if (query.length >= 2) {
+              for (final entry in _events.entries) {
+                for (final event in entry.value) {
+                  if (event.title.toLowerCase().contains(query) ||
+                      (event.notes ?? '').toLowerCase().contains(query)) {
+                    results.add(MapEntry(event.startTime, event));
+                  }
+                }
+              }
+              for (final entry in _googleEvents.entries) {
+                for (final event in entry.value) {
+                  if (event.title.toLowerCase().contains(query) ||
+                      (event.notes ?? '').toLowerCase().contains(query)) {
+                    results.add(MapEntry(event.startTime, event));
+                  }
+                }
+              }
+              results.sort((a, b) => b.key.compareTo(a.key));
+            }
+
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: TextField(
+                        controller: searchCtrl,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          hintText: tr('search_events'),
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          suffixIcon: searchCtrl.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: () {
+                                    searchCtrl.clear();
+                                    setDialogState(() {});
+                                  },
+                                )
+                              : null,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                    ),
+                    if (query.length >= 2 && results.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          '${tr('no_results_for')} "${searchCtrl.text}"',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                    if (results.isNotEmpty)
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: results.length,
+                          itemBuilder: (ctx, index) {
+                            final event = results[index].value;
+                            final date = event.startTime;
+                            return ListTile(
+                              leading: Icon(
+                                event.isCompleted ? Icons.check_circle : Icons.event,
+                                color: event.isCompleted
+                                    ? Colors.green
+                                    : _calSettings.calendarColor,
+                              ),
+                              title: Text(
+                                event.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                '${date.day}/${date.month}/${date.year} - ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
+                                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                              ),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                setState(() {
+                                  _focusedDay = date;
+                                  _selectedDay = date;
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showDayEventsBottomSheet(DateTime day) {
     final colorScheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
@@ -6845,7 +7183,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                         IconButton(
                                           onPressed: () { _toggleCycleDay(day); setSheetState(() {}); },
                                           icon: const Icon(Icons.close, size: 18),
-                                          tooltip: 'Rimuovi ciclo',
+                                          tooltip: tr('remove_cycle'),
                                           style: IconButton.styleFrom(foregroundColor: Colors.red),
                                           visualDensity: VisualDensity.compact,
                                         ),
@@ -6860,7 +7198,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                         });
                                       },
                                       icon: const Text('🩸', style: TextStyle(fontSize: 14)),
-                                      label: const Text('Ciclo'),
+                                      label: Text(tr('cycle_label')),
                                     ),
                               ),
                             FilledButton.icon(
@@ -7183,6 +7521,15 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
           ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.search, size: 22),
+            tooltip: tr('search'),
+            onPressed: _showEventSearchDialog,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          ),
         ],
       ),
     );
@@ -7274,7 +7621,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         const SizedBox(height: 12),
                         Text(tr('no_events'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 4),
-                        Text(tr('no_events'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
+                        Text(tr('no_events_hint'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
                       ],
                     ),
                   )
@@ -7406,7 +7753,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                       });
                                     },
                                     icon: const Text('🩸', style: TextStyle(fontSize: 16)),
-                                    tooltip: 'Segna ciclo',
+                                    tooltip: tr('mark_cycle'),
                                     visualDensity: VisualDensity.compact,
                                   ),
                             ),
@@ -8328,7 +8675,8 @@ class NotificationService {
     if (_initialized || kIsWeb) return;
     try {
       tz.initializeTimeZones();
-      tz.setLocalLocation(tz.getLocation('Europe/Rome'));
+      final localTzInfo = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(localTzInfo.identifier));
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
       const iosSettings = DarwinInitializationSettings(
         requestAlertPermission: false, // request later when Activity is ready
@@ -8476,7 +8824,7 @@ class NotificationService {
             : '$title tra $minutesLeft ${minutesLeft == 1 ? "minuto" : "minuti"}';
         final details = _buildNotifDetails(alertType);
         try {
-          await _plugin.show(id, 'Promemoria', body, details, payload: 'event_$id');
+          await _plugin.show(id, tr('reminder'), body, details, payload: 'event_$id');
         } catch (e) { debugPrint('NotificationService immediate show error: $e'); }
       }
       return;
@@ -8488,7 +8836,7 @@ class NotificationService {
     try {
       await _plugin.zonedSchedule(
         id,
-        'Promemoria',
+        tr('reminder'),
         body,
         tzScheduled,
         details,
@@ -8503,7 +8851,7 @@ class NotificationService {
       try {
         await _plugin.zonedSchedule(
           id,
-          'Promemoria',
+          tr('reminder'),
           body,
           tzScheduled,
           details,
@@ -8516,7 +8864,7 @@ class NotificationService {
         debugPrint('NotificationService fallback error: $e2');
         // Ultimate fallback: show immediately
         try {
-          await _plugin.show(id, 'Promemoria', body, details, payload: 'event_$id');
+          await _plugin.show(id, tr('reminder'), body, details, payload: 'event_$id');
           debugPrint('NotificationService: immediate show #$id as last resort');
         } catch (e) { debugPrint('NotificationService last resort error: $e'); }
       }
@@ -9542,14 +9890,14 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(ok ? 'Notifica programmata tra 10 secondi...' : 'Errore: controlla i permessi notifiche e sveglie esatte.'),
+                        content: Text(ok ? tr('scheduled_notification_10s') : tr('notification_schedule_error')),
                         behavior: SnackBarBehavior.floating,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     );
                   },
                   icon: const Icon(Icons.schedule, size: 18),
-                  label: const Text('Test programmato'),
+                  label: Text(tr('scheduled_test')),
                 ),
               ],
             ),
@@ -10451,7 +10799,7 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
           IconButton(
             onPressed: _exportPdf,
             icon: const Icon(Icons.picture_as_pdf_outlined),
-            tooltip: 'PDF',
+            tooltip: tr('pdf'),
             color: Colors.red,
           ),
           TextButton.icon(
@@ -12428,7 +12776,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         title: const Text('Ethos Note') /* brand name */,
                         content: Text('${tr('version')} 1.0.0\n\n© 2025 Ethos Note'),
                         actions: [
-                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+                          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('ok'))),
                         ],
                       ),
                     );
@@ -12687,14 +13035,14 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: Text(tr('backup_imported')),
-          content: const Text('L\'app verrà chiusa. Riaprila per vedere i dati importati.'),
+          content: Text(tr('app_will_close_reopen')),
           actions: [
             FilledButton(
               onPressed: () {
                 Navigator.pop(ctx);
                 SystemNavigator.pop();
               },
-              child: const Text('OK'),
+              child: Text(tr('ok')),
             ),
           ],
         ),
@@ -12924,14 +13272,14 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: Text(tr('backup_imported')),
-          content: const Text('L\'app verrà chiusa. Riaprila per vedere i dati importati.'),
+          content: Text(tr('app_will_close_reopen')),
           actions: [
             FilledButton(
               onPressed: () {
                 Navigator.pop(ctx);
                 SystemNavigator.pop();
               },
-              child: const Text('OK'),
+              child: Text(tr('ok')),
             ),
           ],
         ),
@@ -13622,7 +13970,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
       final canAuth = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
       if (!canAuth) return true; // no biometric available, allow access
       return await localAuth.authenticate(
-        localizedReason: 'Autenticati per accedere alla API Key',
+        localizedReason: tr('auth_for_api_key'),
         options: const AuthenticationOptions(biometricOnly: false),
       );
     } catch (_) {
@@ -13636,12 +13984,12 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Inserisci API Key'),
+        title: Text(tr('enter_api_key')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Incolla la tua chiave API di Gemini ottenuta da Google AI Studio.',
+              tr('paste_gemini_api_key'),
               style: TextStyle(fontSize: 13, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
@@ -13658,7 +14006,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
           FilledButton(
             onPressed: () {
               final key = controller.text.trim();
@@ -13671,7 +14019,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
               }
               Navigator.pop(ctx);
             },
-            child: const Text('Salva'),
+            child: Text(tr('save')),
           ),
         ],
       ),
@@ -13684,7 +14032,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Modifica API Key'),
+        title: Text(tr('edit_api_key')),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -13695,7 +14043,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
           FilledButton(
             onPressed: () {
               final key = controller.text.trim();
@@ -13707,7 +14055,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
               _flashSettings.save();
               Navigator.pop(ctx);
             },
-            child: const Text('Salva'),
+            child: Text(tr('save')),
           ),
         ],
       ),
@@ -13775,7 +14123,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                   child: FilledButton.icon(
                     onPressed: _showInsertApiKeyDialog,
                     icon: const Icon(Icons.key, size: 18),
-                    label: const Text('Inserisci API Key'),
+                    label: Text(tr('enter_api_key')),
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.purple.shade700,
                       foregroundColor: Colors.white,
@@ -13820,7 +14168,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                           Expanded(
                             child: _buildApiKeyAction(
                               icon: _isApiKeyRevealed ? Icons.visibility_off : Icons.visibility,
-                              label: _isApiKeyRevealed ? 'Nascondi' : 'Mostra',
+                              label: _isApiKeyRevealed ? tr('hide_label') : tr('show_label'),
                               onTap: () async {
                                 if (_isApiKeyRevealed) {
                                   setState(() => _isApiKeyRevealed = false);
@@ -13835,14 +14183,14 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                           Expanded(
                             child: _buildApiKeyAction(
                               icon: Icons.copy,
-                              label: 'Copia',
+                              label: tr('copy'),
                               onTap: () async {
                                 final ok = await _authenticateBiometric();
                                 if (ok && mounted) {
                                   Clipboard.setData(ClipboardData(text: _flashSettings.geminiApiKey));
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: const Text('API Key copiata'),
+                                      content: Text(tr('api_key_copied')),
                                       behavior: SnackBarBehavior.floating,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
@@ -13855,7 +14203,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                           Expanded(
                             child: _buildApiKeyAction(
                               icon: Icons.edit,
-                              label: 'Modifica',
+                              label: tr('edit'),
                               onTap: () async {
                                 final ok = await _authenticateBiometric();
                                 if (ok && mounted) _showEditApiKeyDialog();
@@ -13866,7 +14214,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                           Expanded(
                             child: _buildApiKeyAction(
                               icon: Icons.delete_outline,
-                              label: 'Rimuovi',
+                              label: tr('remove'),
                               color: Colors.red,
                               onTap: () async {
                                 final ok = await _authenticateBiometric();
@@ -14254,12 +14602,33 @@ class FlashNote {
   final int? audioDurationMs;
   final String? imageBase64;
   final String? imagePath;
+  final bool isPinned;
 
-  FlashNote({this.id, required this.content, DateTime? createdAt, this.audioPath, this.audioDurationMs, this.imageBase64, this.imagePath})
+  FlashNote({this.id, required this.content, DateTime? createdAt, this.audioPath, this.audioDurationMs, this.imageBase64, this.imagePath, this.isPinned = false})
     : createdAt = createdAt ?? DateTime.now();
 
   bool get isAudioNote => audioPath != null && audioPath!.isNotEmpty;
   bool get isPhotoNote => (imagePath != null && imagePath!.isNotEmpty) || (imageBase64 != null && imageBase64!.isNotEmpty);
+
+  FlashNote copyWith({
+    int? id,
+    String? content,
+    DateTime? createdAt,
+    String? audioPath,
+    int? audioDurationMs,
+    String? imageBase64,
+    String? imagePath,
+    bool? isPinned,
+  }) => FlashNote(
+    id: id ?? this.id,
+    content: content ?? this.content,
+    createdAt: createdAt ?? this.createdAt,
+    audioPath: audioPath ?? this.audioPath,
+    audioDurationMs: audioDurationMs ?? this.audioDurationMs,
+    imageBase64: imageBase64 ?? this.imageBase64,
+    imagePath: imagePath ?? this.imagePath,
+    isPinned: isPinned ?? this.isPinned,
+  );
 
   Map<String, dynamic> toJson() => {
     'content': content,
@@ -14268,6 +14637,7 @@ class FlashNote {
     if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
     if (imageBase64 != null) 'imageBase64': imageBase64,
     if (imagePath != null) 'imagePath': imagePath,
+    'isPinned': isPinned,
   };
 
   factory FlashNote.fromJson(Map<String, dynamic> json) => FlashNote(
@@ -14277,6 +14647,7 @@ class FlashNote {
     audioDurationMs: json['audioDurationMs'],
     imageBase64: json['imageBase64'],
     imagePath: json['imagePath'],
+    isPinned: json['isPinned'] == true,
   );
 
   Map<String, dynamic> toDbMap() => {
@@ -14286,6 +14657,7 @@ class FlashNote {
     'audio_duration_ms': audioDurationMs,
     'image_base64': imageBase64,
     'image_path': imagePath,
+    'is_pinned': isPinned ? 1 : 0,
   };
 
   factory FlashNote.fromDbMap(Map<String, dynamic> m) => FlashNote(
@@ -14296,6 +14668,7 @@ class FlashNote {
     audioDurationMs: m['audio_duration_ms'] as int?,
     imageBase64: m['image_base64'] as String?,
     imagePath: m['image_path'] as String?,
+    isPinned: (m['is_pinned'] as int?) == 1,
   );
 }
 
@@ -16607,11 +16980,31 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
         await imgHelper.deleteImageFile(noteData['attachmentPath'] as String?);
       }
     } catch (_) {}
+    final db = DatabaseHelper();
     if (trashed.id != null) {
-      await DatabaseHelper().deleteTrashedNote(trashed.id!);
+      await db.deleteTrashedNote(trashed.id!);
     }
     if (!mounted) return;
     setState(() => _trashedNotes.removeAt(index));
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(tr('permanently_deleted')),
+      action: SnackBarAction(
+        label: tr('undo'),
+        onPressed: () async {
+          final newId = await db.insertTrashedNote(trashed);
+          final restored = TrashedNote(
+            id: newId,
+            type: trashed.type,
+            noteJson: trashed.noteJson,
+            deletedAt: trashed.deletedAt,
+          );
+          setState(() => _trashedNotes.insert(index.clamp(0, _trashedNotes.length), restored));
+        },
+      ),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
   Future<void> _emptyTrash() async {
@@ -17337,17 +17730,32 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
               TextButton.icon(
                 onPressed: _save,
                 icon: Icon(Icons.check, size: 18, color: accentColor),
-                label: Text('Salva', style: TextStyle(color: accentColor)),
+                label: Text(tr('save'), style: TextStyle(color: accentColor)),
               ),
             PopupMenuButton<String>(
               icon: Icon(Icons.more_vert, color: colorScheme.onSurfaceVariant),
               onSelected: (value) {
-                if (value == 'evolvi') {
+                if (value == 'share') {
+                  final content = _bodyController.text.trim();
+                  if (content.isNotEmpty) {
+                    SharePlus.instance.share(ShareParams(text: content, subject: 'Flash Note'));
+                  }
+                } else if (value == 'evolvi') {
                   // Save first, then open in Deep Note
                   if (_hasChanges) _save();
                 }
               },
               itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'share',
+                  child: Row(
+                    children: [
+                      Icon(Icons.share, size: 18, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 12),
+                      Text(tr('share')),
+                    ],
+                  ),
+                ),
                 PopupMenuItem(
                   value: 'evolvi',
                   child: Row(
@@ -17599,10 +18007,10 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                             return AdaptiveTextSelectionToolbar.buttonItems(
                               anchors: editableTextState.contextMenuAnchors,
                               buttonItems: <ContextMenuButtonItem>[
-                                ContextMenuButtonItem(label: 'Taglia', onPressed: () => editableTextState.cutSelection(SelectionChangedCause.toolbar)),
-                                ContextMenuButtonItem(label: 'Copia', onPressed: () => editableTextState.copySelection(SelectionChangedCause.toolbar)),
-                                ContextMenuButtonItem(label: 'Incolla', onPressed: () => editableTextState.pasteText(SelectionChangedCause.toolbar)),
-                                ContextMenuButtonItem(label: 'Seleziona tutto', onPressed: () => editableTextState.selectAll(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: tr('cut'), onPressed: () => editableTextState.cutSelection(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: tr('copy'), onPressed: () => editableTextState.copySelection(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: tr('paste'), onPressed: () => editableTextState.pasteText(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: tr('select_all'), onPressed: () => editableTextState.selectAll(SelectionChangedCause.toolbar)),
                               ],
                             );
                           },
@@ -17678,7 +18086,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                       const SizedBox(width: 8),
                       _flashFormatBtn(
                         icon: Icons.checklist,
-                        label: 'Checklist',
+                        label: tr('checklist'),
                         accentColor: accentColor,
                         onTap: () {
                           final sel = _bodyController.selection;
@@ -17740,6 +18148,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   String _groupingMode = 'monthly';
   String? _selectedGroup; // null = "Tutte"
   bool _showGroupSidebar = false;
+  // Sort mode
+  String _sortMode = 'newest';
   // Selection mode
   bool _selectionMode = false;
   Set<int> _selectedNoteIds = {};
@@ -17765,6 +18175,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     super.initState();
     _loadNotes();
     _loadViewMode();
+    _loadSortMode();
     _loadGroupingMode();
     _loadAiAvailability();
     // Handle deep link initial mode from widget
@@ -17808,6 +18219,19 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (!mounted) return;
     setState(() => _isGridView = !_isGridView);
     await prefs.setBool('flash_view_mode_grid', _isGridView);
+  }
+
+  Future<void> _loadSortMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _sortMode = prefs.getString('flash_sort_mode') ?? 'newest');
+  }
+
+  Future<void> _saveSortMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _sortMode = mode);
+    await prefs.setString('flash_sort_mode', mode);
   }
 
   Future<void> _loadGroupingMode() async {
@@ -17881,6 +18305,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   Future<void> _saveNotes() async {
     await DatabaseHelper().replaceAllFlashNotes(_notes);
+  }
+
+  Future<void> _toggleFlashNotePin(FlashNote note) async {
+    if (note.id == null) return;
+    final updated = note.copyWith(isPinned: !note.isPinned);
+    await DatabaseHelper().updateFlashNote(note.id!, updated);
+    _loadNotes();
   }
 
   Future<void> _addPhotoNote({bool directCamera = false}) async {
@@ -18494,23 +18925,52 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   Future<void> _deleteNote(int index) async {
     final note = _notes[index];
+    final db = DatabaseHelper();
     // Move to trash if enabled
     final settings = await NoteProSettings.load();
+    int? trashedId;
     if (settings.trashEnabled) {
       final trashed = TrashedNote(
         type: 'flash',
         noteJson: note.toJson(),
         deletedAt: DateTime.now(),
       );
-      await DatabaseHelper().insertTrashedNote(trashed);
+      trashedId = await db.insertTrashedNote(trashed);
     } else {
       // No trash — delete image file immediately
       await ImageStorageHelper().deleteImageFile(note.imagePath);
     }
     if (note.id != null) {
-      await DatabaseHelper().deleteFlashNote(note.id!);
+      await db.deleteFlashNote(note.id!);
     }
     await _loadNotes();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(tr('note_deleted')),
+      action: SnackBarAction(
+        label: tr('undo'),
+        onPressed: () async {
+          await db.insertFlashNote(note);
+          if (trashedId != null) {
+            await db.deleteTrashedNote(trashedId);
+          }
+          _loadNotes();
+        },
+      ),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
+  }
+
+  void _shareSelectedNotes() {
+    final selectedContents = _notes
+        .where((n) => n.id != null && _selectedNoteIds.contains(n.id))
+        .map((n) => n.content)
+        .toList();
+    if (selectedContents.isEmpty) return;
+    final text = selectedContents.join('\n\n---\n\n');
+    SharePlus.instance.share(ShareParams(text: text, subject: 'Flash Notes'));
   }
 
   void _deleteSelectedNotes() {
@@ -18526,25 +18986,50 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           FilledButton(
             onPressed: () async {
               Navigator.pop(ctx);
+              final db = DatabaseHelper();
               final settings = await NoteProSettings.load();
+              final deletedNotes = <FlashNote>[];
+              final trashedIds = <int>[];
               for (final noteId in _selectedNoteIds) {
                 final idx = _notes.indexWhere((n) => n.id == noteId);
                 if (idx == -1) continue;
                 final note = _notes[idx];
+                deletedNotes.add(note);
                 if (settings.trashEnabled) {
                   final trashed = TrashedNote(type: 'flash', noteJson: note.toJson(), deletedAt: DateTime.now());
-                  await DatabaseHelper().insertTrashedNote(trashed);
+                  final tid = await db.insertTrashedNote(trashed);
+                  trashedIds.add(tid);
                 } else {
                   await ImageStorageHelper().deleteImageFile(note.imagePath);
                 }
-                await DatabaseHelper().deleteFlashNote(noteId);
+                await db.deleteFlashNote(noteId);
               }
+              final deletedCount = deletedNotes.length;
               if (!mounted) return;
               setState(() {
                 _selectionMode = false;
                 _selectedNoteIds.clear();
               });
               await _loadNotes();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('${tr('notes_deleted')} ($deletedCount)'),
+                action: SnackBarAction(
+                  label: tr('undo'),
+                  onPressed: () async {
+                    for (final note in deletedNotes) {
+                      await db.insertFlashNote(note);
+                    }
+                    for (final tid in trashedIds) {
+                      await db.deleteTrashedNote(tid);
+                    }
+                    _loadNotes();
+                  },
+                ),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ));
             },
             style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
             child: Text(tr('delete')),
@@ -18573,7 +19058,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Text('Sposta in Deep Note'),
+          title: Text(tr('move_to_deep_note')),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
@@ -18598,7 +19083,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, selectedFolder),
-              child: Text('Sposta'),
+              child: Text(tr('move')),
             ),
           ],
         ),
@@ -18680,22 +19165,47 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           FilledButton(
             onPressed: () async {
               Navigator.pop(ctx);
+              final db = DatabaseHelper();
               final settings = await NoteProSettings.load();
+              final deletedNotes = <FlashNote>[];
+              final trashedIds = <int>[];
               for (final note in groupNotes) {
+                deletedNotes.add(note);
                 if (settings.trashEnabled) {
                   final trashed = TrashedNote(type: 'flash', noteJson: note.toJson(), deletedAt: DateTime.now());
-                  await DatabaseHelper().insertTrashedNote(trashed);
+                  final tid = await db.insertTrashedNote(trashed);
+                  trashedIds.add(tid);
                 }
                 if (note.id != null) {
-                  await DatabaseHelper().deleteFlashNote(note.id!);
+                  await db.deleteFlashNote(note.id!);
                 }
               }
+              final deletedCount = deletedNotes.length;
               if (!mounted) return;
               setState(() {
                 _selectedGroup = null;
                 _showGroupSidebar = false;
               });
               await _loadNotes();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('${tr('notes_deleted')} ($deletedCount)'),
+                action: SnackBarAction(
+                  label: tr('undo'),
+                  onPressed: () async {
+                    for (final note in deletedNotes) {
+                      await db.insertFlashNote(note);
+                    }
+                    for (final tid in trashedIds) {
+                      await db.deleteTrashedNote(tid);
+                    }
+                    _loadNotes();
+                  },
+                ),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ));
             },
             style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
             child: Text(tr('delete')),
@@ -18952,7 +19462,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         content: Row(children: [
           const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
           const SizedBox(width: 12),
-          const Text('Trascrizione in corso...'),
+          Text(tr('transcription_in_progress')),
         ]),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -19031,7 +19541,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   TextField(
                     controller: titleController,
                     decoration: InputDecoration(
-                      hintText: 'Titolo (opzionale)',
+                      hintText: tr('optional_title'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       isDense: true,
@@ -19075,7 +19585,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                         );
                       },
                       icon: const Icon(Icons.check),
-                      label: const Text('Applica trascrizione'),
+                      label: Text(tr('apply_transcription')),
                     ),
                   ),
                 ],
@@ -19478,8 +19988,22 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (_launchingCamera) {
       return const Scaffold(backgroundColor: Colors.black);
     }
-    var sortedNotes = List<FlashNote>.from(_notes)
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    var sortedNotes = List<FlashNote>.from(_notes);
+    switch (_sortMode) {
+      case 'oldest':
+        sortedNotes.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        break;
+      case 'az':
+        sortedNotes.sort((a, b) => a.content.toLowerCase().compareTo(b.content.toLowerCase()));
+        break;
+      case 'za':
+        sortedNotes.sort((a, b) => b.content.toLowerCase().compareTo(a.content.toLowerCase()));
+        break;
+      case 'newest':
+      default:
+        sortedNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+    }
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       sortedNotes = sortedNotes.where((n) => n.content.toLowerCase().contains(q)).toList();
@@ -19488,6 +20012,10 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (_selectedGroup != null) {
       sortedNotes = sortedNotes.where((n) => _getGroupKey(n.createdAt) == _selectedGroup).toList();
     }
+    // Stable sort: pinned notes first
+    final pinned = sortedNotes.where((n) => n.isPinned).toList();
+    final unpinned = sortedNotes.where((n) => !n.isPinned).toList();
+    sortedNotes = [...pinned, ...unpinned];
     final colorScheme = Theme.of(context).colorScheme;
     final accentColor = _sectionAccent(context, 2);
 
@@ -19531,14 +20059,21 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   child: Text(_selectedNoteIds.length == sortedNotes.length ? tr('deselect_all') : tr('select_all')),
                 ),
                 IconButton(
-                  onPressed: _selectedNoteIds.isEmpty ? null : () => _moveSelectedToDeepNote(),
-                  icon: const Icon(Icons.drive_file_move_rtl_outlined),
-                  tooltip: 'Sposta in Deep Note',
-                ),
-                IconButton(
                   onPressed: _selectedNoteIds.isEmpty ? null : () => _deleteSelectedNotes(),
                   icon: Icon(Icons.delete_outline, color: _selectedNoteIds.isEmpty ? null : colorScheme.error),
                   tooltip: tr('delete'),
+                ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  enabled: _selectedNoteIds.isNotEmpty,
+                  onSelected: (v) {
+                    if (v == 'share') _shareSelectedNotes();
+                    if (v == 'move') _moveSelectedToDeepNote();
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'share', child: Row(children: [const Icon(Icons.share, size: 20), const SizedBox(width: 12), Text(tr('share'))])),
+                    PopupMenuItem(value: 'move', child: Row(children: [const Icon(Icons.drive_file_move_rtl_outlined, size: 20), const SizedBox(width: 12), Text(tr('move_to_deep_note'))])),
+                  ],
                 ),
               ],
             ),
@@ -19587,10 +20122,21 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                   onChanged: (value) => setState(() => _searchQuery = value),
                 ),
               ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.sort, size: 22),
+                tooltip: tr('sort'),
+                onSelected: (mode) => _saveSortMode(mode),
+                itemBuilder: (context) => [
+                  PopupMenuItem(value: 'newest', child: Text(tr('newest_first'))),
+                  PopupMenuItem(value: 'oldest', child: Text(tr('oldest_first'))),
+                  PopupMenuItem(value: 'az', child: Text(tr('alphabetical_az'))),
+                  PopupMenuItem(value: 'za', child: Text(tr('alphabetical_za'))),
+                ],
+              ),
               const SizedBox(width: 4),
               IconButton(
                 icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view, size: 22),
-                tooltip: _isGridView ? 'Vista elenco' : 'Vista griglia',
+                tooltip: _isGridView ? tr('list_view_tooltip') : tr('grid_view_tooltip'),
                 onPressed: _toggleViewMode,
               ),
             ],
@@ -19634,8 +20180,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               : _isGridView
                   ? GridView.builder(
                       padding: const EdgeInsets.all(12),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: MediaQuery.of(context).size.width > 840 ? 4 : MediaQuery.of(context).size.width > 600 ? 3 : 2,
                         crossAxisSpacing: 6,
                         mainAxisSpacing: 6,
                         childAspectRatio: 1.0,
@@ -19709,6 +20255,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                           ),
                                         ),
                                       ),
+                                      if (note.isPinned)
+                                        Icon(Icons.push_pin, size: 14, color: accentColor),
                                     ],
                                   ),
                                   const SizedBox(height: 6),
@@ -19829,6 +20377,12 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
+                                      _buildCellAction(
+                                        note.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                                        accentColor,
+                                        () => _toggleFlashNotePin(note),
+                                      ),
+                                      const SizedBox(width: 6),
                                       if (!note.isAudioNote) ...[
                                         _buildCellAction(Icons.edit_note, colorScheme.primary, () => _openInNotePro(note)),
                                         const SizedBox(width: 6),
@@ -20060,11 +20614,23 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                                 _formatDateTime(note.createdAt),
                                                 style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
                                               ),
+                                              if (note.isPinned) ...[
+                                                const SizedBox(width: 8),
+                                                Icon(Icons.push_pin, size: 13, color: accentColor),
+                                                const SizedBox(width: 2),
+                                                Text(tr('pinned'), style: TextStyle(fontSize: 11, color: accentColor, fontWeight: FontWeight.w600)),
+                                              ],
                                             ],
                                           ),
                                         ],
                                       ),
                                     ),
+                                    IconButton(
+                                        icon: Icon(note.isPinned ? Icons.push_pin : Icons.push_pin_outlined, size: 20),
+                                        color: accentColor,
+                                        tooltip: note.isPinned ? tr('unpin') : tr('pin'),
+                                        onPressed: () => _toggleFlashNotePin(note),
+                                      ),
                                     if (!note.isAudioNote)
                                       IconButton(
                                         icon: const Icon(Icons.edit_note),
@@ -20747,6 +21313,7 @@ class ProNote {
   final DateTime? linkedDate;
   final String? imageBase64;
   final String? imagePath;
+  final bool isPinned;
 
   ProNote({
     this.id,
@@ -20761,11 +21328,44 @@ class ProNote {
     this.imageBase64,
     this.imagePath,
     this.updatedAt,
+    this.isPinned = false,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
   /// The effective sort date: updatedAt if available, otherwise createdAt.
   DateTime get sortDate => updatedAt ?? createdAt;
+
+  ProNote copyWith({
+    int? id,
+    String? title,
+    String? content,
+    String? contentDelta,
+    String? headerText,
+    String? footerText,
+    String? templatePreset,
+    String? folder,
+    DateTime? linkedDate,
+    String? imageBase64,
+    String? imagePath,
+    DateTime? updatedAt,
+    DateTime? createdAt,
+    bool? isPinned,
+  }) => ProNote(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    content: content ?? this.content,
+    contentDelta: contentDelta ?? this.contentDelta,
+    headerText: headerText ?? this.headerText,
+    footerText: footerText ?? this.footerText,
+    templatePreset: templatePreset ?? this.templatePreset,
+    folder: folder ?? this.folder,
+    linkedDate: linkedDate ?? this.linkedDate,
+    imageBase64: imageBase64 ?? this.imageBase64,
+    imagePath: imagePath ?? this.imagePath,
+    updatedAt: updatedAt ?? this.updatedAt,
+    createdAt: createdAt ?? this.createdAt,
+    isPinned: isPinned ?? this.isPinned,
+  );
 
   Map<String, dynamic> toJson() => {
     'title': title,
@@ -20780,6 +21380,7 @@ class ProNote {
     'updatedAt': updatedAt?.toIso8601String(),
     'imageBase64': imageBase64,
     if (imagePath != null) 'imagePath': imagePath,
+    'isPinned': isPinned,
   };
 
   factory ProNote.fromJson(Map<String, dynamic> json) => ProNote(
@@ -20795,6 +21396,7 @@ class ProNote {
     updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'] ?? '') : null,
     imageBase64: json['imageBase64'],
     imagePath: json['imagePath'],
+    isPinned: json['isPinned'] == true,
   );
 
   Map<String, dynamic> toDbMap() => {
@@ -20810,6 +21412,7 @@ class ProNote {
     'updated_at': updatedAt?.millisecondsSinceEpoch,
     'image_base64': imageBase64,
     'image_path': imagePath,
+    'is_pinned': isPinned ? 1 : 0,
   };
 
   factory ProNote.fromDbMap(Map<String, dynamic> m) => ProNote(
@@ -20826,6 +21429,7 @@ class ProNote {
     updatedAt: m['updated_at'] != null ? DateTime.fromMillisecondsSinceEpoch(m['updated_at'] as int) : null,
     imageBase64: m['image_base64'] as String?,
     imagePath: m['image_path'] as String?,
+    isPinned: (m['is_pinned'] as int?) == 1,
   );
 }
 
@@ -21008,6 +21612,7 @@ class _NotesProPageState extends State<NotesProPage> {
   bool _cycleDiaryBadge = false;
   bool _selectionMode = false;
   Set<int> _selectedNoteIds = {};
+  String _sortMode = 'newest';
 
   static const _availableIcons = [
     Icons.folder, Icons.work, Icons.person, Icons.school,
@@ -21027,10 +21632,23 @@ class _NotesProPageState extends State<NotesProPage> {
     _loadNotes();
     _loadCustomFolders();
     _loadSettings();
+    _loadSortMode();
     _loadViewMode();
     _checkCycleDiaryBadge();
   }
 
+  Future<void> _loadSortMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _sortMode = prefs.getString('deep_sort_mode') ?? 'newest');
+  }
+
+  Future<void> _saveSortMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _sortMode = mode);
+    await prefs.setString('deep_sort_mode', mode);
+  }
   @override
   void dispose() {
     _searchController.dispose();
@@ -21089,6 +21707,13 @@ class _NotesProPageState extends State<NotesProPage> {
 
   Future<void> _saveNotes() async {
     await DatabaseHelper().replaceAllProNotes(_proNotes);
+  }
+
+  Future<void> _toggleProNotePin(ProNote note) async {
+    if (note.id == null) return;
+    final updated = note.copyWith(isPinned: !note.isPinned);
+    await DatabaseHelper().updateProNote(note.id!, updated);
+    _loadNotes();
   }
 
   void _createNewNote() {
@@ -21274,7 +21899,25 @@ class _NotesProPageState extends State<NotesProPage> {
         n.content.toLowerCase().contains(q)
       ).toList();
     }
-    notes.sort((a, b) => b.sortDate.compareTo(a.sortDate));
+    switch (_sortMode) {
+      case 'oldest':
+        notes.sort((a, b) => a.sortDate.compareTo(b.sortDate));
+        break;
+      case 'az':
+        notes.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+      case 'za':
+        notes.sort((a, b) => b.title.toLowerCase().compareTo(a.title.toLowerCase()));
+        break;
+      case 'newest':
+      default:
+        notes.sort((a, b) => b.sortDate.compareTo(a.sortDate));
+        break;
+    }
+    // Stable sort: pinned notes first
+    final pinnedNotes = notes.where((n) => n.isPinned).toList();
+    final unpinnedNotes = notes.where((n) => !n.isPinned).toList();
+    notes = [...pinnedNotes, ...unpinnedNotes];
     return notes;
   }
 
@@ -22163,21 +22806,25 @@ class _NotesProPageState extends State<NotesProPage> {
                         },
                         child: Text(_selectedNoteIds.length == _filteredNotes.length ? tr('deselect_all') : tr('select_all')),
                       ),
-                      if (_selectedNoteIds.length == 1)
-                        IconButton(
-                          onPressed: () => _exportSelectedNotePdf(),
-                          icon: const Icon(Icons.picture_as_pdf),
-                          tooltip: 'PDF',
-                        ),
-                      IconButton(
-                        onPressed: _selectedNoteIds.isEmpty ? null : () => _changeSelectedFolder(),
-                        icon: const Icon(Icons.folder_outlined),
-                        tooltip: tr('change_folder'),
-                      ),
                       IconButton(
                         onPressed: _selectedNoteIds.isEmpty ? null : () => _deleteSelectedNotes(),
                         icon: Icon(Icons.delete_outline, color: _selectedNoteIds.isEmpty ? null : colorScheme.error),
                         tooltip: tr('delete'),
+                      ),
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert),
+                        enabled: _selectedNoteIds.isNotEmpty,
+                        onSelected: (v) {
+                          if (v == 'share') _shareSelectedNotes();
+                          if (v == 'pdf') _exportSelectedNotePdf();
+                          if (v == 'folder') _changeSelectedFolder();
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(value: 'share', child: Row(children: [const Icon(Icons.share, size: 20), const SizedBox(width: 12), Text(tr('share'))])),
+                          if (_selectedNoteIds.length == 1)
+                            PopupMenuItem(value: 'pdf', child: Row(children: [const Icon(Icons.picture_as_pdf, size: 20), const SizedBox(width: 12), Text(tr('pdf'))])),
+                          PopupMenuItem(value: 'folder', child: Row(children: [const Icon(Icons.folder_outlined, size: 20), const SizedBox(width: 12), Text(tr('change_folder'))])),
+                        ],
                       ),
                     ],
                   ),
@@ -22249,9 +22896,20 @@ class _NotesProPageState extends State<NotesProPage> {
                         ),
                       ),
                       const SizedBox(width: 4),
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.sort, size: 22),
+                        tooltip: tr('sort'),
+                        onSelected: (mode) => _saveSortMode(mode),
+                        itemBuilder: (context) => [
+                          PopupMenuItem(value: 'newest', child: Text(tr('newest_first'))),
+                          PopupMenuItem(value: 'oldest', child: Text(tr('oldest_first'))),
+                          PopupMenuItem(value: 'az', child: Text(tr('alphabetical_az'))),
+                          PopupMenuItem(value: 'za', child: Text(tr('alphabetical_za'))),
+                        ],
+                      ),
                       IconButton(
                         icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view, size: 22),
-                        tooltip: _isGridView ? 'Vista elenco' : 'Vista griglia',
+                        tooltip: _isGridView ? tr('list_view_tooltip') : tr('grid_view_tooltip'),
                         onPressed: _toggleViewMode,
                       ),
                     ],
@@ -22297,8 +22955,8 @@ class _NotesProPageState extends State<NotesProPage> {
                       : _isGridView
                           ? GridView.builder(
                               padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: MediaQuery.of(context).size.width > 840 ? 4 : MediaQuery.of(context).size.width > 600 ? 3 : 2,
                                 crossAxisSpacing: 6,
                                 mainAxisSpacing: 6,
                                 childAspectRatio: 1.0,
@@ -22365,6 +23023,11 @@ class _NotesProPageState extends State<NotesProPage> {
                                                       color: _hasCustomTheme(context) ? _sectionAccent(context, 0) : colorScheme.onSurface,
                                                     )),
                                               ),
+                                              if (note.isPinned)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(right: 2),
+                                                  child: Icon(Icons.push_pin, size: 14, color: accentColor),
+                                                ),
                                               if (!_selectionMode && note.id != null)
                                                 SizedBox(
                                                   width: 24,
@@ -22376,6 +23039,12 @@ class _NotesProPageState extends State<NotesProPage> {
                                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                                     onSelected: (value) {
                                                       switch (value) {
+                                                        case 'pin':
+                                                          _toggleProNotePin(note);
+                                                          break;
+                                                        case 'share':
+                                                          SharePlus.instance.share(ShareParams(text: '${note.title}\n\n${note.content}', subject: note.title));
+                                                          break;
                                                         case 'pdf':
                                                           _exportNotePdfById(note.id!);
                                                           break;
@@ -22388,7 +23057,9 @@ class _NotesProPageState extends State<NotesProPage> {
                                                       }
                                                     },
                                                     itemBuilder: (ctx) => [
-                                                      PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Crea PDF')])),
+                                                      PopupMenuItem(value: 'pin', child: Row(children: [Icon(note.isPinned ? Icons.push_pin : Icons.push_pin_outlined, size: 20, color: accentColor), const SizedBox(width: 12), Text(note.isPinned ? tr('unpin') : tr('pin'))])),
+                                                      PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+                                                      PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('create_pdf'))])),
                                                       PopupMenuItem(value: 'move', child: Row(children: [Icon(Icons.folder_outlined, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('change_folder'))])),
                                                       PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
                                                     ],
@@ -22501,6 +23172,11 @@ class _NotesProPageState extends State<NotesProPage> {
                                                             overflow: TextOverflow.ellipsis,
                                                             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, fontFamily: _themedFont(context), color: _hasCustomTheme(context) ? _sectionAccent(context, 0) : null)),
                                                       ),
+                                                      if (note.isPinned)
+                                                        Padding(
+                                                          padding: const EdgeInsets.only(left: 8),
+                                                          child: Icon(Icons.push_pin, size: 14, color: accentColor),
+                                                        ),
                                                       if (note.linkedDate != null)
                                                         Padding(
                                                           padding: const EdgeInsets.only(left: 8),
@@ -22554,6 +23230,12 @@ class _NotesProPageState extends State<NotesProPage> {
                                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                                 onSelected: (value) {
                                                   switch (value) {
+                                                    case 'pin':
+                                                      _toggleProNotePin(note);
+                                                      break;
+                                                    case 'share':
+                                                      SharePlus.instance.share(ShareParams(text: '${note.title}\n\n${note.content}', subject: note.title));
+                                                      break;
                                                     case 'pdf':
                                                       _exportNotePdfById(note.id!);
                                                       break;
@@ -22566,7 +23248,9 @@ class _NotesProPageState extends State<NotesProPage> {
                                                   }
                                                 },
                                                 itemBuilder: (ctx) => [
-                                                  PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Crea PDF')])),
+                                                  PopupMenuItem(value: 'pin', child: Row(children: [Icon(note.isPinned ? Icons.push_pin : Icons.push_pin_outlined, size: 20, color: accentColor), const SizedBox(width: 12), Text(note.isPinned ? tr('unpin') : tr('pin'))])),
+                                                  PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+                                                  PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('create_pdf'))])),
                                                   PopupMenuItem(value: 'move', child: Row(children: [Icon(Icons.folder_outlined, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('change_folder'))])),
                                                   PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
                                                 ],
@@ -22726,17 +23410,17 @@ class _NotesProPageState extends State<NotesProPage> {
         context: context,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Text('Foto nel PDF'),
-          content: const Text('Come vuoi le foto nel PDF?'),
+          title: Text(tr('photo_in_pdf')),
+          content: Text(tr('photo_in_pdf_question')),
           actions: [
             OutlinedButton(
               onPressed: () => Navigator.pop(ctx, 'inline'),
-              child: const Text('Stessa pagina'),
+              child: Text(tr('same_page')),
             ),
             const SizedBox(width: 8),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, 'separate'),
-              child: const Text('Pagina separata'),
+              child: Text(tr('separate_page')),
             ),
           ],
         ),
@@ -22792,6 +23476,15 @@ class _NotesProPageState extends State<NotesProPage> {
     }
   }
 
+  void _shareSelectedNotes() {
+    final selectedNotes = _proNotes
+        .where((n) => n.id != null && _selectedNoteIds.contains(n.id))
+        .toList();
+    if (selectedNotes.isEmpty) return;
+    final text = selectedNotes.map((n) => '${n.title}\n\n${n.content}').join('\n\n---\n\n');
+    SharePlus.instance.share(ShareParams(text: text, subject: selectedNotes.length == 1 ? selectedNotes.first.title : 'Deep Notes'));
+  }
+
   Future<void> _deleteSelectedNotes() async {
     final count = _selectedNoteIds.length;
     final confirmed = await showDialog<bool>(
@@ -22812,27 +23505,51 @@ class _NotesProPageState extends State<NotesProPage> {
     );
     if (confirmed != true || !mounted) return;
     final db = DatabaseHelper();
+    final deletedNotes = <ProNote>[];
+    final trashedIds = <int>[];
     for (final noteId in _selectedNoteIds) {
       final idx = _proNotes.indexWhere((n) => n.id == noteId);
       if (idx == -1) continue;
       final note = _proNotes[idx];
+      deletedNotes.add(note);
       if (_settings.trashEnabled) {
-        await db.insertTrashedNote(TrashedNote(
+        final tid = await db.insertTrashedNote(TrashedNote(
           type: 'pro',
           noteJson: note.toJson(),
           deletedAt: DateTime.now(),
         ));
+        trashedIds.add(tid);
       } else {
         await ImageStorageHelper().deleteImageFile(note.imagePath);
       }
       await db.deleteProNote(noteId);
     }
+    final deletedCount = deletedNotes.length;
     if (!mounted) return;
     setState(() {
       _selectionMode = false;
       _selectedNoteIds.clear();
     });
     await _loadNotes();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('${tr('notes_deleted')} ($deletedCount)'),
+      action: SnackBarAction(
+        label: tr('undo'),
+        onPressed: () async {
+          for (final note in deletedNotes) {
+            await db.insertProNote(note);
+          }
+          for (final tid in trashedIds) {
+            await db.deleteTrashedNote(tid);
+          }
+          _loadNotes();
+        },
+      ),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
   Future<void> _changeSelectedFolder() async {
@@ -22912,17 +23629,17 @@ class _NotesProPageState extends State<NotesProPage> {
         context: context,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Text('Foto nel PDF'),
-          content: const Text('Come vuoi le foto nel PDF?'),
+          title: Text(tr('photo_in_pdf')),
+          content: Text(tr('photo_in_pdf_question')),
           actions: [
             OutlinedButton(
               onPressed: () => Navigator.pop(ctx, 'inline'),
-              child: const Text('Stessa pagina'),
+              child: Text(tr('same_page')),
             ),
             const SizedBox(width: 8),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, 'separate'),
-              child: const Text('Pagina separata'),
+              child: Text(tr('separate_page')),
             ),
           ],
         ),
@@ -23033,8 +23750,9 @@ class _NotesProPageState extends State<NotesProPage> {
     if (idx == -1) return;
     final note = _proNotes[idx];
     final db = DatabaseHelper();
+    int? trashedId;
     if (_settings.trashEnabled) {
-      await db.insertTrashedNote(TrashedNote(
+      trashedId = await db.insertTrashedNote(TrashedNote(
         type: 'pro',
         noteJson: note.toJson(),
         deletedAt: DateTime.now(),
@@ -23044,6 +23762,23 @@ class _NotesProPageState extends State<NotesProPage> {
     }
     await db.deleteProNote(noteId);
     await _loadNotes();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(tr('note_deleted')),
+      action: SnackBarAction(
+        label: tr('undo'),
+        onPressed: () async {
+          await db.insertProNote(note);
+          if (trashedId != null) {
+            await db.deleteTrashedNote(trashedId);
+          }
+          _loadNotes();
+        },
+      ),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
 }
@@ -23174,10 +23909,10 @@ class _NoteReadPageState extends State<NoteReadPage> {
       final String title;
       if (action == 'riassumi') {
         prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
-        title = 'Riassunto intelligente';
+        title = tr('smart_summary');
       } else if (action == 'correggi') {
         prompt = 'Correggi errori ortografici, grammaticali e di punteggiatura nel seguente testo italiano. Migliora la formattazione mantenendo il significato originale:\n\n$text';
-        title = 'Correggi e formatta';
+        title = tr('correct_and_format');
       } else {
         prompt = 'Estrai i punti chiave più importanti dal seguente testo in italiano, come lista puntata:\n\n$text';
         title = tr('ai_key_points');
@@ -23277,17 +24012,17 @@ class _NoteReadPageState extends State<NoteReadPage> {
         context: context,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Text('Foto nel PDF'),
-          content: const Text('Come vuoi le foto nel PDF?'),
+          title: Text(tr('photo_in_pdf')),
+          content: Text(tr('photo_in_pdf_question')),
           actions: [
             OutlinedButton(
               onPressed: () => Navigator.pop(ctx, 'inline'),
-              child: const Text('Stessa pagina'),
+              child: Text(tr('same_page')),
             ),
             const SizedBox(width: 8),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, 'separate'),
-              child: const Text('Pagina separata'),
+              child: Text(tr('separate_page')),
             ),
           ],
         ),
@@ -23358,7 +24093,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
           IconButton(
             onPressed: _exportAsPdf,
             icon: Icon(Icons.picture_as_pdf, color: colorScheme.onSurfaceVariant),
-            tooltip: 'Esporta PDF',
+            tooltip: tr('export_pdf'),
           ),
           if (_isAiLoading)
             const Padding(
@@ -23371,9 +24106,9 @@ class _NoteReadPageState extends State<NoteReadPage> {
               tooltip: 'AI',
               onSelected: (value) => _callGeminiAI(value),
               itemBuilder: (context) => [
-                PopupMenuItem(value: 'riassumi', child: Row(children: [Icon(Icons.auto_awesome, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Riassunto')])),
-                PopupMenuItem(value: 'correggi', child: Row(children: [Icon(Icons.spellcheck, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Correggi')])),
-                PopupMenuItem(value: 'punti_chiave', child: Row(children: [Icon(Icons.format_list_bulleted, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), const Text('Punti chiave')])),
+                PopupMenuItem(value: 'riassumi', child: Row(children: [Icon(Icons.auto_awesome, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('summary_label'))])),
+                PopupMenuItem(value: 'correggi', child: Row(children: [Icon(Icons.spellcheck, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('correct'))])),
+                PopupMenuItem(value: 'punti_chiave', child: Row(children: [Icon(Icons.format_list_bulleted, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('key_points'))])),
               ],
             ),
           FilledButton.icon(
@@ -23765,10 +24500,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       final String title;
       if (action == 'riassumi') {
         prompt = 'Crea un breve riassunto in italiano del seguente testo:\n\n$text';
-        title = 'Riassunto intelligente';
+        title = tr('smart_summary');
       } else if (action == 'correggi') {
         prompt = 'Correggi errori ortografici, grammaticali e di punteggiatura nel seguente testo italiano. Migliora la formattazione mantenendo il significato originale:\n\n$text';
-        title = 'Correggi e formatta';
+        title = tr('correct_and_format');
       } else {
         prompt = 'Estrai i punti chiave più importanti dal seguente testo in italiano, come lista puntata:\n\n$text';
         title = tr('ai_key_points');
@@ -23841,7 +24576,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                           _quillController.document = quill.Document()..insert(0, result);
                         },
                         icon: const Icon(Icons.check, size: 18),
-                        label: const Text('Applica correzione'),
+                        label: Text(tr('apply_correction')),
                       ),
                     )
                   else
@@ -24178,17 +24913,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         context: context,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Text('Foto nel PDF'),
-          content: const Text('Come vuoi le foto nel PDF?'),
+          title: Text(tr('photo_in_pdf')),
+          content: Text(tr('photo_in_pdf_question')),
           actions: [
             OutlinedButton(
               onPressed: () => Navigator.pop(ctx, 'inline'),
-              child: const Text('Stessa pagina'),
+              child: Text(tr('same_page')),
             ),
             const SizedBox(width: 8),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, 'separate'),
-              child: const Text('Pagina separata'),
+              child: Text(tr('separate_page')),
             ),
           ],
         ),
@@ -24587,14 +25322,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     final row1 = Row(
       children: [
         // Undo / Redo
-        _fmtBtn(Icons.undo, active: false, onTap: () { _quillController.undo(); setState(() {}); }, tooltip: 'Annulla'),
-        _fmtBtn(Icons.redo, active: false, onTap: () { _quillController.redo(); setState(() {}); }, tooltip: 'Ripeti'),
+        _fmtBtn(Icons.undo, active: false, onTap: () { _quillController.undo(); setState(() {}); }, tooltip: tr('undo')),
+        _fmtBtn(Icons.redo, active: false, onTap: () { _quillController.redo(); setState(() {}); }, tooltip: tr('redo')),
         _toolbarDivider(),
         // Bold, Italic, Underline, Strikethrough
         _fmtBtn(Icons.format_bold, active: _fmtBold, onTap: () => _quillController.formatSelection(quill.Attribute.bold), tooltip: tr('bold')),
-        _fmtBtn(Icons.format_italic, active: _fmtItalic, onTap: () => _quillController.formatSelection(quill.Attribute.italic), tooltip: 'Corsivo'),
-        _fmtBtn(Icons.format_underline, active: _fmtUnderline, onTap: () => _quillController.formatSelection(quill.Attribute.underline), tooltip: 'Sottolineato'),
-        _fmtBtn(Icons.format_strikethrough, active: _fmtStrike, onTap: () => _quillController.formatSelection(quill.Attribute.strikeThrough), tooltip: 'Barrato'),
+        _fmtBtn(Icons.format_italic, active: _fmtItalic, onTap: () => _quillController.formatSelection(quill.Attribute.italic), tooltip: tr('italic')),
+        _fmtBtn(Icons.format_underline, active: _fmtUnderline, onTap: () => _quillController.formatSelection(quill.Attribute.underline), tooltip: tr('underline')),
+        _fmtBtn(Icons.format_strikethrough, active: _fmtStrike, onTap: () => _quillController.formatSelection(quill.Attribute.strikeThrough), tooltip: tr('strikethrough')),
         _toolbarDivider(),
         // Headings
         _fmtBtn(Icons.looks_one, active: _fmtH1, onTap: () {
@@ -24614,9 +25349,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         _fmtBtn(Icons.format_color_fill, active: false, onTap: () => _showColorPickerPopup(isBackground: true), tooltip: tr('background_color')),
         _toolbarDivider(),
         // Alignment
-        _fmtBtn(Icons.format_align_left, active: _fmtAlign == 'left', onTap: () => _quillController.formatSelection(quill.Attribute.leftAlignment), tooltip: 'Sinistra'),
-        _fmtBtn(Icons.format_align_center, active: _fmtAlign == 'center', onTap: () => _quillController.formatSelection(quill.Attribute.centerAlignment), tooltip: 'Centro'),
-        _fmtBtn(Icons.format_align_right, active: _fmtAlign == 'right', onTap: () => _quillController.formatSelection(quill.Attribute.rightAlignment), tooltip: 'Destra'),
+        _fmtBtn(Icons.format_align_left, active: _fmtAlign == 'left', onTap: () => _quillController.formatSelection(quill.Attribute.leftAlignment), tooltip: tr('align_left_short')),
+        _fmtBtn(Icons.format_align_center, active: _fmtAlign == 'center', onTap: () => _quillController.formatSelection(quill.Attribute.centerAlignment), tooltip: tr('align_center_short')),
+        _fmtBtn(Icons.format_align_right, active: _fmtAlign == 'right', onTap: () => _quillController.formatSelection(quill.Attribute.rightAlignment), tooltip: tr('align_right_short')),
       ],
     );
 
@@ -24628,10 +25363,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           // Lists
           _fmtBtn(Icons.format_list_bulleted, active: _fmtUl, onTap: () => _quillController.formatSelection(quill.Attribute.ul), tooltip: tr('bullet_list')),
           _fmtBtn(Icons.format_list_numbered, active: _fmtOl, onTap: () => _quillController.formatSelection(quill.Attribute.ol), tooltip: tr('numbered_list')),
-          _fmtBtn(Icons.checklist, active: _fmtChecklist, onTap: () => _quillController.formatSelection(quill.Attribute.unchecked), tooltip: 'Checklist'),
+          _fmtBtn(Icons.checklist, active: _fmtChecklist, onTap: () => _quillController.formatSelection(quill.Attribute.unchecked), tooltip: tr('checklist')),
           _toolbarDivider(),
           // Link, Image, HR
-          _fmtBtn(Icons.link, active: false, onTap: _insertLink, tooltip: 'Link'),
+          _fmtBtn(Icons.link, active: false, onTap: _insertLink, tooltip: tr('link')),
           _fmtBtn(Icons.image_outlined, active: false, onTap: _insertImage, tooltip: tr('insert_image')),
           _fmtBtn(Icons.horizontal_rule, active: false, onTap: _insertHorizontalRule, tooltip: tr('indent')),
           _toolbarDivider(),
@@ -24653,8 +25388,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                     context: context,
                     position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + box.size.width, offset.dy + box.size.height),
                     items: [
-                      const PopupMenuItem(value: 'riassumi', child: Text('Riassunto intelligente')),
-                      const PopupMenuItem(value: 'correggi', child: Text('Correggi e formatta')),
+                      PopupMenuItem(value: 'riassumi', child: Text(tr('smart_summary'))),
+                      PopupMenuItem(value: 'correggi', child: Text(tr('correct_and_format'))),
                     ],
                   ).then((v) { if (v != null) _callGeminiAI(v); });
                 }, tooltip: 'AI', child: Icon(Icons.auto_awesome, size: 20, color: colorScheme.primary)),
@@ -24953,10 +25688,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                             return AdaptiveTextSelectionToolbar.buttonItems(
                               anchors: rawEditorState.contextMenuAnchors,
                               buttonItems: <ContextMenuButtonItem>[
-                                ContextMenuButtonItem(label: 'Taglia', onPressed: () => rawEditorState.cutSelection(SelectionChangedCause.toolbar)),
-                                ContextMenuButtonItem(label: 'Copia', onPressed: () => rawEditorState.copySelection(SelectionChangedCause.toolbar)),
-                                ContextMenuButtonItem(label: 'Incolla', onPressed: () => rawEditorState.pasteText(SelectionChangedCause.toolbar)),
-                                ContextMenuButtonItem(label: 'Seleziona tutto', onPressed: () => rawEditorState.selectAll(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: tr('cut'), onPressed: () => rawEditorState.cutSelection(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: tr('copy'), onPressed: () => rawEditorState.copySelection(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: tr('paste'), onPressed: () => rawEditorState.pasteText(SelectionChangedCause.toolbar)),
+                                ContextMenuButtonItem(label: tr('select_all'), onPressed: () => rawEditorState.selectAll(SelectionChangedCause.toolbar)),
                               ],
                             );
                           },
@@ -24999,7 +25734,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                     maxLines: 2,
                     decoration: InputDecoration(
                       labelText: tr('footer'),
-                      hintText: 'P.IVA, CF, PEC...',
+                      hintText: tr('footer_hint'),
                       prefixIcon: Icon(Icons.vertical_align_bottom, color: colorScheme.tertiary),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.close, size: 18),
