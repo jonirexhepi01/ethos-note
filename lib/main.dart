@@ -47,6 +47,152 @@ bool _isEthosTheme(BuildContext context) {
   return primary == const Color(0xFFA3274F);
 }
 
+/// Returns true when the Ephemera (diary vintage) theme is active.
+bool _isEphemeraTheme(BuildContext context) {
+  final primary = Theme.of(context).colorScheme.primary;
+  return primary == const Color(0xFF795548);
+}
+
+/// Returns true when the Nordic Zen theme is active.
+bool _isNordicTheme(BuildContext context) =>
+    Theme.of(context).colorScheme.primary == const Color(0xFF78909C);
+
+/// Returns true when the Green Salvia theme is active.
+bool _isSalviaTheme(BuildContext context) =>
+    Theme.of(context).colorScheme.primary == const Color(0xFF6B8F71);
+
+/// Returns true when the Sakura theme is active.
+bool _isSakuraTheme(BuildContext context) =>
+    Theme.of(context).colorScheme.primary == const Color(0xFFB5838D);
+
+/// Maps a theme mode string to [bgColor, iconCircleColor, separatorColor]
+/// for the Flash Notes Shortcuts home-screen widget.
+List<int> _widgetColorsForTheme(String mode) {
+  const map = <String, List<int>>{
+    'default':       [0xFFFFFFFF, 0xFFFFA726, 0x33000000],
+    'dark':          [0xFF1C1B1F, 0xFFFFA726, 0x33FFFFFF],
+    'ethos':         [0xFFFFF0F3, 0xFFA3274F, 0x33000000],
+    'ephemera':      [0xFFF4EBD0, 0xFF795548, 0x33000000],
+    'nordic_zen':    [0xFFF0F4F8, 0xFF78909C, 0x33000000],
+    'green_salvia':  [0xFFF1F5E8, 0xFF6B8F71, 0x33000000],
+    'sakura':        [0xFFFFF5F5, 0xFFB5838D, 0x33000000],
+    'spadaccino':    [0xFF0D1B16, 0xFF2E7D5B, 0x33FFFFFF],
+    'sogno_re':      [0xFFFFF8E1, 0xFFD32F2F, 0x33000000],
+    'mappa_tesoro':  [0xFFFFF8E1, 0xFFE6A800, 0x33000000],
+    'fulmine':       [0xFF0D0D1A, 0xFF7C4DFF, 0x33FFFFFF],
+    'eremita':       [0xFF1A0A00, 0xFFE65100, 0x33FFFFFF],
+    'saggio':        [0xFF1A0F0F, 0xFF8B1A1A, 0x33FFFFFF],
+    'cabina_tempo':  [0xFF001529, 0xFF1565C0, 0x33FFFFFF],
+    'sottosopra':    [0xFF0A0A0A, 0xFFD50000, 0x33FFFFFF],
+    'rifugio':       [0xFF1A1A0A, 0xFF32CD32, 0x33FFFFFF],
+  };
+  return map[mode] ?? map['default']!;
+}
+
+/// Saves the current theme colours to HomeWidget SharedPreferences and
+/// triggers a widget update so the Flash Notes Shortcuts widget matches.
+Future<void> _syncThemeToWidget(String mode) async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  try {
+    final colors = _widgetColorsForTheme(mode);
+    await HomeWidget.saveWidgetData('widget_bg', colors[0].toSigned(32));
+    await HomeWidget.saveWidgetData('widget_icon_bg', colors[1].toSigned(32));
+    await HomeWidget.saveWidgetData('widget_sep', colors[2].toSigned(32));
+    await HomeWidget.updateWidget(
+      qualifiedAndroidName: 'com.ethosnote.app.widget.FlashNotesShortcutsProvider',
+    );
+  } catch (e) {
+    if (kDebugMode) debugPrint('Widget theme sync: $e');
+  }
+}
+
+// ── Theme helpers (accent colors, fonts) ──
+
+/// Section accent: 0 = Deep Note, 1 = Calendar, 2 = Flash Notes
+Color _sectionAccent(BuildContext context, int section) {
+  final v = Theme.of(context).colorScheme.primary.toARGB32();
+  const map = <int, List<Color>>{
+    0xFFA3274F: [Color(0xFFC0364D), Color(0xFFA3274F), Color(0xFFB8566B)],
+    0xFF795548: [Color(0xFF6D4C41), Color(0xFF795548), Color(0xFF8D6E63)],
+    0xFF78909C: [Color(0xFF607D8B), Color(0xFF78909C), Color(0xFF90A4AE)],
+    0xFF6B8F71: [Color(0xFF5B7F61), Color(0xFF6B8F71), Color(0xFF8BAF90)],
+    0xFFB5838D: [Color(0xFFA36B74), Color(0xFFB5838D), Color(0xFFC89FA6)],
+    // Oltre l'Oceano
+    0xFF1B4D3E: [Color(0xFF2E7D5B), Color(0xFF1B4D3E), Color(0xFF4CAF50)], // Zoro
+    0xFFD32F2F: [Color(0xFFC62828), Color(0xFFD32F2F), Color(0xFFEF5350)], // Luffy
+    0xFFE6A800: [Color(0xFFFFD700), Color(0xFFE6A800), Color(0xFFFFB300)], // Nami
+    // Spirito della Foglia
+    0xFF7C4DFF: [Color(0xFF651FFF), Color(0xFF7C4DFF), Color(0xFFB388FF)], // Sasuke
+    0xFFE65100: [Color(0xFFE65100), Color(0xFF00BCD4), Color(0xFFFF6D00)], // Naruto
+    0xFF691212: [Color(0xFF8B1A1A), Color(0xFF691212), Color(0xFF6B8E23)], // Jiraiya
+    // Serie Cult
+    0xFF003B6F: [Color(0xFF1565C0), Color(0xFF003B6F), Color(0xFF90CAF9)], // Dr. Who
+    0xFFB71C1C: [Color(0xFFD50000), Color(0xFFB71C1C), Color(0xFFFF1744)], // Stranger Things
+    0xFF32CD32: [Color(0xFF32CD32), Color(0xFF005FB8), Color(0xFFFFEB3B)], // Fallout
+  };
+  return map[v]?[section] ?? const [Color(0xFFE53935), Color(0xFF1E88E5), Color(0xFFFFA726)][section];
+}
+
+/// Themed font family, or null for system default.
+String? _themedFont(BuildContext context) {
+  final v = Theme.of(context).colorScheme.primary.toARGB32();
+  const map = <int, String>{
+    0xFFA3274F: 'Georgia',
+    0xFF795548: 'Lora',
+    0xFFB5838D: 'Libre Baskerville',
+    0xFF691212: 'Caveat', // Jiraiya — calligraphic brush
+    0xFF32CD32: 'Share Tech Mono', // Fallout — monospaced terminal
+  };
+  return map[v];
+}
+
+/// True if the current theme uses a custom primary tint.
+bool _hasCustomTheme(BuildContext context) {
+  final v = Theme.of(context).colorScheme.primary.toARGB32();
+  return const {
+    0xFFA3274F, 0xFF795548, 0xFF78909C, 0xFF6B8F71, 0xFFB5838D,
+    0xFF1B4D3E, 0xFFD32F2F, 0xFFE6A800, 0xFF7C4DFF, 0xFFE65100,
+    0xFF691212, 0xFF003B6F, 0xFFB71C1C, 0xFF32CD32,
+  }.contains(v);
+}
+
+/// Quill highlight background for the current theme.
+String _themedHighlight(BuildContext context) {
+  final v = Theme.of(context).colorScheme.primary.toARGB32();
+  const map = <int, String>{
+    0xFF795548: '#F4EBD0',
+    0xFFA3274F: '#F2D5DC',
+    0xFF78909C: '#E3EBF0',
+    0xFF6B8F71: '#DCEADE',
+    0xFFB5838D: '#F7E7E6',
+    0xFF1B4D3E: '#1E5A47', // Zoro — dark green
+    0xFFD32F2F: '#FFF9C4', // Luffy — yellow parchment
+    0xFFE6A800: '#FFE0B2', // Nami — peach
+    0xFF7C4DFF: '#1A1A2E', // Sasuke — deep night
+    0xFFE65100: '#1A1A1A', // Naruto — dark
+    0xFF691212: '#F5E6C8', // Jiraiya — parchment
+    0xFF003B6F: '#0D2137', // Dr. Who — TARDIS dark
+    0xFFB71C1C: '#0A0A1A', // Stranger Things — abyss
+    0xFF32CD32: '#1A1A1A', // Fallout — terminal dark
+  };
+  return map[v] ?? '#FFF9C4';
+}
+
+/// Optional paper texture overlay color for editor pages.
+Color? _themeOverlayColor(BuildContext context) {
+  final v = Theme.of(context).colorScheme.primary.toARGB32();
+  const map = <int, Color>{
+    0xFF795548: Color(0x06795548),
+    0xFF6B8F71: Color(0x062A3B32),
+    0xFFB5838D: Color(0x06B5838D),
+    0xFFE6A800: Color(0x06E6A800), // Nami — nautical parchment
+    0xFF691212: Color(0x08691212), // Jiraiya — scroll texture
+    0xFF003B6F: Color(0x06003B6F), // Dr. Who — retro screen
+    0xFF32CD32: Color(0x0832CD32), // Fallout — terminal glow
+  };
+  return map[v];
+}
+
 // ─── Internationalization (i18n) ─────────────────────────────────────────────
 
 String _appLocale = 'it';
@@ -172,6 +318,26 @@ const _translations = <String, Map<String, String>>{
   'backup_imported': {'it': 'Backup importato. Riavvia l\'app.', 'en': 'Backup imported. Restart the app.', 'fr': 'Sauvegarde importée. Redémarrez l\'app.', 'es': 'Copia importada. Reinicia la app.'},
   'backup_import_confirm': {'it': 'Importare il backup? I dati attuali verranno sostituiti.', 'en': 'Import backup? Current data will be replaced.', 'fr': 'Importer la sauvegarde ? Les données actuelles seront remplacées.', 'es': '¿Importar copia? Los datos actuales se reemplazarán.'},
   'backup_error': {'it': 'Errore durante il backup', 'en': 'Backup error', 'fr': 'Erreur de sauvegarde', 'es': 'Error de copia'},
+  'backup_destination': {'it': 'Destinazione', 'en': 'Destination', 'fr': 'Destination', 'es': 'Destino'},
+  'backup_device': {'it': 'Telefono', 'en': 'Device', 'fr': 'Téléphone', 'es': 'Teléfono'},
+  'backup_google_drive': {'it': 'Google Drive', 'en': 'Google Drive', 'fr': 'Google Drive', 'es': 'Google Drive'},
+  'backup_auto': {'it': 'Backup Automatico', 'en': 'Auto Backup', 'fr': 'Sauvegarde automatique', 'es': 'Backup automático'},
+  'backup_auto_off': {'it': 'Off', 'en': 'Off', 'fr': 'Off', 'es': 'Off'},
+  'backup_auto_daily': {'it': 'Giorno', 'en': 'Daily', 'fr': 'Jour', 'es': 'Diario'},
+  'backup_auto_weekly': {'it': 'Settimana', 'en': 'Weekly', 'fr': 'Semaine', 'es': 'Semanal'},
+  'backup_auto_monthly': {'it': 'Mensile', 'en': 'Monthly', 'fr': 'Mensuel', 'es': 'Mensual'},
+  'backup_to_drive': {'it': 'Backup su Google Drive', 'en': 'Backup to Google Drive', 'fr': 'Sauvegarde sur Google Drive', 'es': 'Backup en Google Drive'},
+  'backup_from_drive': {'it': 'Ripristina da Google Drive', 'en': 'Restore from Google Drive', 'fr': 'Restaurer depuis Google Drive', 'es': 'Restaurar desde Google Drive'},
+  'last_backup': {'it': 'Ultimo backup', 'en': 'Last backup', 'fr': 'Dernière sauvegarde', 'es': 'Último backup'},
+  'connect_google_drive': {'it': 'Collega Google Drive', 'en': 'Connect Google Drive', 'fr': 'Connecter Google Drive', 'es': 'Conectar Google Drive'},
+  'backup_auto_completed': {'it': 'Backup automatico completato', 'en': 'Auto backup completed', 'fr': 'Sauvegarde automatique terminée', 'es': 'Backup automático completado'},
+  'backup_dest_confirm_title': {'it': 'Cambiare destinazione?', 'en': 'Change destination?', 'fr': 'Changer la destination ?', 'es': '¿Cambiar destino?'},
+  'backup_dest_confirm_body': {'it': 'I prossimi backup verranno salvati su {dest}. I backup precedenti non verranno spostati.', 'en': 'Future backups will be saved to {dest}. Previous backups will not be moved.', 'fr': 'Les prochaines sauvegardes seront enregistrées sur {dest}. Les sauvegardes précédentes ne seront pas déplacées.', 'es': 'Los próximos backups se guardarán en {dest}. Los backups anteriores no se moverán.'},
+  'backup_dest_info': {'it': 'I prossimi backup verranno salvati su {dest}', 'en': 'Future backups will be saved to {dest}', 'fr': 'Les prochaines sauvegardes seront enregistrées sur {dest}', 'es': 'Los próximos backups se guardarán en {dest}'},
+  'no_backup_found': {'it': 'Nessun backup trovato su Google Drive', 'en': 'No backup found on Google Drive', 'fr': 'Aucune sauvegarde trouvée sur Google Drive', 'es': 'No se encontró backup en Google Drive'},
+  'backup_uploading': {'it': 'Caricamento backup su Drive...', 'en': 'Uploading backup to Drive...', 'fr': 'Envoi de la sauvegarde sur Drive...', 'es': 'Subiendo backup a Drive...'},
+  'backup_downloading': {'it': 'Download backup da Drive...', 'en': 'Downloading backup from Drive...', 'fr': 'Téléchargement de la sauvegarde depuis Drive...', 'es': 'Descargando backup desde Drive...'},
+  'never': {'it': 'Mai', 'en': 'Never', 'fr': 'Jamais', 'es': 'Nunca'},
   'info': {'it': 'Informazioni', 'en': 'Information', 'fr': 'Informations', 'es': 'Información'},
   'version': {'it': 'Versione', 'en': 'Version', 'fr': 'Version', 'es': 'Versión'},
   'add_account': {'it': 'Aggiungi Account', 'en': 'Add Account', 'fr': 'Ajouter un compte', 'es': 'Añadir cuenta'},
@@ -418,6 +584,11 @@ const _translations = <String, Map<String, String>>{
   'photo_recognition_desc': {'it': 'Analizza le foto con Gemini per estrarre dati e salvarli in Deep Note', 'en': 'Analyze photos with Gemini to extract data and save to Deep Note', 'fr': 'Analyser les photos avec Gemini pour extraire des données et enregistrer dans Deep Note', 'es': 'Analizar fotos con Gemini para extraer datos y guardar en Deep Note'},
   'analyzing_photo': {'it': 'Analisi foto in corso...', 'en': 'Analyzing photo...', 'fr': 'Analyse de la photo...', 'es': 'Analizando foto...'},
   'photo_recognized': {'it': 'Foto riconosciuta', 'en': 'Photo recognized', 'fr': 'Photo reconnue', 'es': 'Foto reconocida'},
+  'gemini_not_configured': {'it': 'Configura Gemini AI nelle impostazioni Flash Notes per usare il riconoscimento foto', 'en': 'Configure Gemini AI in Flash Notes settings to use photo recognition', 'fr': 'Configurez Gemini AI dans les paramètres Flash Notes pour utiliser la reconnaissance photo', 'es': 'Configura Gemini AI en los ajustes de Flash Notes para usar el reconocimiento de fotos'},
+  'photo_recognition_failed': {'it': 'Riconoscimento foto fallito. Controlla la API key di Gemini.', 'en': 'Photo recognition failed. Check your Gemini API key.', 'fr': 'Reconnaissance photo échouée. Vérifiez votre clé API Gemini.', 'es': 'Reconocimiento de foto fallido. Comprueba tu clave API de Gemini.'},
+  'photo_normal': {'it': 'Foto normale — nessun documento rilevato', 'en': 'Normal photo — no document detected', 'fr': 'Photo normale — aucun document détecté', 'es': 'Foto normal — ningún documento detectado'},
+  'server_busy': {'it': 'Server Gemini sovraccarico. Riprova tra qualche secondo.', 'en': 'Gemini server overloaded. Try again in a few seconds.', 'fr': 'Serveur Gemini surchargé. Réessayez dans quelques secondes.', 'es': 'Servidor Gemini sobrecargado. Intenta de nuevo en unos segundos.'},
+  'quota_exceeded': {'it': 'Quota API Gemini esaurita. Attendi qualche minuto o verifica il tuo piano.', 'en': 'Gemini API quota exceeded. Wait a few minutes or check your plan.', 'fr': 'Quota API Gemini épuisée. Attendez quelques minutes ou vérifiez votre plan.', 'es': 'Cuota de API Gemini agotada. Espera unos minutos o verifica tu plan.'},
   'business_card': {'it': 'Biglietto da Visita', 'en': 'Business Card', 'fr': 'Carte de visite', 'es': 'Tarjeta de visita'},
   'receipt': {'it': 'Ricevuta', 'en': 'Receipt', 'fr': 'Reçu', 'es': 'Recibo'},
   'document': {'it': 'Documento', 'en': 'Document', 'fr': 'Document', 'es': 'Documento'},
@@ -831,6 +1002,48 @@ const _translations = <String, Map<String, String>>{
   'unlock_unlimited_voice': {'it': 'Sblocca note vocali illimitate', 'en': 'Unlock unlimited voice notes', 'fr': 'Débloquer notes vocales illimitées', 'es': 'Desbloquear notas de voz ilimitadas'},
   'unlock_photo_recognition': {'it': 'Riconoscimento Foto AI', 'en': 'AI Photo Recognition', 'fr': 'Reconnaissance photo IA', 'es': 'Reconocimiento de fotos IA'},
   'unlock_cycle_tracking': {'it': 'Tracciamento Ciclo', 'en': 'Cycle Tracking', 'fr': 'Suivi du cycle', 'es': 'Seguimiento del ciclo'},
+  'ephemera_theme': {'it': 'Ephemera', 'en': 'Ephemera', 'fr': 'Ephemera', 'es': 'Ephemera'},
+  'unlock_ephemera_theme': {'it': 'Tema Ephemera', 'en': 'Ephemera Theme', 'fr': 'Thème Ephemera', 'es': 'Tema Ephemera'},
+  'ephemera_theme_desc': {'it': 'L\'anima del diario: palette crema e seppia', 'en': 'The soul of a diary: cream and sepia palette', 'fr': 'L\'âme du journal: palette crème et sépia', 'es': 'El alma del diario: paleta crema y sepia'},
+  'theme_locked': {'it': 'Tema bloccato', 'en': 'Theme locked', 'fr': 'Thème verrouillé', 'es': 'Tema bloqueado'},
+  'theme_catalog': {'it': 'Catalogo Temi', 'en': 'Theme Catalog', 'fr': 'Catalogue de thèmes', 'es': 'Catálogo de temas'},
+  'theme_catalog_desc': {'it': 'Temi premium per personalizzare l\'app', 'en': 'Premium themes to customize the app', 'fr': 'Thèmes premium pour personnaliser l\'app', 'es': 'Temas premium para personalizar la app'},
+  'no_themes_purchased': {'it': 'Nessun tema acquistato', 'en': 'No themes purchased', 'fr': 'Aucun thème acheté', 'es': 'Ningún tema comprado'},
+  'browse_themes': {'it': 'Sfoglia i temi disponibili su Ethos Aura', 'en': 'Browse available themes on Ethos Aura', 'fr': 'Parcourir les thèmes disponibles sur Ethos Aura', 'es': 'Explorar temas disponibles en Ethos Aura'},
+  'active_theme': {'it': 'Attivo', 'en': 'Active', 'fr': 'Actif', 'es': 'Activo'},
+  'nordic_zen_theme': {'it': 'Nordic Zen', 'en': 'Nordic Zen', 'fr': 'Nordic Zen', 'es': 'Nordic Zen'},
+  'unlock_nordic_zen': {'it': 'Tema Nordic Zen', 'en': 'Nordic Zen Theme', 'fr': 'Thème Nordic Zen', 'es': 'Tema Nordic Zen'},
+  'nordic_zen_desc': {'it': 'Minimalismo scandinavo con trasparenze ghiaccio', 'en': 'Scandinavian minimalism with icy transparency', 'fr': 'Minimalisme scandinave avec transparence glacée', 'es': 'Minimalismo escandinavo con transparencia helada'},
+  'green_salvia_theme': {'it': 'Green Salvia', 'en': 'Green Salvia', 'fr': 'Green Salvia', 'es': 'Green Salvia'},
+  'unlock_green_salvia': {'it': 'Tema Green Salvia', 'en': 'Green Salvia Theme', 'fr': 'Thème Green Salvia', 'es': 'Tema Green Salvia'},
+  'green_salvia_desc': {'it': 'Equilibrio botanico: palette verde salvia rilassante', 'en': 'Botanical balance: relaxing sage green palette', 'fr': 'Équilibre botanique: palette vert sauge relaxante', 'es': 'Equilibrio botánico: paleta verde salvia relajante'},
+  'sakura_theme': {'it': 'Sakura', 'en': 'Sakura', 'fr': 'Sakura', 'es': 'Sakura'},
+  'unlock_sakura': {'it': 'Tema Sakura', 'en': 'Sakura Theme', 'fr': 'Thème Sakura', 'es': 'Tema Sakura'},
+  'sakura_desc': {'it': 'Eleganza sofisticata in rosa polveroso e malva', 'en': 'Sophisticated elegance in dusty rose and mauve', 'fr': 'Élégance sophistiquée en rose poudré et mauve', 'es': 'Elegancia sofisticada en rosa empolvado y malva'},
+  // Collezione Oltre l'Oceano (One Piece)
+  'spadaccino_theme': {'it': 'Spadaccino Errante', 'en': 'Wandering Swordsman', 'fr': 'Spadassin Errant', 'es': 'Espadachín Errante'},
+  'spadaccino_desc': {'it': 'Dojo d\'acciaio: austero, tagliente, disciplinato', 'en': 'Steel dojo: austere, sharp, disciplined', 'fr': 'Dojo d\'acier: austère, tranchant, discipliné', 'es': 'Dojo de acero: austero, afilado, disciplinado'},
+  'sogno_re_theme': {'it': 'Sogno del Re', 'en': 'King\'s Dream', 'fr': 'Rêve du Roi', 'es': 'Sueño del Rey'},
+  'sogno_re_desc': {'it': 'Esplosivo, dinamico, pieno di energia solare', 'en': 'Explosive, dynamic, full of solar energy', 'fr': 'Explosif, dynamique, plein d\'énergie solaire', 'es': 'Explosivo, dinámico, lleno de energía solar'},
+  'mappa_tesoro_theme': {'it': 'Mappa del Tesoro', 'en': 'Treasure Map', 'fr': 'Carte au Trésor', 'es': 'Mapa del Tesoro'},
+  'mappa_tesoro_desc': {'it': 'Elegante, cartografico e prezioso', 'en': 'Elegant, cartographic and precious', 'fr': 'Élégant, cartographique et précieux', 'es': 'Elegante, cartográfico y precioso'},
+  // Collezione Spirito della Foglia (Naruto)
+  'fulmine_theme': {'it': 'Fulmine Vendicatore', 'en': 'Avenging Lightning', 'fr': 'Foudre Vengeresse', 'es': 'Rayo Vengador'},
+  'fulmine_desc': {'it': 'Oscuro, freddo e tecnologico', 'en': 'Dark, cold and technological', 'fr': 'Sombre, froid et technologique', 'es': 'Oscuro, frío y tecnológico'},
+  'eremita_theme': {'it': 'Eremita Volpe', 'en': 'Fox Hermit', 'fr': 'Ermite Renard', 'es': 'Ermitaño Zorro'},
+  'eremita_desc': {'it': 'Il calore del fuoco e la determinazione', 'en': 'The warmth of fire and determination', 'fr': 'La chaleur du feu et la détermination', 'es': 'El calor del fuego y la determinación'},
+  'saggio_theme': {'it': 'Saggio dei Rospi', 'en': 'Toad Sage', 'fr': 'Sage des Crapauds', 'es': 'Sabio de los Sapos'},
+  'saggio_desc': {'it': 'Tradizionale, antico e leggendario', 'en': 'Traditional, ancient and legendary', 'fr': 'Traditionnel, ancien et légendaire', 'es': 'Tradicional, antiguo y legendario'},
+  // Collezione Serie Cult
+  'cabina_theme': {'it': 'Cabina del Tempo', 'en': 'Time Cabin', 'fr': 'Cabine du Temps', 'es': 'Cabina del Tiempo'},
+  'cabina_desc': {'it': 'Un viaggio tra spazio e tempo anni \'60', 'en': 'A journey through 60s space and time', 'fr': 'Un voyage dans l\'espace-temps des années 60', 'es': 'Un viaje por el espacio-tiempo de los 60'},
+  'sottosopra_theme': {'it': 'Sottosopra', 'en': 'Upside Down', 'fr': 'Monde Inversé', 'es': 'Mundo del Revés'},
+  'sottosopra_desc': {'it': 'Misterioso, anni \'80 e inquietante', 'en': 'Mysterious, 80s and eerie', 'fr': 'Mystérieux, années 80 et inquiétant', 'es': 'Misterioso, años 80 e inquietante'},
+  'rifugio_theme': {'it': 'Rifugio Atomico', 'en': 'Atomic Shelter', 'fr': 'Refuge Atomique', 'es': 'Refugio Atómico'},
+  'rifugio_desc': {'it': 'Post-apocalittico e industriale', 'en': 'Post-apocalyptic and industrial', 'fr': 'Post-apocalyptique et industriel', 'es': 'Postapocalíptico e industrial'},
+  'collection_oceano': {'it': 'Oltre l\'Oceano', 'en': 'Beyond the Ocean', 'fr': 'Au-delà de l\'Océan', 'es': 'Más allá del Océano'},
+  'collection_foglia': {'it': 'Spirito della Foglia', 'en': 'Spirit of the Leaf', 'fr': 'Esprit de la Feuille', 'es': 'Espíritu de la Hoja'},
+  'collection_cult': {'it': 'Serie Cult', 'en': 'Cult Series', 'fr': 'Séries Cultes', 'es': 'Series de Culto'},
   'unlock_unlimited_profiles': {'it': 'Sblocca profili illimitati', 'en': 'Unlock unlimited profiles', 'fr': 'Débloquer profils illimités', 'es': 'Desbloquear perfiles ilimitados'},
   'max_duration': {'it': 'Durata massima', 'en': 'Max duration', 'fr': 'Durée maximale', 'es': 'Duración máxima'},
   'unlimited': {'it': 'Illimitata', 'en': 'Unlimited', 'fr': 'Illimitée', 'es': 'Ilimitada'},
@@ -2155,6 +2368,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
     SharedPreferences.getInstance().then((prefs) {
       prefs.setString('theme_mode', mode);
     });
+    _syncThemeToWidget(mode);
   }
 
   void setLocale(String locale) {
@@ -2387,10 +2601,935 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
     );
   }
 
+  // ── Ephemera palette (light vintage diary) ──
+  static const _ephCream = Color(0xFFF4EBD0);
+  static const _ephCardBg = Color(0xFFFAF5E8);
+  static const _ephSepia = Color(0xFF3E2723);
+  static const _ephLeather = Color(0xFF795548);
+  static const _ephBorder = Color(0xFFD7CFC0);
+
+  ThemeData _buildEphemeraTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _ephLeather,
+      brightness: Brightness.light,
+      primary: _ephLeather,
+      onPrimary: Colors.white,
+      surface: _ephCream,
+      onSurface: _ephSepia,
+    );
+
+    return ThemeData(
+      colorScheme: colorScheme,
+      useMaterial3: true,
+      scaffoldBackgroundColor: _ephCream,
+      textTheme: GoogleFonts.loraTextTheme(ThemeData.light().textTheme).apply(
+        bodyColor: _ephSepia,
+        displayColor: _ephSepia,
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        foregroundColor: _ephSepia,
+        titleTextStyle: GoogleFonts.lora(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: _ephSepia,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: _ephBorder, width: 0.5),
+        ),
+        color: _ephCardBg,
+        clipBehavior: Clip.antiAlias,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          textStyle: GoogleFonts.lora(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: _ephLeather,
+          foregroundColor: Colors.white,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          side: const BorderSide(color: _ephBorder),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: _ephCream,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _ephBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _ephBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _ephLeather, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0,
+        height: 65,
+        indicatorColor: _ephLeather.withValues(alpha: 0.15),
+        indicatorShape: const StadiumBorder(),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _ephCream,
+        surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: _ephBorder.withValues(alpha: 0.5),
+        thickness: 1,
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2,
+        backgroundColor: _ephLeather,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return _ephLeather;
+          return null;
+        }),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Nordic Zen palette (glassmorphism ice) ──
+  static const _nzIce = Color(0xFFF0F4F8);
+  static const _nzCard = Color(0xE6FFFFFF);
+  static const _nzText = Color(0xFF2D3748);
+  static const _nzAccent = Color(0xFF78909C);
+  static const _nzBorder = Color(0xFFCFD8DC);
+
+  ThemeData _buildNordicZenTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _nzAccent,
+      brightness: Brightness.light,
+      primary: _nzAccent,
+      onPrimary: Colors.white,
+      surface: _nzIce,
+      onSurface: _nzText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme,
+      useMaterial3: true,
+      scaffoldBackgroundColor: _nzIce,
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 0, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _nzText,
+        titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w300, color: _nzText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: _nzBorder, width: 0.5),
+        ),
+        color: _nzCard, clipBehavior: Clip.antiAlias,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14)),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _nzAccent, foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          side: const BorderSide(color: _nzBorder)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _nzCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: _nzBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: _nzBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: _nzAccent, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _nzAccent.withValues(alpha: 0.12),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _nzIce, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+      dividerTheme: DividerThemeData(color: _nzBorder.withValues(alpha: 0.4), thickness: 0.5),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 0, backgroundColor: _nzAccent, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _nzAccent : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Green Salvia palette (botanical calm) ──
+  static const _gsSalvia = Color(0xFFE2E8E4);
+  static const _gsCard = Color(0xFFEDF2EE);
+  static const _gsForest = Color(0xFF2A3B32);
+  static const _gsAccent = Color(0xFF6B8F71);
+  static const _gsBorder = Color(0xFFC5D1C8);
+
+  ThemeData _buildGreenSalviaTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _gsAccent,
+      brightness: Brightness.light,
+      primary: _gsAccent,
+      onPrimary: Colors.white,
+      surface: _gsSalvia,
+      onSurface: _gsForest,
+    );
+    return ThemeData(
+      colorScheme: colorScheme,
+      useMaterial3: true,
+      scaffoldBackgroundColor: _gsSalvia,
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _gsForest,
+        titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _gsForest),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 1,
+        shadowColor: _gsAccent.withValues(alpha: 0.25),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: _gsCard, clipBehavior: Clip.antiAlias,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14)),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _gsAccent, foregroundColor: Colors.white),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: const BorderSide(color: _gsBorder)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _gsSalvia,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _gsBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _gsBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _gsAccent, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _gsAccent.withValues(alpha: 0.15),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _gsSalvia, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _gsBorder.withValues(alpha: 0.5), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2, backgroundColor: _gsAccent, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _gsAccent : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Sakura palette (sophisticated blush) ──
+  static const _skBlush = Color(0xFFF7E7E6);
+  static const _skCard = Color(0xFFFFF0EF);
+  static const _skText = Color(0xFF2D3748);
+  static const _skAccent = Color(0xFFB5838D);
+  static const _skBorder = Color(0xFFE8CCCE);
+
+  ThemeData _buildSakuraTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _skAccent,
+      brightness: Brightness.light,
+      primary: _skAccent,
+      onPrimary: Colors.white,
+      surface: _skBlush,
+      onSurface: _skText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme,
+      useMaterial3: true,
+      scaffoldBackgroundColor: _skBlush,
+      textTheme: GoogleFonts.libreBaskervilleTextTheme(ThemeData.light().textTheme).apply(
+        bodyColor: _skText, displayColor: _skText,
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _skText,
+        titleTextStyle: GoogleFonts.libreBaskerville(fontSize: 22, fontWeight: FontWeight.bold, color: _skText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 1,
+        shadowColor: _skAccent.withValues(alpha: 0.15),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: _skCard, clipBehavior: Clip.antiAlias,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          textStyle: GoogleFonts.libreBaskerville(fontSize: 16, fontWeight: FontWeight.w600)),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _skAccent, foregroundColor: Colors.white),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: const BorderSide(color: _skBorder)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _skBlush,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _skBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _skBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _skAccent, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _skAccent.withValues(alpha: 0.15),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _skBlush, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _skBorder.withValues(alpha: 0.5), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2, backgroundColor: _skAccent, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _skAccent : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Spadaccino Errante (Zoro) palette — DARK steel dojo ──
+  static const _zoMoss = Color(0xFF1B4D3E);
+  static const _zoCard = Color(0xFF1E5A47);
+  static const _zoText = Color(0xFFF0F0F0);
+  static const _zoAccent = Color(0xFF1B4D3E);
+  static const _zoBorder = Color(0xFF2E7D5B);
+
+  ThemeData _buildSpadaccinoTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _zoAccent, brightness: Brightness.dark,
+      primary: _zoAccent, onPrimary: _zoText,
+      surface: const Color(0xFF0D2818), onSurface: _zoText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: const Color(0xFF0D2818),
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _zoText,
+        titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _zoText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: BeveledRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: _zoBorder.withValues(alpha: 0.4)),
+        ),
+        color: _zoCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _zoBorder, foregroundColor: _zoText),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: BorderSide(color: _zoBorder.withValues(alpha: 0.5)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _zoCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _zoBorder.withValues(alpha: 0.4))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _zoBorder.withValues(alpha: 0.4))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _zoBorder, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _zoBorder.withValues(alpha: 0.25),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: const Color(0xFF0D2818), surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _zoBorder.withValues(alpha: 0.3), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2, backgroundColor: _zoBorder, foregroundColor: _zoText,
+        shape: BeveledRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _zoBorder : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Sogno del Re (Luffy) palette — LIGHT solar energy ──
+  static const _luPaglia = Color(0xFFFFF9C4);
+  static const _luCard = Color(0xFFFFFDE7);
+  static const _luBlu = Color(0xFF1565C0);
+  static const _luRosso = Color(0xFFD32F2F);
+  static const _luBorder = Color(0xFFFFCC80);
+
+  ThemeData _buildSognoReTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _luRosso, brightness: Brightness.light,
+      primary: _luRosso, onPrimary: Colors.white,
+      surface: _luPaglia, onSurface: _luBlu,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _luPaglia,
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _luBlu,
+        titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _luBlu),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 1, shadowColor: _luRosso.withValues(alpha: 0.15),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        color: _luCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _luRosso, foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          side: BorderSide(color: _luRosso.withValues(alpha: 0.5)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _luCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: _luBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: _luBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: _luRosso, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _luRosso.withValues(alpha: 0.15),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _luPaglia, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+      dividerTheme: DividerThemeData(color: _luBorder.withValues(alpha: 0.5), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 3, backgroundColor: _luRosso, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _luRosso : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Mappa del Tesoro (Nami) palette — LIGHT nautical gold ──
+  static const _nmPerla = Color(0xFFFFE0B2);
+  static const _nmCard = Color(0xFFFFF3E0);
+  static const _nmBlu = Color(0xFF0D47A1);
+  static const _nmOro = Color(0xFFE6A800);
+  static const _nmBorder = Color(0xFFFFCC80);
+
+  ThemeData _buildMappaTesoroTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _nmOro, brightness: Brightness.light,
+      primary: _nmOro, onPrimary: Colors.white,
+      surface: _nmPerla, onSurface: _nmBlu,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _nmPerla,
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _nmBlu,
+        titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _nmBlu),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: _nmOro.withValues(alpha: 0.3), width: 1)),
+        color: _nmCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _nmOro, foregroundColor: Colors.white),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: BorderSide(color: _nmOro.withValues(alpha: 0.5)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _nmCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _nmBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _nmBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _nmOro, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _nmOro.withValues(alpha: 0.2),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _nmPerla, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _nmBorder.withValues(alpha: 0.5), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2, backgroundColor: _nmOro, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _nmOro : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Fulmine Vendicatore (Sasuke) palette — DARK electric night ──
+  static const _saNotteScaffold = Color(0xFF0D0D1A);
+  static const _saNotte = Color(0xFF1A1A2E);
+  static const _saCard = Color(0xFF16213E);
+  static const _saText = Color(0xFFE8EAF6);
+  static const _saElectric = Color(0xFF7C4DFF);
+  static const _saBorder = Color(0xFF3949AB);
+
+  ThemeData _buildFulmineTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _saElectric, brightness: Brightness.dark,
+      primary: _saElectric, onPrimary: Colors.white,
+      surface: _saNotte, onSurface: _saText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _saNotteScaffold,
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _saText,
+        titleTextStyle: GoogleFonts.rajdhani(fontSize: 24, fontWeight: FontWeight.bold, color: _saText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 4,
+        shadowColor: _saElectric.withValues(alpha: 0.3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: _saElectric.withValues(alpha: 0.2))),
+        color: _saCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _saElectric, foregroundColor: Colors.white),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: BorderSide(color: _saElectric.withValues(alpha: 0.5)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _saCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _saBorder.withValues(alpha: 0.5))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _saBorder.withValues(alpha: 0.5))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _saElectric, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _saElectric.withValues(alpha: 0.2),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _saNotteScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _saBorder.withValues(alpha: 0.3), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 4, backgroundColor: _saElectric, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _saElectric : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Eremita Volpe (Naruto) palette — DARK fire & determination ──
+  static const _naScaffold = Color(0xFF0A0A0A);
+  static const _naCard = Color(0xFF1A1400);
+  static const _naText = Color(0xFFFAFAFA);
+  static const _naOrange = Color(0xFFE65100);
+  static const _naTurquoise = Color(0xFF00BCD4);
+  static const _naBorder = Color(0xFF5D4037);
+
+  ThemeData _buildEremitaTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _naOrange, brightness: Brightness.dark,
+      primary: _naOrange, onPrimary: Colors.white,
+      surface: const Color(0xFF121212), onSurface: _naText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _naScaffold,
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _naText,
+        titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _naText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 2, shadowColor: _naOrange.withValues(alpha: 0.2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: _naCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _naTurquoise, foregroundColor: Colors.white),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: BorderSide(color: _naOrange.withValues(alpha: 0.5)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _naCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _naBorder.withValues(alpha: 0.5))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _naBorder.withValues(alpha: 0.5))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _naOrange, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _naOrange.withValues(alpha: 0.2),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _naScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _naBorder.withValues(alpha: 0.3), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2, backgroundColor: _naTurquoise, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _naOrange : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Saggio dei Rospi (Jiraiya) palette — DARK ancient scroll ──
+  static const _jrScaffold = Color(0xFF2A0E0E);
+  static const _jrCard = Color(0xFF3D1515);
+  static const _jrParchment = Color(0xFFF5E6C8);
+  static const _jrGranata = Color(0xFF691212);
+  static const _jrOlive = Color(0xFF6B8E23);
+  static const _jrBorder = Color(0xFF8B4513);
+
+  ThemeData _buildSaggioTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _jrGranata, brightness: Brightness.dark,
+      primary: _jrGranata, onPrimary: _jrParchment,
+      surface: const Color(0xFF331111), onSurface: _jrParchment,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _jrScaffold,
+      textTheme: GoogleFonts.caveatTextTheme(ThemeData.dark().textTheme).apply(
+        bodyColor: _jrParchment, displayColor: _jrParchment,
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _jrParchment,
+        titleTextStyle: GoogleFonts.caveat(fontSize: 26, fontWeight: FontWeight.bold, color: _jrParchment),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 1, shadowColor: _jrGranata.withValues(alpha: 0.3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: _jrBorder.withValues(alpha: 0.4))),
+        color: _jrCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _jrOlive, foregroundColor: _jrParchment),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: BorderSide(color: _jrBorder.withValues(alpha: 0.5)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _jrCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _jrBorder.withValues(alpha: 0.4))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _jrBorder.withValues(alpha: 0.4))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _jrOlive, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _jrGranata.withValues(alpha: 0.3),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _jrScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _jrBorder.withValues(alpha: 0.3), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2, backgroundColor: _jrOlive, foregroundColor: _jrParchment,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _jrOlive : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Cabina del Tempo (Dr. Who) palette — DARK TARDIS blue ──
+  static const _dwScaffold = Color(0xFF001F3F);
+  static const _dwCard = Color(0xFF002B54);
+  static const _dwText = Color(0xFFFFF8E1);
+  static const _dwTardis = Color(0xFF003B6F);
+  static const _dwSilver = Color(0xFFB0BEC5);
+  static const _dwBorder = Color(0xFF1565C0);
+
+  ThemeData _buildCabinaTempoTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _dwTardis, brightness: Brightness.dark,
+      primary: _dwTardis, onPrimary: _dwText,
+      surface: const Color(0xFF00264D), onSurface: _dwText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _dwScaffold,
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _dwText,
+        titleTextStyle: GoogleFonts.shareTechMono(fontSize: 20, fontWeight: FontWeight.bold, color: _dwText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 2, shadowColor: _dwBorder.withValues(alpha: 0.3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: _dwBorder.withValues(alpha: 0.3))),
+        color: _dwCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _dwBorder, foregroundColor: _dwText),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          side: BorderSide(color: _dwSilver.withValues(alpha: 0.5)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _dwCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _dwBorder.withValues(alpha: 0.4))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _dwBorder.withValues(alpha: 0.4))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _dwBorder, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _dwBorder.withValues(alpha: 0.25),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _dwScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _dwBorder.withValues(alpha: 0.3), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2, backgroundColor: _dwBorder, foregroundColor: _dwText,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _dwBorder : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Sottosopra (Stranger Things) palette — DARK 80s horror ──
+  static const _stScaffold = Color(0xFF050510);
+  static const _stCard = Color(0xFF0A0A1A);
+  static const _stNeon = Color(0xFFFF1744);
+  static const _stBlood = Color(0xFFB71C1C);
+  static const _stBorder = Color(0xFF880E4F);
+
+  ThemeData _buildSottosopaTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _stBlood, brightness: Brightness.dark,
+      primary: _stBlood, onPrimary: Colors.white,
+      surface: const Color(0xFF0A0A14), onSurface: _stNeon,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _stScaffold,
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _stNeon,
+        titleTextStyle: GoogleFonts.russoOne(fontSize: 22, color: _stNeon),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 4, shadowColor: _stNeon.withValues(alpha: 0.15),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: _stBlood.withValues(alpha: 0.3))),
+        color: _stCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _stBlood, foregroundColor: Colors.white),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          side: BorderSide(color: _stNeon.withValues(alpha: 0.4)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _stCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _stBorder.withValues(alpha: 0.4))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _stBorder.withValues(alpha: 0.4))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _stNeon, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _stBlood.withValues(alpha: 0.3),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _stScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _stBorder.withValues(alpha: 0.3), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 4, backgroundColor: _stBlood, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _stBlood : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Rifugio Atomico (Fallout) palette — DARK terminal green ──
+  static const _faScaffold = Color(0xFF1A1A1A);
+  static const _faCard = Color(0xFF222222);
+  static const _faGreen = Color(0xFF32CD32);
+  static const _faYellow = Color(0xFFFFEB3B);
+  static const _faVault = Color(0xFF005FB8);
+  static const _faBorder = Color(0xFF424242);
+
+  ThemeData _buildRifugioTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _faGreen, brightness: Brightness.dark,
+      primary: _faGreen, onPrimary: Colors.black,
+      surface: const Color(0xFF1E1E1E), onSurface: _faGreen,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _faScaffold,
+      textTheme: GoogleFonts.shareTechMonoTextTheme(ThemeData.dark().textTheme).apply(
+        bodyColor: _faGreen, displayColor: _faGreen,
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _faGreen,
+        titleTextStyle: GoogleFonts.shareTechMono(fontSize: 20, fontWeight: FontWeight.bold, color: _faGreen),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4),
+          side: BorderSide(color: _faGreen.withValues(alpha: 0.3))),
+        color: _faCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _faVault, foregroundColor: Colors.white),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          side: BorderSide(color: _faGreen.withValues(alpha: 0.4)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _faCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: _faBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: _faBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: _faGreen, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _faGreen.withValues(alpha: 0.15),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _faScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))),
+      dividerTheme: DividerThemeData(color: _faBorder.withValues(alpha: 0.5), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 0, backgroundColor: _faVault, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _faGreen : null),
+        checkColor: const WidgetStatePropertyAll(Colors.black),
+      ),
+    );
+  }
+
   ThemeData get _activeTheme {
     switch (_themeMode) {
       case 'dark': return _buildTheme(Brightness.dark);
       case 'ethos': return _buildEthosTheme();
+      case 'ephemera': return _buildEphemeraTheme();
+      case 'nordic_zen': return _buildNordicZenTheme();
+      case 'green_salvia': return _buildGreenSalviaTheme();
+      case 'sakura': return _buildSakuraTheme();
+      case 'spadaccino': return _buildSpadaccinoTheme();
+      case 'sogno_re': return _buildSognoReTheme();
+      case 'mappa_tesoro': return _buildMappaTesoroTheme();
+      case 'fulmine': return _buildFulmineTheme();
+      case 'eremita': return _buildEremitaTheme();
+      case 'saggio': return _buildSaggioTheme();
+      case 'cabina_tempo': return _buildCabinaTempoTheme();
+      case 'sottosopra': return _buildSottosopaTheme();
+      case 'rifugio': return _buildRifugioTheme();
       default: return _buildTheme(Brightness.light);
     }
   }
@@ -3637,7 +4776,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _checkCycleDiaryBadge();
     _checkSharedFile();
     _checkDeepLink();
+    _checkAutoBackup();
     _refreshWidgets();
+    _syncThemeToWidget(widget.themeMode);
     NotificationService.onNotificationTap = _handleNotificationPayload;
     // Listen for deep links pushed from native (warm start)
     _deepLinkChannel.setMethodCallHandler((call) async {
@@ -3728,7 +4869,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (kIsWeb) return;
     try {
       await HomeWidget.updateWidget(
-        androidName: 'com.ethosnote.app.widget.FlashNotesShortcutsProvider',
+        qualifiedAndroidName: 'com.ethosnote.app.widget.FlashNotesShortcutsProvider',
       );
     } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
   }
@@ -3822,6 +4963,146 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     await DatabaseHelper().saveProfile(_userProfile);
   }
 
+  Future<void> _checkAutoBackup() async {
+    try {
+      final db = DatabaseHelper();
+      final mode = await db.getSetting('auto_backup_mode');
+      if (mode == null || mode == 'off') return;
+
+      final lastDateStr = await db.getSetting('last_backup_date');
+      final now = DateTime.now();
+
+      if (lastDateStr != null) {
+        final lastDate = DateTime.parse(lastDateStr);
+        final diff = now.difference(lastDate);
+        final shouldBackup = switch (mode) {
+          'daily' => diff.inHours >= 24,
+          'weekly' => diff.inDays >= 7,
+          'monthly' => diff.inDays >= 30,
+          _ => false,
+        };
+        if (!shouldBackup) return;
+      }
+
+      // Perform backup silently
+      final dest = await db.getSetting('backup_destination');
+      if (dest == 'drive') {
+        await _autoBackupToDrive();
+      } else {
+        await _autoBackupToDevice();
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Auto-backup error: $e');
+    }
+  }
+
+  Future<Uint8List> _buildAutoBackupZipBytes() async {
+    final dbPath = await getDatabasesPath();
+    final sourcePath = p.join(dbPath, 'ethos_note.db');
+    final sourceFile = File(sourcePath);
+
+    final zip = archive.Archive();
+
+    final dbBytes = await sourceFile.readAsBytes();
+    zip.addFile(archive.ArchiveFile('ethos_note.db', dbBytes.length, dbBytes));
+
+    final imgDir = await ImageStorageHelper().imagesDir;
+    if (await imgDir.exists()) {
+      await for (final entity in imgDir.list()) {
+        if (entity is File) {
+          final fileName = p.basename(entity.path);
+          final fileBytes = await entity.readAsBytes();
+          zip.addFile(archive.ArchiveFile('images/$fileName', fileBytes.length, fileBytes));
+        }
+      }
+    }
+
+    return Uint8List.fromList(archive.ZipEncoder().encode(zip));
+  }
+
+  Future<void> _autoBackupToDrive() async {
+    try {
+      // Try silent sign-in only — no interactive prompt for auto-backup
+      if (!GoogleCalendarService.isSignedIn) {
+        final ok = await GoogleCalendarService.trySilentSignIn();
+        if (!ok) return;
+      }
+
+      final driveApi = await GoogleCalendarService.getDriveApi();
+      if (driveApi == null) return;
+
+      final zipBytes = await _buildAutoBackupZipBytes();
+
+      final now = DateTime.now();
+      final fileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.zip';
+
+      final driveFile = gdrive.File()
+        ..name = fileName
+        ..parents = ['appDataFolder'];
+
+      await driveApi.files.create(
+        driveFile,
+        uploadMedia: gdrive.Media(
+          Stream.value(zipBytes),
+          zipBytes.length,
+        ),
+      );
+
+      // Cleanup old backups
+      try {
+        final fileList = await driveApi.files.list(
+          spaces: 'appDataFolder',
+          q: "name contains 'ethos_note_backup'",
+          orderBy: 'createdTime desc',
+          pageSize: 20,
+          $fields: 'files(id)',
+        );
+        if (fileList.files != null && fileList.files!.length > 5) {
+          for (var i = 5; i < fileList.files!.length; i++) {
+            final fileId = fileList.files![i].id;
+            if (fileId != null) await driveApi.files.delete(fileId);
+          }
+        }
+      } catch (_) {}
+
+      await DatabaseHelper().saveSetting('last_backup_date', now.toIso8601String());
+      if (kDebugMode) debugPrint('Auto-backup to Drive completed');
+    } catch (e) {
+      if (kDebugMode) debugPrint('Auto-backup to Drive error: $e');
+    }
+  }
+
+  Future<void> _autoBackupToDevice() async {
+    try {
+      final zipBytes = await _buildAutoBackupZipBytes();
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final backupDir = Directory(p.join(appDir.path, 'backups'));
+      if (!await backupDir.exists()) {
+        await backupDir.create(recursive: true);
+      }
+
+      final now = DateTime.now();
+      final fileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.zip';
+
+      await File(p.join(backupDir.path, fileName)).writeAsBytes(zipBytes);
+
+      // Keep only last 5 backups
+      final files = await backupDir.list().where((e) => e is File && e.path.endsWith('.zip')).toList();
+      if (files.length > 5) {
+        files.sort((a, b) => b.path.compareTo(a.path));
+        for (var i = 5; i < files.length; i++) {
+          await files[i].delete();
+        }
+      }
+
+      await DatabaseHelper().saveSetting('last_backup_date', now.toIso8601String());
+      if (kDebugMode) debugPrint('Auto-backup to device completed');
+    } catch (e) {
+      if (kDebugMode) debugPrint('Auto-backup to device error: $e');
+    }
+  }
+
   void _openSettings() {
     Navigator.push(
       context,
@@ -3858,9 +5139,69 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     Color(0xFFA3274F), // Calendario — bordeaux chiaro
     Color(0xFFB8566B), // Flash Notes — rosé caldo
   ];
+  // Ephemera warm leather family
+  static const _sectionColorsEphemera = [
+    Color(0xFF6D4C41), Color(0xFF795548), Color(0xFF8D6E63),
+  ];
+  static const _sectionColorsNordic = [
+    Color(0xFF607D8B), Color(0xFF78909C), Color(0xFF90A4AE),
+  ];
+  static const _sectionColorsSalvia = [
+    Color(0xFF5B7F61), Color(0xFF6B8F71), Color(0xFF8BAF90),
+  ];
+  static const _sectionColorsSakura = [
+    Color(0xFFA36B74), Color(0xFFB5838D), Color(0xFFC89FA6),
+  ];
+  // Oltre l'Oceano
+  static const _sectionColorsSpadaccino = [
+    Color(0xFF2E7D5B), Color(0xFF1B4D3E), Color(0xFF4CAF50),
+  ];
+  static const _sectionColorsSognoRe = [
+    Color(0xFFC62828), Color(0xFFD32F2F), Color(0xFFEF5350),
+  ];
+  static const _sectionColorsMappaT = [
+    Color(0xFFFFD700), Color(0xFFE6A800), Color(0xFFFFB300),
+  ];
+  // Spirito della Foglia
+  static const _sectionColorsFulmine = [
+    Color(0xFF651FFF), Color(0xFF7C4DFF), Color(0xFFB388FF),
+  ];
+  static const _sectionColorsEremita = [
+    Color(0xFFE65100), Color(0xFF00BCD4), Color(0xFFFF6D00),
+  ];
+  static const _sectionColorsSaggio = [
+    Color(0xFF8B1A1A), Color(0xFF691212), Color(0xFF6B8E23),
+  ];
+  // Serie Cult
+  static const _sectionColorsCabina = [
+    Color(0xFF1565C0), Color(0xFF003B6F), Color(0xFF90CAF9),
+  ];
+  static const _sectionColorsSottosopra = [
+    Color(0xFFD50000), Color(0xFFB71C1C), Color(0xFFFF1744),
+  ];
+  static const _sectionColorsRifugio = [
+    Color(0xFF32CD32), Color(0xFF005FB8), Color(0xFFFFEB3B),
+  ];
+
+  static const _sectionColorsMap = <String, List<Color>>{
+    'ethos': _sectionColorsEthos,
+    'ephemera': _sectionColorsEphemera,
+    'nordic_zen': _sectionColorsNordic,
+    'green_salvia': _sectionColorsSalvia,
+    'sakura': _sectionColorsSakura,
+    'spadaccino': _sectionColorsSpadaccino,
+    'sogno_re': _sectionColorsSognoRe,
+    'mappa_tesoro': _sectionColorsMappaT,
+    'fulmine': _sectionColorsFulmine,
+    'eremita': _sectionColorsEremita,
+    'saggio': _sectionColorsSaggio,
+    'cabina_tempo': _sectionColorsCabina,
+    'sottosopra': _sectionColorsSottosopra,
+    'rifugio': _sectionColorsRifugio,
+  };
 
   List<Color> get _sectionColors =>
-      widget.themeMode == 'ethos' ? _sectionColorsEthos : _sectionColorsDefault;
+      _sectionColorsMap[widget.themeMode] ?? _sectionColorsDefault;
 
   @override
   Widget build(BuildContext context) {
@@ -3920,7 +5261,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Ethos Note', style: TextStyle(fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? Theme.of(context).colorScheme.primary : null)),
+            Text('Ethos Note', style: TextStyle(fontFamily: _themedFont(context), color: _hasCustomTheme(context) ? Theme.of(context).colorScheme.primary : null)),
             const SizedBox(width: 8),
             if (_selectedIndex == 1) _CalendarIcon9(size: 22, color: _sectionColors[1])
             else Icon(
@@ -5005,12 +6346,12 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Color _getCalendarCategoryColor(String calendar) {
-    final isEthos = _isEthosTheme(context);
+    final custom = _hasCustomTheme(context);
     switch (calendar) {
-      case 'Personale': return isEthos ? const Color(0xFF800020) : const Color(0xFF4CAF50);
-      case 'Lavoro': return isEthos ? const Color(0xFFA3274F) : const Color(0xFF2196F3);
+      case 'Personale': return custom ? _sectionAccent(context, 0) : const Color(0xFF4CAF50);
+      case 'Lavoro': return custom ? _sectionAccent(context, 1) : const Color(0xFF2196F3);
       case 'Famiglia': return const Color(0xFF9C27B0);
-      case 'Compleanno': return isEthos ? const Color(0xFFB8566B) : const Color(0xFFE91E63);
+      case 'Compleanno': return custom ? _sectionAccent(context, 2) : const Color(0xFFE91E63);
       default: return const Color(0xFF9E9E9E);
     }
   }
@@ -6325,7 +7666,7 @@ class GoogleCalendarService {
     serverClientId: '18187658102-mf0k5htarr8rvajdono1q7grtbbk0m1e.apps.googleusercontent.com',
     scopes: [
       gcal.CalendarApi.calendarScope,
-      gdrive.DriveApi.driveReadonlyScope,
+      gdrive.DriveApi.driveFileScope,
     ],
   );
 
@@ -9868,10 +11209,12 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late UserProfile _profile;
+  EthosAuraSettings _auraSettings = const EthosAuraSettings();
 
   @override
   void initState() {
     super.initState();
+    _loadAuraSettings();
     _profile = UserProfile(
       nome: widget.userProfile.nome,
       cognome: widget.userProfile.cognome,
@@ -9896,6 +11239,35 @@ class _SettingsPageState extends State<SettingsPage> {
       lockDeepNote: widget.userProfile.lockDeepNote,
       lockFlashNotes: widget.userProfile.lockFlashNotes,
     );
+  }
+
+  Future<void> _loadAuraSettings() async {
+    final s = await EthosAuraSettings.load();
+    if (!mounted) return;
+    setState(() => _auraSettings = s);
+  }
+
+  static bool _isBaseTheme(String mode) => mode == 'light' || mode == 'dark' || mode == 'ethos';
+
+  static String _themeModeLabel(String mode) {
+    switch (mode) {
+      case 'light': return tr('light');
+      case 'dark': return tr('dark');
+      case 'ephemera': return 'Ephemera';
+      case 'nordic_zen': return 'Nordic Zen';
+      case 'green_salvia': return 'Green Salvia';
+      case 'sakura': return 'Sakura';
+      case 'spadaccino': return 'Spadaccino Errante';
+      case 'sogno_re': return 'Sogno del Re';
+      case 'mappa_tesoro': return 'Mappa del Tesoro';
+      case 'fulmine': return 'Fulmine Vendicatore';
+      case 'eremita': return 'Eremita Volpe';
+      case 'saggio': return 'Saggio dei Rospi';
+      case 'cabina_tempo': return 'Cabina del Tempo';
+      case 'sottosopra': return 'Sottosopra';
+      case 'rifugio': return 'Rifugio Atomico';
+      default: return 'Ethos';
+    }
   }
 
   void _saveProfile() {
@@ -10630,27 +12002,63 @@ class _SettingsPageState extends State<SettingsPage> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.deepPurple.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.palette, color: Colors.deepPurple, size: 22),
-                  ),
-                  title: Text(tr('theme')),
-                  subtitle: Text(widget.themeMode == 'light' ? tr('light') : widget.themeMode == 'dark' ? tr('dark') : 'Ethos'),
-                  trailing: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'light', icon: Icon(Icons.light_mode, size: 18)),
-                      ButtonSegment(value: 'dark', icon: Icon(Icons.dark_mode, size: 18)),
-                      ButtonSegment(value: 'ethos', icon: Icon(Icons.auto_awesome, size: 18)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.palette, color: Colors.deepPurple, size: 22),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(tr('theme'), style: const TextStyle(fontSize: 16)),
+                            Text(_themeModeLabel(widget.themeMode), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        tooltip: tr('theme_catalog'),
+                        onPressed: () {
+                          Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => _ThemeCatalogPage(
+                              currentTheme: widget.themeMode,
+                              auraSettings: _auraSettings,
+                              onThemeSelected: (mode) {
+                                widget.onThemeModeChanged(mode);
+                                setState(() {});
+                              },
+                              onAuraSettingsChanged: () => _loadAuraSettings(),
+                            ),
+                          ));
+                        },
+                      ),
                     ],
-                    selected: {widget.themeMode},
-                    onSelectionChanged: (sel) => widget.onThemeModeChanged(sel.first),
-                    showSelectedIcon: false,
-                    style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'light', icon: Icon(Icons.light_mode, size: 18)),
+                        ButtonSegment(value: 'dark', icon: Icon(Icons.dark_mode, size: 18)),
+                        ButtonSegment(value: 'ethos', icon: Icon(Icons.auto_awesome, size: 18)),
+                      ],
+                      selected: {_isBaseTheme(widget.themeMode) ? widget.themeMode : 'ethos'},
+                      onSelectionChanged: (sel) => widget.onThemeModeChanged(sel.first),
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                    ),
                   ),
                 ),
                 const Divider(height: 1),
@@ -10865,12 +12273,31 @@ class GeneralSettingsPage extends StatefulWidget {
 class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
   late UserProfile _profile;
   String? _biometricPin;
+  String _backupDestination = 'device';
+  String _autoBackupMode = 'off';
+  String? _lastBackupDate;
+  bool _isBackingUp = false;
 
   @override
   void initState() {
     super.initState();
     _profile = widget.profile;
     _loadBiometricPin();
+    _loadBackupSettings();
+  }
+
+  Future<void> _loadBackupSettings() async {
+    final db = DatabaseHelper();
+    final dest = await db.getSetting('backup_destination');
+    final mode = await db.getSetting('auto_backup_mode');
+    final lastDate = await db.getSetting('last_backup_date');
+    if (mounted) {
+      setState(() {
+        _backupDestination = dest ?? 'device';
+        _autoBackupMode = mode ?? 'off';
+        _lastBackupDate = lastDate;
+      });
+    }
   }
 
   Future<void> _loadBiometricPin() async {
@@ -10883,6 +12310,32 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     if (mounted) setState(() => _biometricPin = pin);
   }
 
+  Future<Uint8List> _buildBackupZipBytes() async {
+    final dbPath = await getDatabasesPath();
+    final sourcePath = p.join(dbPath, 'ethos_note.db');
+    final sourceFile = File(sourcePath);
+
+    final zip = archive.Archive();
+
+    // Add database file
+    final dbBytes = await sourceFile.readAsBytes();
+    zip.addFile(archive.ArchiveFile('ethos_note.db', dbBytes.length, dbBytes));
+
+    // Add images directory
+    final imgDir = await ImageStorageHelper().imagesDir;
+    if (await imgDir.exists()) {
+      await for (final entity in imgDir.list()) {
+        if (entity is File) {
+          final fileName = p.basename(entity.path);
+          final fileBytes = await entity.readAsBytes();
+          zip.addFile(archive.ArchiveFile('images/$fileName', fileBytes.length, fileBytes));
+        }
+      }
+    }
+
+    return Uint8List.fromList(archive.ZipEncoder().encode(zip));
+  }
+
   Future<void> _exportBackup() async {
     try {
       final dbPath = await getDatabasesPath();
@@ -10893,26 +12346,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       final now = DateTime.now();
       final zipFileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.zip';
 
-      // Build ZIP archive
-      final zip = archive.Archive();
-
-      // Add database file
-      final dbBytes = await sourceFile.readAsBytes();
-      zip.addFile(archive.ArchiveFile('ethos_note.db', dbBytes.length, dbBytes));
-
-      // Add images directory
-      final imgDir = await ImageStorageHelper().imagesDir;
-      if (await imgDir.exists()) {
-        await for (final entity in imgDir.list()) {
-          if (entity is File) {
-            final fileName = p.basename(entity.path);
-            final fileBytes = await entity.readAsBytes();
-            zip.addFile(archive.ArchiveFile('images/$fileName', fileBytes.length, fileBytes));
-          }
-        }
-      }
-
-      final zipBytes = Uint8List.fromList(archive.ZipEncoder().encode(zip));
+      final zipBytes = await _buildBackupZipBytes();
 
       // Save via file picker
       final result = await FilePicker.platform.saveFile(
@@ -10923,6 +12357,11 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
 
       if (!mounted) return;
       if (result != null) {
+        // Save last backup date
+        final nowIso = DateTime.now().toIso8601String();
+        await DatabaseHelper().saveSetting('last_backup_date', nowIso);
+        if (mounted) setState(() => _lastBackupDate = nowIso);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr('backup_exported')),
@@ -11013,6 +12452,262 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
+    }
+  }
+
+  Future<bool> _ensureGoogleDriveSignIn() async {
+    if (GoogleCalendarService.isSignedIn) return true;
+    // Try silent sign-in first
+    final silent = await GoogleCalendarService.trySilentSignIn();
+    if (silent) return true;
+    // Prompt interactive sign-in
+    final ok = await GoogleCalendarService.signIn();
+    return ok;
+  }
+
+  Future<void> _exportBackupToDrive() async {
+    setState(() => _isBackingUp = true);
+    try {
+      final signedIn = await _ensureGoogleDriveSignIn();
+      if (!signedIn) {
+        if (!mounted) return;
+        setState(() => _isBackingUp = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('backup_error')),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('backup_uploading')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+
+      final driveApi = await GoogleCalendarService.getDriveApi();
+      if (driveApi == null) throw Exception('Drive API unavailable');
+
+      final zipBytes = await _buildBackupZipBytes();
+
+      final now = DateTime.now();
+      final fileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.zip';
+
+      final driveFile = gdrive.File()
+        ..name = fileName
+        ..parents = ['appDataFolder'];
+
+      await driveApi.files.create(
+        driveFile,
+        uploadMedia: gdrive.Media(
+          Stream.value(zipBytes),
+          zipBytes.length,
+        ),
+      );
+
+      // Save last backup date
+      final nowIso = now.toIso8601String();
+      await DatabaseHelper().saveSetting('last_backup_date', nowIso);
+
+      // Cleanup old backups (keep last 5)
+      await _cleanupOldDriveBackups(driveApi);
+
+      if (!mounted) return;
+      setState(() {
+        _isBackingUp = false;
+        _lastBackupDate = nowIso;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('backup_exported')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isBackingUp = false);
+
+      // Handle 403 scope upgrade: sign out and re-sign in
+      if (e.toString().contains('403') || e.toString().contains('insufficientPermissions')) {
+        await GoogleCalendarService.signOut();
+        final ok = await GoogleCalendarService.signIn();
+        if (ok && mounted) {
+          _exportBackupToDrive(); // Retry after scope upgrade
+          return;
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('backup_error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _importBackupFromDrive() async {
+    setState(() => _isBackingUp = true);
+    try {
+      final signedIn = await _ensureGoogleDriveSignIn();
+      if (!signedIn) {
+        if (!mounted) return;
+        setState(() => _isBackingUp = false);
+        return;
+      }
+
+      final driveApi = await GoogleCalendarService.getDriveApi();
+      if (driveApi == null) throw Exception('Drive API unavailable');
+
+      // List backup files in appDataFolder
+      final fileList = await driveApi.files.list(
+        spaces: 'appDataFolder',
+        q: "name contains 'ethos_note_backup'",
+        orderBy: 'createdTime desc',
+        pageSize: 1,
+        $fields: 'files(id,name,createdTime,size)',
+      );
+
+      if (!mounted) return;
+
+      if (fileList.files == null || fileList.files!.isEmpty) {
+        setState(() => _isBackingUp = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('no_backup_found')),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
+
+      final latestFile = fileList.files!.first;
+      final backupDate = latestFile.createdTime != null
+          ? _formatBackupDate(latestFile.createdTime!.toIso8601String())
+          : '?';
+
+      // Confirm with user
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('backup_from_drive')),
+          content: Text('${tr('backup_import_confirm')}\n\n${latestFile.name}\n$backupDate'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('backup_import'))),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) {
+        setState(() => _isBackingUp = false);
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('backup_downloading')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+
+      // Download the file
+      final media = await driveApi.files.get(
+        latestFile.id!,
+        downloadOptions: gdrive.DownloadOptions.fullMedia,
+      ) as gdrive.Media;
+
+      final chunks = <int>[];
+      await for (final chunk in media.stream) {
+        chunks.addAll(chunk);
+      }
+      final fileBytes = Uint8List.fromList(chunks);
+
+      // Close DB and extract
+      await DatabaseHelper().close();
+
+      final dbPath = await getDatabasesPath();
+      final targetPath = p.join(dbPath, 'ethos_note.db');
+
+      final isZip = fileBytes.length >= 4 && fileBytes[0] == 0x50 && fileBytes[1] == 0x4B;
+      if (isZip) {
+        final zip = archive.ZipDecoder().decodeBytes(fileBytes);
+        for (final file in zip) {
+          if (file.isFile) {
+            if (file.name == 'ethos_note.db') {
+              await File(targetPath).writeAsBytes(file.content as List<int>);
+            } else if (file.name.startsWith('images/')) {
+              final imgDir = await ImageStorageHelper().imagesDir;
+              final imgFile = File(p.join(imgDir.path, p.basename(file.name)));
+              await imgFile.writeAsBytes(file.content as List<int>);
+            }
+          }
+        }
+      } else {
+        await File(targetPath).writeAsBytes(fileBytes);
+      }
+
+      if (!mounted) return;
+      setState(() => _isBackingUp = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('backup_imported')),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isBackingUp = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('backup_error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _cleanupOldDriveBackups(gdrive.DriveApi driveApi) async {
+    try {
+      final fileList = await driveApi.files.list(
+        spaces: 'appDataFolder',
+        q: "name contains 'ethos_note_backup'",
+        orderBy: 'createdTime desc',
+        pageSize: 20,
+        $fields: 'files(id,name,createdTime)',
+      );
+      if (fileList.files == null || fileList.files!.length <= 5) return;
+      // Delete all but the 5 most recent
+      for (var i = 5; i < fileList.files!.length; i++) {
+        final fileId = fileList.files![i].id;
+        if (fileId != null) {
+          await driveApi.files.delete(fileId);
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Cleanup old Drive backups error: $e');
+    }
+  }
+
+  String _formatBackupDate(String isoDate) {
+    try {
+      final dt = DateTime.parse(isoDate).toLocal();
+      return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return isoDate;
     }
   }
 
@@ -11206,16 +12901,108 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                     child: const Icon(Icons.backup, color: Colors.teal, size: 22),
                   ),
                   title: Text(tr('backup')),
-                  subtitle: Text(tr('save_on_device')),
+                  subtitle: Text(tr('backup_destination')),
                 ),
+
+                // Destination SegmentedButton
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<String>(
+                      showSelectedIcon: false,
+                      style: ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+                      ),
+                      segments: [
+                        ButtonSegment(value: 'device', label: Text(tr('backup_device')), icon: const Icon(Icons.phone_android, size: 16)),
+                        ButtonSegment(value: 'drive', label: Text(tr('backup_google_drive')), icon: const Icon(Icons.cloud, size: 16)),
+                      ],
+                      selected: {_backupDestination},
+                      onSelectionChanged: (sel) async {
+                        if (sel.first == _backupDestination) return;
+                        final destLabel = sel.first == 'drive' ? tr('backup_google_drive') : tr('backup_device');
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                            icon: Icon(sel.first == 'drive' ? Icons.cloud : Icons.phone_android, size: 32, color: colorScheme.primary),
+                            title: Text(tr('backup_dest_confirm_title')),
+                            content: Text(tr('backup_dest_confirm_body').replaceAll('{dest}', destLabel)),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+                              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('confirm'))),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true) return;
+                        setState(() => _backupDestination = sel.first);
+                        await DatabaseHelper().saveSetting('backup_destination', sel.first);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text('${tr('backup_destination')}: $destLabel'),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            duration: const Duration(seconds: 2),
+                          ));
+                        }
+                      },
+                    ),
+                  ),
+                ),
+
+                // Info text: where future backups will go
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 14, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          tr('backup_dest_info').replaceAll('{dest}', _backupDestination == 'drive' ? tr('backup_google_drive') : tr('backup_device')),
+                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // Connect Google Drive button (if Drive selected but not signed in)
+                if (_backupDestination == 'drive' && !GoogleCalendarService.isSignedIn)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final ok = await GoogleCalendarService.signIn();
+                          if (ok && mounted) setState(() {});
+                        },
+                        icon: const Icon(Icons.link, size: 18),
+                        label: Text(tr('connect_google_drive'), style: const TextStyle(fontSize: 13)),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Export / Import buttons
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                   child: Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _exportBackup,
-                          icon: const Icon(Icons.upload, size: 18),
+                          onPressed: _isBackingUp
+                              ? null
+                              : (_backupDestination == 'drive' ? _exportBackupToDrive : _exportBackup),
+                          icon: _isBackingUp
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.upload, size: 18),
                           label: Text(tr('backup_export'), style: const TextStyle(fontSize: 13)),
                           style: OutlinedButton.styleFrom(
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -11225,13 +13012,80 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _importBackup,
+                          onPressed: _isBackingUp
+                              ? null
+                              : (_backupDestination == 'drive' ? _importBackupFromDrive : _importBackup),
                           icon: const Icon(Icons.download, size: 18),
                           label: Text(tr('backup_import'), style: const TextStyle(fontSize: 13)),
                           style: OutlinedButton.styleFrom(
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                Divider(height: 1, indent: 16, endIndent: 16, color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+
+                // Auto-backup section
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(tr('backup_auto'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<String>(
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 11)),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      segments: [
+                        ButtonSegment(value: 'off', label: Text(tr('backup_auto_off'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        ButtonSegment(value: 'daily', label: Text(tr('backup_auto_daily'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        ButtonSegment(value: 'weekly', label: Text(tr('backup_auto_weekly'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        ButtonSegment(value: 'monthly', label: Text(tr('backup_auto_monthly'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      ],
+                      selected: {_autoBackupMode},
+                      onSelectionChanged: (sel) async {
+                        setState(() => _autoBackupMode = sel.first);
+                        await DatabaseHelper().saveSetting('auto_backup_mode', sel.first);
+                        if (mounted) {
+                          final label = {
+                            'off': tr('backup_auto_off'),
+                            'daily': tr('backup_auto_daily'),
+                            'weekly': tr('backup_auto_weekly'),
+                            'monthly': tr('backup_auto_monthly'),
+                          }[sel.first] ?? sel.first;
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text('${tr('backup_auto')}: $label'),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            duration: const Duration(seconds: 2),
+                          ));
+                        }
+                      },
+                    ),
+                  ),
+                ),
+
+                // Last backup info
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 14, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${tr('last_backup')}: ${_lastBackupDate != null ? _formatBackupDate(_lastBackupDate!) : tr('never')}',
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -12321,12 +14175,21 @@ class FlashNotesSettings {
 
 // ── Photo Recognition with Gemini Vision ──
 
-Future<PhotoRecognitionResult?> classifyPhotoWithGemini(String base64Image, String apiKey) async {
-  try {
-    final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
-    final imageBytes = base64Decode(base64Image);
+/// Converts raw Gemini error messages into user-friendly localized strings.
+String _friendlyGeminiError(String? error, String fallback) {
+  if (error == null) return fallback;
+  if (error.contains('503')) return tr('server_busy');
+  if (error.contains('quota') || error.contains('429')) return tr('quota_exceeded');
+  if (error.contains('API key') || error.contains('401') || error.contains('403')) return tr('photo_recognition_failed');
+  return '$fallback\n$error';
+}
 
-    final prompt = '''Analizza questa immagine e classificala in una delle seguenti categorie:
+/// Returns (result, errorMessage). If result is null, errorMessage explains why.
+/// Retries up to 2 times on 503 (high demand) errors.
+Future<(PhotoRecognitionResult?, String?)> classifyPhotoWithGemini(String base64Image, String apiKey) async {
+  final imageBytes = base64Decode(base64Image);
+
+  final prompt = '''Analizza questa immagine e classificala in una delle seguenti categorie:
 - "business_card": biglietto da visita (contiene nome, telefono, email, azienda)
 - "receipt": ricevuta o scontrino (contiene negozio, importo, data)
 - "document": documento formale (contratto, lettera, certificato)
@@ -12361,35 +14224,45 @@ Per document: tipo_documento, testo_chiave.
 Per handwritten: testo_trascritto.
 Per normal: fields vuoto {}.''';
 
-    final response = await model.generateContent([
-      gemini.Content.multi([
-        gemini.DataPart('image/jpeg', imageBytes),
-        gemini.TextPart(prompt),
-      ]),
-    ]).timeout(const Duration(seconds: 60));
+  String? lastError;
+  for (int attempt = 0; attempt < 3; attempt++) {
+    try {
+      final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
+      final response = await model.generateContent([
+        gemini.Content.multi([
+          gemini.DataPart('image/jpeg', imageBytes),
+          gemini.TextPart(prompt),
+        ]),
+      ]).timeout(const Duration(seconds: 60));
 
-    final text = response.text ?? '';
-    // Strip markdown code fences if present
-    String jsonStr = text.trim();
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replaceFirst(RegExp(r'^```(?:json)?\s*'), '');
-      jsonStr = jsonStr.replaceFirst(RegExp(r'\s*```\s*$'), '');
+      final text = response.text ?? '';
+      String jsonStr = text.trim();
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replaceFirst(RegExp(r'^```(?:json)?\s*'), '');
+        jsonStr = jsonStr.replaceFirst(RegExp(r'\s*```\s*$'), '');
+      }
+
+      final parsed = json.decode(jsonStr) as Map<String, dynamic>;
+      final fieldsRaw = parsed['fields'] as Map<String, dynamic>? ?? {};
+      final fields = fieldsRaw.map((k, v) => MapEntry(k, v is List ? json.encode(v) : v.toString()));
+
+      return (PhotoRecognitionResult(
+        category: parsed['category'] ?? 'normal',
+        title: parsed['title'] ?? '',
+        extractedText: parsed['extractedText'] ?? '',
+        fields: fields,
+      ), null);
+    } catch (e) {
+      lastError = e.toString();
+      // Retry on 503 (high demand) — wait before retrying
+      if (lastError.contains('503') && attempt < 2) {
+        await Future.delayed(Duration(seconds: 3 * (attempt + 1)));
+        continue;
+      }
+      break;
     }
-
-    final parsed = json.decode(jsonStr) as Map<String, dynamic>;
-    final fieldsRaw = parsed['fields'] as Map<String, dynamic>? ?? {};
-    final fields = fieldsRaw.map((k, v) => MapEntry(k, v is List ? json.encode(v) : v.toString()));
-
-    return PhotoRecognitionResult(
-      category: parsed['category'] ?? 'normal',
-      title: parsed['title'] ?? '',
-      extractedText: parsed['extractedText'] ?? '',
-      fields: fields,
-    );
-  } catch (e) {
-    if (kDebugMode) debugPrint('Photo recognition error: $e');
-    return null;
   }
+  return (null, lastError);
 }
 
 Future<void> ensurePhotoFolder(String folderName, IconData icon, Color color) async {
@@ -13142,6 +15015,263 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
 
 }
 
+// ─── Theme Catalog Page ──────────────────────────────────────────────────────
+
+class _ThemeCatalogPage extends StatefulWidget {
+  final String currentTheme;
+  final EthosAuraSettings auraSettings;
+  final Function(String) onThemeSelected;
+  final VoidCallback onAuraSettingsChanged;
+
+  const _ThemeCatalogPage({
+    required this.currentTheme,
+    required this.auraSettings,
+    required this.onThemeSelected,
+    required this.onAuraSettingsChanged,
+  });
+
+  @override
+  State<_ThemeCatalogPage> createState() => _ThemeCatalogPageState();
+}
+
+class _ThemeCatalogPageState extends State<_ThemeCatalogPage> {
+  late String _currentTheme;
+  late EthosAuraSettings _auraSettings;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentTheme = widget.currentTheme;
+    _auraSettings = widget.auraSettings;
+  }
+
+  Future<void> _refreshAura() async {
+    final s = await EthosAuraSettings.load();
+    if (!mounted) return;
+    setState(() => _auraSettings = s);
+    widget.onAuraSettingsChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    // Build list of purchased themes
+    final purchasedThemes = <_PremiumThemeInfo>[];
+    if (_auraSettings.ephemeraThemePurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'ephemera', name: 'Ephemera', description: tr('ephemera_theme_desc'), icon: Icons.menu_book,
+        color: const Color(0xFF795548), previewColors: const [Color(0xFFF4EBD0), Color(0xFF795548), Color(0xFF3E2723)],
+      ));
+    }
+    if (_auraSettings.nordicZenPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'nordic_zen', name: 'Nordic Zen', description: tr('nordic_zen_desc'), icon: Icons.ac_unit,
+        color: const Color(0xFF78909C), previewColors: const [Color(0xFFF0F4F8), Color(0xFF78909C), Color(0xFF2D3748)],
+      ));
+    }
+    if (_auraSettings.greenSalviaPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'green_salvia', name: 'Green Salvia', description: tr('green_salvia_desc'), icon: Icons.eco,
+        color: const Color(0xFF6B8F71), previewColors: const [Color(0xFFE2E8E4), Color(0xFF6B8F71), Color(0xFF2A3B32)],
+      ));
+    }
+    if (_auraSettings.sakuraPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'sakura', name: 'Sakura', description: tr('sakura_desc'), icon: Icons.local_florist,
+        color: const Color(0xFFB5838D), previewColors: const [Color(0xFFF7E7E6), Color(0xFFB5838D), Color(0xFF2D3748)],
+      ));
+    }
+    // Oltre l'Oceano
+    if (_auraSettings.spadaccinoPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'spadaccino', name: tr('spadaccino_theme'), description: tr('spadaccino_desc'), icon: Icons.sports_martial_arts,
+        color: const Color(0xFF1B4D3E), previewColors: const [Color(0xFF0D2818), Color(0xFF1B4D3E), Color(0xFF2E7D5B)],
+      ));
+    }
+    if (_auraSettings.sognoRePurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'sogno_re', name: tr('sogno_re_theme'), description: tr('sogno_re_desc'), icon: Icons.wb_sunny,
+        color: const Color(0xFFD32F2F), previewColors: const [Color(0xFFFFF9C4), Color(0xFFD32F2F), Color(0xFF1565C0)],
+      ));
+    }
+    if (_auraSettings.mappaTesoroPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'mappa_tesoro', name: tr('mappa_tesoro_theme'), description: tr('mappa_tesoro_desc'), icon: Icons.explore,
+        color: const Color(0xFFE6A800), previewColors: const [Color(0xFFFFE0B2), Color(0xFFE6A800), Color(0xFF0D47A1)],
+      ));
+    }
+    // Spirito della Foglia
+    if (_auraSettings.fulminePurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'fulmine', name: tr('fulmine_theme'), description: tr('fulmine_desc'), icon: Icons.bolt,
+        color: const Color(0xFF7C4DFF), previewColors: const [Color(0xFF1A1A2E), Color(0xFF7C4DFF), Color(0xFFE8EAF6)],
+      ));
+    }
+    if (_auraSettings.eremitaPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'eremita', name: tr('eremita_theme'), description: tr('eremita_desc'), icon: Icons.local_fire_department,
+        color: const Color(0xFFE65100), previewColors: const [Color(0xFF0A0A0A), Color(0xFFE65100), Color(0xFF00BCD4)],
+      ));
+    }
+    if (_auraSettings.saggioPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'saggio', name: tr('saggio_theme'), description: tr('saggio_desc'), icon: Icons.auto_stories,
+        color: const Color(0xFF691212), previewColors: const [Color(0xFF2A0E0E), Color(0xFF691212), Color(0xFF6B8E23)],
+      ));
+    }
+    // Serie Cult
+    if (_auraSettings.cabinaTempoPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'cabina_tempo', name: tr('cabina_theme'), description: tr('cabina_desc'), icon: Icons.access_time,
+        color: const Color(0xFF003B6F), previewColors: const [Color(0xFF001F3F), Color(0xFF003B6F), Color(0xFF90CAF9)],
+      ));
+    }
+    if (_auraSettings.sottosopraPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'sottosopra', name: tr('sottosopra_theme'), description: tr('sottosopra_desc'), icon: Icons.flip,
+        color: const Color(0xFFB71C1C), previewColors: const [Color(0xFF050510), Color(0xFFB71C1C), Color(0xFFFF1744)],
+      ));
+    }
+    if (_auraSettings.rifugioPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'rifugio', name: tr('rifugio_theme'), description: tr('rifugio_desc'), icon: Icons.shield,
+        color: const Color(0xFF32CD32), previewColors: const [Color(0xFF1A1A1A), Color(0xFF32CD32), Color(0xFF005FB8)],
+      ));
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(tr('theme_catalog')),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Purchased themes
+          if (purchasedThemes.isNotEmpty) ...[
+            ...purchasedThemes.map((theme) {
+              final isActive = _currentTheme == theme.id;
+              return Card(
+                elevation: 0,
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: isActive
+                      ? BorderSide(color: theme.color, width: 2)
+                      : BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    if (isActive) {
+                      // Deselect — go back to ethos
+                      setState(() => _currentTheme = 'ethos');
+                      widget.onThemeSelected('ethos');
+                    } else {
+                      setState(() => _currentTheme = theme.id);
+                      widget.onThemeSelected(theme.id);
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        // Color preview circles
+                        Row(
+                          children: theme.previewColors.map((c) => Container(
+                            width: 24, height: 24,
+                            margin: const EdgeInsets.only(right: 6),
+                            decoration: BoxDecoration(
+                              color: c,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                            ),
+                          )).toList(),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(theme.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                              const SizedBox(height: 2),
+                              Text(theme.description, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                            ],
+                          ),
+                        ),
+                        if (isActive)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: theme.color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(tr('active_theme'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.color)),
+                          )
+                        else
+                          Icon(Icons.circle_outlined, color: colorScheme.outlineVariant),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+
+          // Empty state or browse button
+          if (purchasedThemes.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 48),
+              child: Column(
+                children: [
+                  Icon(Icons.palette_outlined, size: 64, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
+                  const SizedBox(height: 16),
+                  Text(tr('no_themes_purchased'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 8),
+                  Text(tr('browse_themes'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)), textAlign: TextAlign.center),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const EthosAuraPage())).then((_) => _refreshAura());
+            },
+            icon: const Icon(Icons.auto_awesome, size: 18),
+            label: Text(tr('browse_themes')),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumThemeInfo {
+  final String id;
+  final String name;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final List<Color> previewColors;
+
+  const _PremiumThemeInfo({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.previewColors,
+  });
+}
+
 // ─── Ethos Aura (Premium Hub) ────────────────────────────────────────────────
 
 class EthosAuraSettings {
@@ -13150,6 +15280,19 @@ class EthosAuraSettings {
   final bool unlimitedProfilesPurchased;
   final bool photoRecognitionPurchased;
   final bool cycleTrackingPurchased;
+  final bool ephemeraThemePurchased;
+  final bool nordicZenPurchased;
+  final bool greenSalviaPurchased;
+  final bool sakuraPurchased;
+  final bool spadaccinoPurchased;
+  final bool sognoRePurchased;
+  final bool mappaTesoroPurchased;
+  final bool fulminePurchased;
+  final bool eremitaPurchased;
+  final bool saggioPurchased;
+  final bool cabinaTempoPurchased;
+  final bool sottosopraPurchased;
+  final bool rifugioPurchased;
 
   const EthosAuraSettings({
     this.oroscopoPurchased = false,
@@ -13157,6 +15300,19 @@ class EthosAuraSettings {
     this.unlimitedProfilesPurchased = false,
     this.photoRecognitionPurchased = false,
     this.cycleTrackingPurchased = false,
+    this.ephemeraThemePurchased = false,
+    this.nordicZenPurchased = false,
+    this.greenSalviaPurchased = false,
+    this.sakuraPurchased = false,
+    this.spadaccinoPurchased = false,
+    this.sognoRePurchased = false,
+    this.mappaTesoroPurchased = false,
+    this.fulminePurchased = false,
+    this.eremitaPurchased = false,
+    this.saggioPurchased = false,
+    this.cabinaTempoPurchased = false,
+    this.sottosopraPurchased = false,
+    this.rifugioPurchased = false,
   });
 
   EthosAuraSettings copyWith({
@@ -13165,6 +15321,19 @@ class EthosAuraSettings {
     bool? unlimitedProfilesPurchased,
     bool? photoRecognitionPurchased,
     bool? cycleTrackingPurchased,
+    bool? ephemeraThemePurchased,
+    bool? nordicZenPurchased,
+    bool? greenSalviaPurchased,
+    bool? sakuraPurchased,
+    bool? spadaccinoPurchased,
+    bool? sognoRePurchased,
+    bool? mappaTesoroPurchased,
+    bool? fulminePurchased,
+    bool? eremitaPurchased,
+    bool? saggioPurchased,
+    bool? cabinaTempoPurchased,
+    bool? sottosopraPurchased,
+    bool? rifugioPurchased,
   }) {
     return EthosAuraSettings(
       oroscopoPurchased: oroscopoPurchased ?? this.oroscopoPurchased,
@@ -13172,6 +15341,19 @@ class EthosAuraSettings {
       unlimitedProfilesPurchased: unlimitedProfilesPurchased ?? this.unlimitedProfilesPurchased,
       photoRecognitionPurchased: photoRecognitionPurchased ?? this.photoRecognitionPurchased,
       cycleTrackingPurchased: cycleTrackingPurchased ?? this.cycleTrackingPurchased,
+      ephemeraThemePurchased: ephemeraThemePurchased ?? this.ephemeraThemePurchased,
+      nordicZenPurchased: nordicZenPurchased ?? this.nordicZenPurchased,
+      greenSalviaPurchased: greenSalviaPurchased ?? this.greenSalviaPurchased,
+      sakuraPurchased: sakuraPurchased ?? this.sakuraPurchased,
+      spadaccinoPurchased: spadaccinoPurchased ?? this.spadaccinoPurchased,
+      sognoRePurchased: sognoRePurchased ?? this.sognoRePurchased,
+      mappaTesoroPurchased: mappaTesoroPurchased ?? this.mappaTesoroPurchased,
+      fulminePurchased: fulminePurchased ?? this.fulminePurchased,
+      eremitaPurchased: eremitaPurchased ?? this.eremitaPurchased,
+      saggioPurchased: saggioPurchased ?? this.saggioPurchased,
+      cabinaTempoPurchased: cabinaTempoPurchased ?? this.cabinaTempoPurchased,
+      sottosopraPurchased: sottosopraPurchased ?? this.sottosopraPurchased,
+      rifugioPurchased: rifugioPurchased ?? this.rifugioPurchased,
     );
   }
 
@@ -13181,6 +15363,19 @@ class EthosAuraSettings {
     'unlimitedProfilesPurchased': unlimitedProfilesPurchased,
     'photoRecognitionPurchased': photoRecognitionPurchased,
     'cycleTrackingPurchased': cycleTrackingPurchased,
+    'ephemeraThemePurchased': ephemeraThemePurchased,
+    'nordicZenPurchased': nordicZenPurchased,
+    'greenSalviaPurchased': greenSalviaPurchased,
+    'sakuraPurchased': sakuraPurchased,
+    'spadaccinoPurchased': spadaccinoPurchased,
+    'sognoRePurchased': sognoRePurchased,
+    'mappaTesoroPurchased': mappaTesoroPurchased,
+    'fulminePurchased': fulminePurchased,
+    'eremitaPurchased': eremitaPurchased,
+    'saggioPurchased': saggioPurchased,
+    'cabinaTempoPurchased': cabinaTempoPurchased,
+    'sottosopraPurchased': sottosopraPurchased,
+    'rifugioPurchased': rifugioPurchased,
   };
 
   factory EthosAuraSettings.fromJson(Map<String, dynamic> json) =>
@@ -13190,6 +15385,19 @@ class EthosAuraSettings {
         unlimitedProfilesPurchased: json['unlimitedProfilesPurchased'] ?? false,
         photoRecognitionPurchased: json['photoRecognitionPurchased'] ?? false,
         cycleTrackingPurchased: json['cycleTrackingPurchased'] ?? false,
+        ephemeraThemePurchased: json['ephemeraThemePurchased'] ?? false,
+        nordicZenPurchased: json['nordicZenPurchased'] ?? false,
+        greenSalviaPurchased: json['greenSalviaPurchased'] ?? false,
+        sakuraPurchased: json['sakuraPurchased'] ?? false,
+        spadaccinoPurchased: json['spadaccinoPurchased'] ?? false,
+        sognoRePurchased: json['sognoRePurchased'] ?? false,
+        mappaTesoroPurchased: json['mappaTesoroPurchased'] ?? false,
+        fulminePurchased: json['fulminePurchased'] ?? false,
+        eremitaPurchased: json['eremitaPurchased'] ?? false,
+        saggioPurchased: json['saggioPurchased'] ?? false,
+        cabinaTempoPurchased: json['cabinaTempoPurchased'] ?? false,
+        sottosopraPurchased: json['sottosopraPurchased'] ?? false,
+        rifugioPurchased: json['rifugioPurchased'] ?? false,
       );
 
   static Future<EthosAuraSettings> load() async {
@@ -13258,6 +15466,45 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
         break;
       case 'cycle_tracking':
         updated = _auraSettings.copyWith(cycleTrackingPurchased: true);
+        break;
+      case 'ephemera_theme':
+        updated = _auraSettings.copyWith(ephemeraThemePurchased: true);
+        break;
+      case 'nordic_zen_theme':
+        updated = _auraSettings.copyWith(nordicZenPurchased: true);
+        break;
+      case 'green_salvia_theme':
+        updated = _auraSettings.copyWith(greenSalviaPurchased: true);
+        break;
+      case 'sakura_theme':
+        updated = _auraSettings.copyWith(sakuraPurchased: true);
+        break;
+      case 'spadaccino_theme':
+        updated = _auraSettings.copyWith(spadaccinoPurchased: true);
+        break;
+      case 'sogno_re_theme':
+        updated = _auraSettings.copyWith(sognoRePurchased: true);
+        break;
+      case 'mappa_tesoro_theme':
+        updated = _auraSettings.copyWith(mappaTesoroPurchased: true);
+        break;
+      case 'fulmine_theme':
+        updated = _auraSettings.copyWith(fulminePurchased: true);
+        break;
+      case 'eremita_theme':
+        updated = _auraSettings.copyWith(eremitaPurchased: true);
+        break;
+      case 'saggio_theme':
+        updated = _auraSettings.copyWith(saggioPurchased: true);
+        break;
+      case 'cabina_tempo_theme':
+        updated = _auraSettings.copyWith(cabinaTempoPurchased: true);
+        break;
+      case 'sottosopra_theme':
+        updated = _auraSettings.copyWith(sottosopraPurchased: true);
+        break;
+      case 'rifugio_theme':
+        updated = _auraSettings.copyWith(rifugioPurchased: true);
         break;
       default:
         return;
@@ -13349,6 +15596,41 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                   onTap: () => _simulatePurchase('cycle_tracking'),
                   colorScheme: colorScheme,
                 ),
+
+                // Theme Catalog
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF795548).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.menu_book, color: Color(0xFF795548)),
+                    ),
+                    title: Text(tr('theme_catalog'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(tr('theme_catalog_desc'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.push(context, PageRouteBuilder(
+                        pageBuilder: (_, __, ___) => _AuraThemeStorePage(
+                          auraSettings: _auraSettings,
+                          onPurchase: (feature) async {
+                            await _simulatePurchase(feature);
+                          },
+                        ),
+                        transitionsBuilder: (_, anim, __, child) =>
+                            SlideTransition(
+                              position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+                              child: child,
+                            ),
+                      )).then((_) => _loadSettings());
+                    },
+                  ),
+                ),
               ],
             ),
     );
@@ -13385,6 +15667,135 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                 style: FilledButton.styleFrom(backgroundColor: auraColor),
                 child: Text(tr('unlock')),
               ),
+      ),
+    );
+  }
+}
+
+class _AuraThemeStorePage extends StatefulWidget {
+  final EthosAuraSettings auraSettings;
+  final Future<void> Function(String) onPurchase;
+
+  const _AuraThemeStorePage({required this.auraSettings, required this.onPurchase});
+
+  @override
+  State<_AuraThemeStorePage> createState() => _AuraThemeStorePageState();
+}
+
+class _AuraThemeStorePageState extends State<_AuraThemeStorePage> {
+  late EthosAuraSettings _aura;
+
+  @override
+  void initState() {
+    super.initState();
+    _aura = widget.auraSettings;
+  }
+
+  Future<void> _refresh() async {
+    final s = await EthosAuraSettings.load();
+    if (!mounted) return;
+    setState(() => _aura = s);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final individual = <Map<String, dynamic>>[
+      {'id': 'ephemera_theme', 'name': 'Ephemera', 'desc': tr('ephemera_theme_desc'), 'color': const Color(0xFF795548), 'price': '€0,99', 'purchased': _aura.ephemeraThemePurchased, 'preview': [const Color(0xFFF4EBD0), const Color(0xFF795548), const Color(0xFF3E2723)]},
+      {'id': 'nordic_zen_theme', 'name': 'Nordic Zen', 'desc': tr('nordic_zen_desc'), 'color': const Color(0xFF78909C), 'price': '€0,99', 'purchased': _aura.nordicZenPurchased, 'preview': [const Color(0xFFF0F4F8), const Color(0xFF78909C), const Color(0xFF2D3748)]},
+      {'id': 'green_salvia_theme', 'name': 'Green Salvia', 'desc': tr('green_salvia_desc'), 'color': const Color(0xFF6B8F71), 'price': '€0,99', 'purchased': _aura.greenSalviaPurchased, 'preview': [const Color(0xFFE2E8E4), const Color(0xFF6B8F71), const Color(0xFF2A3B32)]},
+      {'id': 'sakura_theme', 'name': 'Sakura', 'desc': tr('sakura_desc'), 'color': const Color(0xFFB5838D), 'price': '€0,99', 'purchased': _aura.sakuraPurchased, 'preview': [const Color(0xFFF7E7E6), const Color(0xFFB5838D), const Color(0xFF2D3748)]},
+    ];
+    final oceano = <Map<String, dynamic>>[
+      {'id': 'spadaccino_theme', 'name': tr('spadaccino_theme'), 'desc': tr('spadaccino_desc'), 'color': const Color(0xFF1B4D3E), 'price': '€0,99', 'purchased': _aura.spadaccinoPurchased, 'preview': [const Color(0xFF0D2818), const Color(0xFF1B4D3E), const Color(0xFF2E7D5B)]},
+      {'id': 'sogno_re_theme', 'name': tr('sogno_re_theme'), 'desc': tr('sogno_re_desc'), 'color': const Color(0xFFD32F2F), 'price': '€0,99', 'purchased': _aura.sognoRePurchased, 'preview': [const Color(0xFFFFF9C4), const Color(0xFFD32F2F), const Color(0xFF1565C0)]},
+      {'id': 'mappa_tesoro_theme', 'name': tr('mappa_tesoro_theme'), 'desc': tr('mappa_tesoro_desc'), 'color': const Color(0xFFE6A800), 'price': '€0,99', 'purchased': _aura.mappaTesoroPurchased, 'preview': [const Color(0xFFFFE0B2), const Color(0xFFE6A800), const Color(0xFF0D47A1)]},
+    ];
+    final foglia = <Map<String, dynamic>>[
+      {'id': 'fulmine_theme', 'name': tr('fulmine_theme'), 'desc': tr('fulmine_desc'), 'color': const Color(0xFF7C4DFF), 'price': '€0,99', 'purchased': _aura.fulminePurchased, 'preview': [const Color(0xFF1A1A2E), const Color(0xFF7C4DFF), const Color(0xFFE8EAF6)]},
+      {'id': 'eremita_theme', 'name': tr('eremita_theme'), 'desc': tr('eremita_desc'), 'color': const Color(0xFFE65100), 'price': '€0,99', 'purchased': _aura.eremitaPurchased, 'preview': [const Color(0xFF0A0A0A), const Color(0xFFE65100), const Color(0xFF00BCD4)]},
+      {'id': 'saggio_theme', 'name': tr('saggio_theme'), 'desc': tr('saggio_desc'), 'color': const Color(0xFF691212), 'price': '€0,99', 'purchased': _aura.saggioPurchased, 'preview': [const Color(0xFF2A0E0E), const Color(0xFF691212), const Color(0xFF6B8E23)]},
+    ];
+    final cult = <Map<String, dynamic>>[
+      {'id': 'cabina_tempo_theme', 'name': tr('cabina_theme'), 'desc': tr('cabina_desc'), 'color': const Color(0xFF003B6F), 'price': '€0,99', 'purchased': _aura.cabinaTempoPurchased, 'preview': [const Color(0xFF001F3F), const Color(0xFF003B6F), const Color(0xFF90CAF9)]},
+      {'id': 'sottosopra_theme', 'name': tr('sottosopra_theme'), 'desc': tr('sottosopra_desc'), 'color': const Color(0xFFB71C1C), 'price': '€0,99', 'purchased': _aura.sottosopraPurchased, 'preview': [const Color(0xFF050510), const Color(0xFFB71C1C), const Color(0xFFFF1744)]},
+      {'id': 'rifugio_theme', 'name': tr('rifugio_theme'), 'desc': tr('rifugio_desc'), 'color': const Color(0xFF32CD32), 'price': '€0,99', 'purchased': _aura.rifugioPurchased, 'preview': [const Color(0xFF1A1A1A), const Color(0xFF32CD32), const Color(0xFF005FB8)]},
+    ];
+
+    Widget buildThemeTile(Map<String, dynamic> t) {
+      final purchased = t['purchased'] as bool;
+      final color = t['color'] as Color;
+      final preview = t['preview'] as List<Color>;
+      return Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: purchased ? Colors.green.withValues(alpha: 0.4) : colorScheme.outlineVariant.withValues(alpha: 0.3)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  ...preview.map((c) => Container(
+                    width: 28, height: 28, margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+                  )),
+                  const Spacer(),
+                  if (purchased)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        const SizedBox(width: 4),
+                        Text(tr('purchased'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green)),
+                      ]),
+                    )
+                  else
+                    FilledButton(
+                      onPressed: () async { await widget.onPurchase(t['id'] as String); await _refresh(); },
+                      style: FilledButton.styleFrom(backgroundColor: color, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10)),
+                      child: Text('${tr('unlock')}  ${t['price']}'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(t['name'] as String, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(t['desc'] as String, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget sectionHeader(String title) => Padding(
+      padding: const EdgeInsets.fromLTRB(0, 20, 0, 8),
+      child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.primary)),
+    );
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(tr('theme_catalog')),
+        elevation: 0, scrolledUnderElevation: 2, backgroundColor: Colors.transparent,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          ...individual.map(buildThemeTile),
+          sectionHeader(tr('collection_oceano')),
+          ...oceano.map(buildThemeTile),
+          sectionHeader(tr('collection_foglia')),
+          ...foglia.map(buildThemeTile),
+          sectionHeader(tr('collection_cult')),
+          ...cult.map(buildThemeTile),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
@@ -14008,9 +16419,9 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildTrashList(proNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFFC0364D) : const Color(0xFFE53935)),
-          _buildTrashList(flashNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726)),
-          _buildTrashList(eventNotes, colorScheme, _isEthosTheme(context) ? const Color(0xFF1565C0) : const Color(0xFF1E88E5)),
+          _buildTrashList(proNotes, colorScheme, _sectionAccent(context, 0)),
+          _buildTrashList(flashNotes, colorScheme, _sectionAccent(context, 2)),
+          _buildTrashList(eventNotes, colorScheme, _sectionAccent(context, 1)),
         ],
       ),
     );
@@ -14354,7 +16765,18 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   Future<void> _tryPhotoRecognition(String imagePath) async {
     final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    if (!auraSettings.photoRecognitionPurchased || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
+    if (!auraSettings.photoRecognitionPurchased) return; // non acquistato — silenzioso
+    if (!settings.geminiEnabled || settings.geminiApiKey.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('gemini_not_configured')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
 
     // Read file for Gemini
@@ -14372,17 +16794,39 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
             Text(tr('analyzing_photo')),
           ],
         ),
-        duration: const Duration(seconds: 30),
+        duration: const Duration(seconds: 60),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
 
-    final result = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey);
+    final (result, error) = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey);
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-    if (result == null || !result.isActionable) return;
+    if (result == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_friendlyGeminiError(error, tr('photo_recognition_failed'))),
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+    if (!result.isActionable) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('photo_normal')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
 
     final action = await showDialog<String>(
@@ -14564,7 +17008,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    final accentColor = _sectionAccent(context, 2);
 
     return PopScope(
       canPop: true,
@@ -14613,7 +17057,13 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
             ),
           ],
         ),
-        body: GestureDetector(
+        body: Stack(
+          children: [
+            if (_themeOverlayColor(context) != null)
+              Positioned.fill(
+                child: Container(color: _themeOverlayColor(context)),
+              ),
+            GestureDetector(
           onTap: () {
             if (_checkboxJustTapped) {
               _checkboxJustTapped = false;
@@ -14626,7 +17076,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
           },
           behavior: HitTestBehavior.translucent,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 72),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -14864,36 +17314,41 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
             ),
           ),
         ),
-        bottomNavigationBar: Container(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + MediaQuery.of(context).viewPadding.bottom),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            border: Border(top: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _flashFormatBtn(
-                        icon: Icons.format_list_bulleted,
-                        label: tr('bullet_list'),
-                        accentColor: accentColor,
-                        onTap: () {
-                          final sel = _bodyController.selection;
-                          final pos = sel.isValid ? sel.baseOffset : _bodyController.text.length;
-                          final before = _bodyController.text.substring(0, pos);
-                          final after = _bodyController.text.substring(pos);
-                          final needsNewline = before.isNotEmpty && !before.endsWith('\n');
-                          final prefix = '${needsNewline ? '\n' : ''}• ';
-                          _bodyController.text = '$before$prefix$after';
-                          _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      _flashFormatBtn(
+          // Toolbar pinned above keyboard
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : MediaQuery.of(context).viewPadding.bottom)),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                border: Border(top: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _flashFormatBtn(
+                            icon: Icons.format_list_bulleted,
+                            label: tr('bullet_list'),
+                            accentColor: accentColor,
+                            onTap: () {
+                              final sel = _bodyController.selection;
+                              final pos = sel.isValid ? sel.baseOffset : _bodyController.text.length;
+                              final before = _bodyController.text.substring(0, pos);
+                              final after = _bodyController.text.substring(pos);
+                              final needsNewline = before.isNotEmpty && !before.endsWith('\n');
+                              final prefix = '${needsNewline ? '\n' : ''}• ';
+                              _bodyController.text = '$before$prefix$after';
+                              _bodyController.selection = TextSelection.collapsed(offset: pos + prefix.length);
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _flashFormatBtn(
                         icon: Icons.format_list_numbered,
                         label: tr('numbered_list'),
                         accentColor: accentColor,
@@ -14944,8 +17399,11 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                   backgroundColor: accentColor.withValues(alpha: 0.1),
                 ),
               ),
-            ],
+                ],
+              ),
+            ),
           ),
+          ],
         ),
       ),
     );
@@ -15118,7 +17576,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   }
 
   Future<void> _addPhotoNote({bool directCamera = false}) async {
-    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    final accentColor = _sectionAccent(context, 2);
     ImageSource? source;
     if (directCamera) {
       source = ImageSource.camera;
@@ -15176,6 +17634,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: source,
+        preferredCameraDevice: CameraDevice.rear,
         maxWidth: 1200,
         maxHeight: 1200,
         imageQuality: 80,
@@ -15268,7 +17727,18 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   Future<void> _runPhotoRecognition(String imagePath) async {
     final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    if (!auraSettings.photoRecognitionPurchased || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
+    if (!auraSettings.photoRecognitionPurchased) return;
+    if (!settings.geminiEnabled || settings.geminiApiKey.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('gemini_not_configured')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
 
     // Read file for Gemini
@@ -15279,11 +17749,33 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
     setState(() => _isAnalyzingPhoto = true);
 
-    final result = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey);
+    final (result, error) = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey);
     if (!mounted) return;
     setState(() => _isAnalyzingPhoto = false);
 
-    if (result == null || !result.isActionable) return;
+    if (result == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_friendlyGeminiError(error, tr('photo_recognition_failed'))),
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+    if (!result.isActionable) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('photo_normal')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
     _showPhotoRecognitionDialog(result, imagePath);
   }
@@ -16165,14 +18657,26 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         return;
       }
       final mimeType = note.audioPath!.endsWith('.m4a') ? 'audio/mp4' : 'audio/mpeg';
-      final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
-      final response = await model.generateContent([
-        gemini.Content.multi([
-          gemini.DataPart(mimeType, audioBytes),
-          gemini.TextPart('Trascrivi questo audio in italiano. Restituisci solo il testo trascritto, senza commenti.'),
-        ]),
-      ]).timeout(const Duration(seconds: 60));
-      final result = response.text ?? '';
+      String result = '';
+      for (int attempt = 0; attempt < 3; attempt++) {
+        try {
+          final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
+          final response = await model.generateContent([
+            gemini.Content.multi([
+              gemini.DataPart(mimeType, audioBytes),
+              gemini.TextPart('Trascrivi questo audio in italiano. Restituisci solo il testo trascritto, senza commenti.'),
+            ]),
+          ]).timeout(const Duration(seconds: 60));
+          result = response.text ?? '';
+          break;
+        } catch (e) {
+          if (e.toString().contains('503') && attempt < 2) {
+            await Future.delayed(Duration(seconds: 3 * (attempt + 1)));
+            continue;
+          }
+          rethrow;
+        }
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -16268,8 +18772,14 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      final errMsg = e.toString();
+      final userMsg = errMsg.contains('503')
+          ? tr('server_busy')
+          : errMsg.contains('quota') || errMsg.contains('429')
+              ? tr('quota_exceeded')
+              : '${tr('error')}: $errMsg';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        SnackBar(content: Text(userMsg), duration: const Duration(seconds: 5), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       );
     }
   }
@@ -16299,7 +18809,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   void _showAudioNoteViewer(FlashNote note, int originalIndex) {
     final colorScheme = Theme.of(context).colorScheme;
-    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    final accentColor = _sectionAccent(context, 2);
     ap.AudioPlayer? viewerPlayer;
     bool isPlaying = false;
     Duration position = Duration.zero;
@@ -16664,7 +19174,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       sortedNotes = sortedNotes.where((n) => _getGroupKey(n.createdAt) == _selectedGroup).toList();
     }
     final colorScheme = Theme.of(context).colorScheme;
-    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    final accentColor = _sectionAccent(context, 2);
 
     // Build group list for sidebar (from all notes, not filtered)
     final allSorted = List<FlashNote>.from(_notes)
@@ -17000,7 +19510,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                         const SizedBox(width: 6),
                                       ],
                                       if (!note.isAudioNote) ...[
-                                        _buildCellAction(Icons.event, _isEthosTheme(context) ? const Color(0xFFA3274F) : const Color(0xFF1E88E5), () => _createEventFromFlashNote(note)),
+                                        _buildCellAction(Icons.event, _sectionAccent(context, 1), () => _createEventFromFlashNote(note)),
                                         const SizedBox(width: 6),
                                       ],
                                       if (_isAiAvailable)
@@ -17232,7 +19742,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                     if (!note.isAudioNote)
                                       IconButton(
                                         icon: const Icon(Icons.event),
-                                        color: _isEthosTheme(context) ? const Color(0xFFA3274F) : const Color(0xFF1E88E5),
+                                        color: _sectionAccent(context, 1),
                                         tooltip: tr('create_event'),
                                         onPressed: () => _createEventFromFlashNote(note),
                                       ),
@@ -17487,7 +19997,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (_isAudioSheetOpen) return;
     _isAudioSheetOpen = true;
 
-    final accentColor = _isEthosTheme(context) ? const Color(0xFFB8566B) : const Color(0xFFFFA726);
+    final accentColor = _sectionAccent(context, 2);
     final colorScheme = Theme.of(context).colorScheme;
     final recorder = AudioRecorder();
     final flashSettings = await FlashNotesSettings.load();
@@ -19276,7 +21786,7 @@ class _NotesProPageState extends State<NotesProPage> {
     final colorScheme = Theme.of(context).colorScheme;
     final visibleFolders = _visibleFolders;
 
-    final accentColor = _isEthosTheme(context) ? const Color(0xFFC0364D) : const Color(0xFFE53935);
+    final accentColor = _sectionAccent(context, 0);
 
     return Scaffold(
       body: Stack(
@@ -19510,8 +22020,8 @@ class _NotesProPageState extends State<NotesProPage> {
                                                     style: TextStyle(
                                                       fontWeight: FontWeight.w600,
                                                       fontSize: 13,
-                                                      fontFamily: _isEthosTheme(context) ? 'Georgia' : null,
-                                                      color: _isEthosTheme(context) ? const Color(0xFFC0364D) : colorScheme.onSurface,
+                                                      fontFamily: _themedFont(context),
+                                                      color: _hasCustomTheme(context) ? _sectionAccent(context, 0) : colorScheme.onSurface,
                                                     )),
                                               ),
                                               if (!_selectionMode && note.id != null)
@@ -19648,7 +22158,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                                         child: Text(note.title,
                                                             maxLines: 1,
                                                             overflow: TextOverflow.ellipsis,
-                                                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? const Color(0xFFC0364D) : null)),
+                                                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, fontFamily: _themedFont(context), color: _hasCustomTheme(context) ? _sectionAccent(context, 0) : null)),
                                                       ),
                                                       if (note.linkedDate != null)
                                                         Padding(
@@ -20562,8 +23072,8 @@ class _NoteReadPageState extends State<NoteReadPage> {
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
-                fontFamily: _isEthosTheme(context) ? 'Georgia' : null,
-                color: _isEthosTheme(context) ? colorScheme.primary : null,
+                fontFamily: _themedFont(context),
+                color: _hasCustomTheme(context) ? colorScheme.primary : null,
               ),
             ),
             Divider(height: 24, thickness: 0.5, color: colorScheme.outlineVariant),
@@ -21598,6 +24108,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     try {
       final picked = await ImagePicker().pickImage(
         source: source,
+        preferredCameraDevice: CameraDevice.rear,
         maxWidth: 1024,
         maxHeight: 1024,
         imageQuality: 80,
@@ -21748,7 +24259,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         // Highlight, Text color, Background color
         _fmtBtn(Icons.highlight, active: false, onTap: () {
           _quillController.formatSelection(
-            quill.Attribute.fromKeyValue('background', _isEthosTheme(context) ? '#F2D5DC' : '#FFF9C4'),
+            quill.Attribute.fromKeyValue('background', _themedHighlight(context)),
           );
         }, tooltip: tr('highlight')),
         _fmtBtn(Icons.format_color_text, active: false, onTap: () => _showColorPickerPopup(isBackground: false), tooltip: tr('text_color')),
@@ -22023,6 +24534,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       ),
       body: Stack(
         children: [
+          // Ephemera paper texture overlay
+          if (_themeOverlayColor(context) != null)
+            Positioned.fill(
+              child: Container(color: _themeOverlayColor(context)),
+            ),
           // Main editor column
           Padding(
             padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 8),
@@ -22047,7 +24563,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                     contentPadding: EdgeInsets.zero,
                     isDense: true,
                   ),
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, fontFamily: _isEthosTheme(context) ? 'Georgia' : null, color: _isEthosTheme(context) ? colorScheme.primary : null),
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, fontFamily: _themedFont(context), color: _hasCustomTheme(context) ? colorScheme.primary : null),
                 ),
                 // (title toolbar moved to Positioned overlay below)
                 Divider(height: 24, thickness: 0.5, color: colorScheme.outlineVariant),

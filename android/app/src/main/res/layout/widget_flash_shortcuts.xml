@@ -1,103 +1,133 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
-    android:gravity="center"
-    android:background="@drawable/widget_background"
-    android:paddingStart="12dp"
-    android:paddingEnd="12dp">
+    android:background="@drawable/widget_clip_shape"
+    android:clipToOutline="true"
+    android:outlineProvider="background">
 
-    <!-- Text shortcut -->
-    <FrameLayout
-        android:id="@+id/btn_text"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:clickable="true">
+    <LinearLayout
+        android:id="@+id/widget_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:background="@drawable/widget_background"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
+
+        <!-- Text shortcut -->
         <FrameLayout
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            android:layout_gravity="center"
-            android:background="@drawable/widget_icon_circle">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_widget_edit"
-                android:contentDescription="Scrivi" />
+            android:id="@+id/btn_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:clickable="true">
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_gravity="center">
+                <ImageView
+                    android:id="@+id/circle_text"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/widget_icon_circle" />
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_edit"
+                    android:contentDescription="Scrivi" />
+            </FrameLayout>
         </FrameLayout>
-    </FrameLayout>
 
-    <!-- Photo shortcut -->
-    <FrameLayout
-        android:id="@+id/btn_photo"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:clickable="true">
+        <!-- Photo shortcut -->
         <FrameLayout
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            android:layout_gravity="center"
-            android:background="@drawable/widget_icon_circle">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_widget_camera"
-                android:contentDescription="Foto" />
+            android:id="@+id/btn_photo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:clickable="true">
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_gravity="center">
+                <ImageView
+                    android:id="@+id/circle_photo"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/widget_icon_circle" />
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_camera"
+                    android:contentDescription="Foto" />
+            </FrameLayout>
         </FrameLayout>
-    </FrameLayout>
 
-    <!-- Voice shortcut -->
-    <FrameLayout
-        android:id="@+id/btn_voice"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:clickable="true">
+        <!-- Voice shortcut -->
         <FrameLayout
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            android:layout_gravity="center"
-            android:background="@drawable/widget_icon_circle">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_widget_mic"
-                android:contentDescription="Vocale" />
+            android:id="@+id/btn_voice"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:clickable="true">
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_gravity="center">
+                <ImageView
+                    android:id="@+id/circle_voice"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/widget_icon_circle" />
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_mic"
+                    android:contentDescription="Vocale" />
+            </FrameLayout>
         </FrameLayout>
-    </FrameLayout>
 
-    <!-- Separator (FrameLayout because View is not supported in RemoteViews) -->
-    <FrameLayout
-        android:layout_width="1dp"
-        android:layout_height="28dp"
-        android:layout_gravity="center"
-        android:background="#33000000" />
-
-    <!-- Event shortcut -->
-    <FrameLayout
-        android:id="@+id/btn_event"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:clickable="true">
+        <!-- Separator -->
         <FrameLayout
-            android:layout_width="42dp"
-            android:layout_height="42dp"
+            android:id="@+id/separator"
+            android:layout_width="1dp"
+            android:layout_height="28dp"
             android:layout_gravity="center"
-            android:background="@drawable/widget_icon_circle">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_widget_calendar"
-                android:contentDescription="Evento" />
-        </FrameLayout>
-    </FrameLayout>
+            android:background="#33000000" />
 
-</LinearLayout>
+        <!-- Event shortcut -->
+        <FrameLayout
+            android:id="@+id/btn_event"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:clickable="true">
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_gravity="center">
+                <ImageView
+                    android:id="@+id/circle_event"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/widget_icon_circle" />
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_calendar"
+                    android:contentDescription="Evento" />
+            </FrameLayout>
+        </FrameLayout>
+
+    </LinearLayout>
+
+</FrameLayout>
