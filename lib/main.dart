@@ -14352,8 +14352,9 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   }
 
   Future<void> _tryPhotoRecognition(String imagePath) async {
+    final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    if (!settings.photoRecognitionEnabled || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
+    if (!auraSettings.photoRecognitionPurchased || !settings.geminiEnabled || settings.geminiApiKey.isEmpty) return;
     if (!mounted) return;
 
     // Read file for Gemini
