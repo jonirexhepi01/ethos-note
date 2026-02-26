@@ -35,7 +35,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:home_widget/home_widget.dart';
-import 'dart:io' show Directory, File, FileMode;
+import 'dart:io' show Directory, File, FileMode, HttpClient;
 import 'package:archive/archive.dart' as archive;
 import 'package:share_plus/share_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -805,6 +805,31 @@ const _translations = <String, Map<String, String>>{
   'saved_to_deep_note': {'it': 'Salvato in Deep Note', 'en': 'Saved to Deep Note', 'fr': 'Enregistré dans Deep Note', 'es': 'Guardado en Deep Note'},
   'save_to_contacts': {'it': 'Salva in Rubrica', 'en': 'Save to Contacts', 'fr': 'Enregistrer dans les contacts', 'es': 'Guardar en contactos'},
   'saved_to_contacts': {'it': 'Contatto salvato in rubrica', 'en': 'Contact saved', 'fr': 'Contact enregistré', 'es': 'Contacto guardado'},
+  // Wine Research
+  'wine_label': {'it': 'Etichetta Vino', 'en': 'Wine Label', 'fr': 'Étiquette de vin', 'es': 'Etiqueta de vino'},
+  'wine_recognized': {'it': 'Vino riconosciuto', 'en': 'Wine recognized', 'fr': 'Vin reconnu', 'es': 'Vino reconocido'},
+  'save_to_cantina': {'it': 'Salva in Cantina Vini', 'en': 'Save to Wine Cellar', 'fr': 'Enregistrer dans la cave à vins', 'es': 'Guardar en bodega'},
+  'saved_to_cantina': {'it': 'Salvato in Cantina Vini', 'en': 'Saved to Wine Cellar', 'fr': 'Enregistré dans la cave à vins', 'es': 'Guardado en bodega'},
+  'wine_name': {'it': 'Nome Vino', 'en': 'Wine Name', 'fr': 'Nom du vin', 'es': 'Nombre del vino'},
+  'winery': {'it': 'Cantina', 'en': 'Winery', 'fr': 'Domaine', 'es': 'Bodega'},
+  'vintage': {'it': 'Annata', 'en': 'Vintage', 'fr': 'Millésime', 'es': 'Añada'},
+  'alcohol': {'it': 'Gradazione', 'en': 'Alcohol', 'fr': 'Degré d\'alcool', 'es': 'Graduación'},
+  'grape_variety': {'it': 'Vitigno', 'en': 'Grape Variety', 'fr': 'Cépage', 'es': 'Variedad de uva'},
+  'region': {'it': 'Regione', 'en': 'Region', 'fr': 'Région', 'es': 'Región'},
+  'winery_website': {'it': 'Sito Cantina', 'en': 'Winery Website', 'fr': 'Site du domaine', 'es': 'Web de la bodega'},
+  'rating': {'it': 'Valutazione', 'en': 'Rating', 'fr': 'Note', 'es': 'Valoración'},
+  'sommelier_notes': {'it': 'Note Sommelier', 'en': 'Sommelier Notes', 'fr': 'Notes du sommelier', 'es': 'Notas del sommelier'},
+  'add_sommelier_notes': {'it': 'Aggiungi note sommelier...', 'en': 'Add sommelier notes...', 'fr': 'Ajouter notes du sommelier...', 'es': 'Añadir notas del sommelier...'},
+  'unlock_wine_research': {'it': 'Wine Research', 'en': 'Wine Research', 'fr': 'Wine Research', 'es': 'Wine Research'},
+  'wine_research_desc': {'it': 'Riconosci etichette di vino e crea schede in Cantina Vini', 'en': 'Recognize wine labels and create cards in Wine Cellar', 'fr': 'Reconnaître les étiquettes de vin et créer des fiches', 'es': 'Reconocer etiquetas de vino y crear fichas en bodega'},
+  'visit_winery_website': {'it': 'Visita sito cantina', 'en': 'Visit winery website', 'fr': 'Visiter le site du domaine', 'es': 'Visitar web de la bodega'},
+  'add_photo': {'it': 'Aggiungi foto', 'en': 'Add photo', 'fr': 'Ajouter photo', 'es': 'Añadir foto'},
+  'technical_data': {'it': 'Dati Tecnici', 'en': 'Technical Data', 'fr': 'Données techniques', 'es': 'Datos técnicos'},
+  'verifying_url': {'it': 'Verifica URL...', 'en': 'Verifying URL...', 'fr': 'Vérification URL...', 'es': 'Verificando URL...'},
+  'url_not_found': {'it': 'URL non trovato — cerca su Google', 'en': 'URL not found — search Google', 'fr': 'URL non trouvé — rechercher sur Google', 'es': 'URL no encontrada — buscar en Google'},
+  'goblets': {'it': 'calici', 'en': 'goblets', 'fr': 'calices', 'es': 'copas'},
+  'denomination': {'it': 'Denominazione', 'en': 'Denomination', 'fr': 'Appellation', 'es': 'Denominación'},
+  'bottle_size': {'it': 'Formato', 'en': 'Bottle Size', 'fr': 'Format', 'es': 'Formato'},
   'contact_form_title': {'it': 'Nuovo Contatto', 'en': 'New Contact', 'fr': 'Nouveau contact', 'es': 'Nuevo contacto'},
   'company': {'it': 'Azienda', 'en': 'Company', 'fr': 'Entreprise', 'es': 'Empresa'},
   'role_title': {'it': 'Ruolo', 'en': 'Role', 'fr': 'Rôle', 'es': 'Cargo'},
@@ -1739,7 +1764,7 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -1776,6 +1801,9 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE flash_notes ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
       await db.execute('ALTER TABLE pro_notes ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
     }
+    if (oldVersion < 10) {
+      await db.execute('ALTER TABLE pro_notes ADD COLUMN wine_data TEXT');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -1787,7 +1815,8 @@ class DatabaseHelper {
         folder TEXT NOT NULL DEFAULT 'Generale',
         linked_date INTEGER, created_at INTEGER NOT NULL,
         image_base64 TEXT, updated_at INTEGER, image_path TEXT,
-        is_pinned INTEGER NOT NULL DEFAULT 0
+        is_pinned INTEGER NOT NULL DEFAULT 0,
+        wine_data TEXT
       )
     ''');
     await db.execute('CREATE INDEX idx_pro_notes_folder ON pro_notes(folder)');
@@ -1866,7 +1895,7 @@ class DatabaseHelper {
     // Load without image_base64 first to avoid CursorWindow overflow
     final maps = await db.query('pro_notes',
       columns: ['id', 'title', 'content', 'content_delta', 'header_text', 'footer_text',
-                 'template_preset', 'folder', 'linked_date', 'created_at', 'updated_at', 'image_path', 'is_pinned'],
+                 'template_preset', 'folder', 'linked_date', 'created_at', 'updated_at', 'image_path', 'is_pinned', 'wine_data'],
       orderBy: 'created_at DESC',
     );
     final notes = <ProNote>[];
@@ -1899,6 +1928,7 @@ class DatabaseHelper {
         imageBase64: imgB64,
         imagePath: imgPath,
         isPinned: (m['is_pinned'] as int?) == 1,
+        wineData: m['wine_data'] as String?,
       ));
     }
     return notes;
@@ -15008,7 +15038,7 @@ class FlashNote {
 }
 
 class PhotoRecognitionResult {
-  final String category; // 'business_card', 'receipt', 'document', 'handwritten', 'normal'
+  final String category; // 'business_card', 'receipt', 'document', 'handwritten', 'wine_label', 'normal'
   final String title;
   final String extractedText;
   final Map<String, String> fields;
@@ -15028,6 +15058,7 @@ class PhotoRecognitionResult {
       case 'receipt': return 'Ricevute';
       case 'document': return 'Documenti';
       case 'handwritten': return 'Appunti';
+      case 'wine_label': return 'Cantina Vini';
       default: return 'Generale';
     }
   }
@@ -15038,6 +15069,7 @@ class PhotoRecognitionResult {
       case 'receipt': return Icons.receipt_long;
       case 'document': return Icons.description;
       case 'handwritten': return Icons.edit_note;
+      case 'wine_label': return Icons.wine_bar;
       default: return Icons.folder;
     }
   }
@@ -15048,6 +15080,7 @@ class PhotoRecognitionResult {
       case 'receipt': return const Color(0xFF2E7D32);
       case 'document': return const Color(0xFF7B1FA2);
       case 'handwritten': return const Color(0xFFF57C00);
+      case 'wine_label': return const Color(0xFF880E4F);
       default: return const Color(0xFF757575);
     }
   }
@@ -15058,6 +15091,7 @@ class PhotoRecognitionResult {
       case 'receipt': return tr('receipt');
       case 'document': return tr('document');
       case 'handwritten': return tr('handwritten_note');
+      case 'wine_label': return tr('wine_label');
       default: return tr('normal_photo');
     }
   }
@@ -15173,28 +15207,32 @@ String _friendlyGeminiError(String? error, String fallback) {
 
 /// Returns (result, errorMessage). If result is null, errorMessage explains why.
 /// Retries up to 2 times on 503 (high demand) errors.
-Future<(PhotoRecognitionResult?, String?)> classifyPhotoWithGemini(String base64Image, String apiKey) async {
+Future<(PhotoRecognitionResult?, String?)> classifyPhotoWithGemini(String base64Image, String apiKey, {bool includeWineLabel = false, bool onlyWineLabel = false}) async {
   final imageBytes = base64Decode(base64Image);
 
-  final prompt = '''Analizza questa immagine e classificala in una delle seguenti categorie:
-- "business_card": biglietto da visita (contiene nome, telefono, email, azienda)
-- "receipt": ricevuta o scontrino (contiene negozio, importo, data)
-- "document": documento formale (contratto, lettera, certificato)
-- "handwritten": appunto scritto a mano
-- "normal": foto normale (paesaggio, selfie, cibo, ecc.)
+  // Build categories dynamically based on purchased features
+  final categories = StringBuffer();
+  final fieldSpecs = StringBuffer();
+  final categoryValues = StringBuffer();
 
-Rispondi SOLO con un JSON valido (senza markdown code fences) in questo formato:
-{
-  "category": "business_card|receipt|document|handwritten|normal",
-  "title": "titolo breve descrittivo",
-  "extractedText": "testo principale estratto dall'immagine",
-  "fields": {
-    "campo1": "valore1",
-    "campo2": "valore2"
+  if (onlyWineLabel) {
+    categories.writeln('- "wine_label": etichetta di vino o bottiglia di vino (contiene nome vino, cantina, annata, vitigno)');
+    categories.writeln('- "normal": foto normale che NON è un\'etichetta di vino');
+    categoryValues.write('wine_label|normal');
+  } else {
+    categories.writeln('- "business_card": biglietto da visita (contiene nome, telefono, email, azienda)');
+    categories.writeln('- "receipt": ricevuta o scontrino (contiene negozio, importo, data)');
+    categories.writeln('- "document": documento formale (contratto, lettera, certificato)');
+    categories.writeln('- "handwritten": appunto scritto a mano');
+    if (includeWineLabel) {
+      categories.writeln('- "wine_label": etichetta di vino o bottiglia di vino (contiene nome vino, cantina, annata, vitigno)');
+    }
+    categories.writeln('- "normal": foto normale (paesaggio, selfie, cibo, ecc.)');
+    categoryValues.write('business_card|receipt|document|handwritten${includeWineLabel ? '|wine_label' : ''}|normal');
   }
-}
 
-Per business_card i fields devono essere (se presenti):
+  if (!onlyWineLabel) {
+    fieldSpecs.writeln('''Per business_card i fields devono essere (se presenti):
 - nome (nome completo della persona)
 - telefoni (array JSON di numeri, es. ["+39 02 1234567", "+39 333 1234567"])
 - email (array JSON di indirizzi email, es. ["info@azienda.it", "nome@azienda.it"])
@@ -15208,8 +15246,43 @@ Per business_card i fields devono essere (se presenti):
 Importante: telefoni e email DEVONO essere array JSON anche se c'è un solo valore.
 Per receipt: negozio, importo, data.
 Per document: tipo_documento, testo_chiave.
-Per handwritten: testo_trascritto.
-Per normal: fields vuoto {}.''';
+Per handwritten: testo_trascritto.''');
+  }
+
+  if (includeWineLabel || onlyWineLabel) {
+    fieldSpecs.writeln('''Per wine_label i fields devono essere:
+- nome_vino (nome completo del vino, es. "Merlot Pitars")
+- cantina (nome della cantina/produttore)
+- annata (anno di vendemmia — se non visibile sull'etichetta, scrivi "N/D")
+- gradazione (gradazione alcolica, es. "13%" — se non visibile, USA LA TUA CONOSCENZA sul vino per stimare la gradazione tipica e scrivi es. "~13%")
+- vitigno (varietà di uva, es. "Nebbiolo", "Sangiovese")
+- regione (regione di produzione, es. "Piemonte", "Toscana")
+- denominazione (classificazione del vino: DOC, DOCG, IGT, ecc. — leggila dall'etichetta o deducila dalla tua conoscenza)
+- formato (volume della bottiglia, es. "75 cl", "150 cl" — se non visibile, scrivi "75 cl" come default)
+- sito_cantina (URL del sito web della cantina — usa la tua conoscenza per suggerire l'URL più probabile, es. "https://www.marchesibarolo.com")
+IMPORTANTE: Compila TUTTI i campi. Se un dato non è visibile nell'immagine, usa la tua conoscenza enologica per fornire il valore più probabile per quel vino/cantina. Non lasciare campi vuoti.''');
+  }
+
+  if (!onlyWineLabel) {
+    fieldSpecs.writeln('Per normal: fields vuoto {}.');
+  } else {
+    fieldSpecs.writeln('Per normal: fields vuoto {}.');
+  }
+
+  final prompt = '''Analizza questa immagine e classificala in una delle seguenti categorie:
+$categories
+Rispondi SOLO con un JSON valido (senza markdown code fences) in questo formato:
+{
+  "category": "$categoryValues",
+  "title": "titolo breve descrittivo",
+  "extractedText": "testo principale estratto dall'immagine",
+  "fields": {
+    "campo1": "valore1",
+    "campo2": "valore2"
+  }
+}
+
+$fieldSpecs''';
 
   String? lastError;
   for (int attempt = 0; attempt < 3; attempt++) {
@@ -15276,6 +15349,29 @@ String formatRecognitionAsDeepNote(PhotoRecognitionResult result) {
     }
   }
   return buf.toString().trim();
+}
+
+/// Verifies a winery URL. Returns (url, isVerified).
+/// If the suggested URL fails, returns a Google search URL instead.
+Future<(String, bool)> verifyWineryUrl(String? suggestedUrl, String wineryName) async {
+  final googleFallback = 'https://www.google.com/search?q=${Uri.encodeComponent('$wineryName cantina vino sito ufficiale')}';
+  if (suggestedUrl == null || suggestedUrl.isEmpty) return (googleFallback, false);
+  try {
+    var url = suggestedUrl;
+    if (!url.startsWith('http')) url = 'https://$url';
+    final uri = Uri.parse(url);
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 5);
+    final request = await client.headUrl(uri).timeout(const Duration(seconds: 5));
+    final response = await request.close().timeout(const Duration(seconds: 5));
+    client.close(force: true);
+    if (response.statusCode >= 200 && response.statusCode < 400) {
+      return (url, true);
+    }
+    return (googleFallback, false);
+  } catch (_) {
+    return (googleFallback, false);
+  }
 }
 
 /// Splits a full name into (firstName, lastName).
@@ -16375,6 +16471,7 @@ class EthosAuraSettings {
   final bool cyberpunkVoidPurchased;
   final bool blockNotePurchased;
   final bool paperStickyPurchased;
+  final bool wineResearchPurchased;
 
   const EthosAuraSettings({
     this.oroscopoPurchased = false,
@@ -16401,6 +16498,7 @@ class EthosAuraSettings {
     this.cyberpunkVoidPurchased = false,
     this.blockNotePurchased = false,
     this.paperStickyPurchased = false,
+    this.wineResearchPurchased = false,
   });
 
   EthosAuraSettings copyWith({
@@ -16428,6 +16526,7 @@ class EthosAuraSettings {
     bool? cyberpunkVoidPurchased,
     bool? blockNotePurchased,
     bool? paperStickyPurchased,
+    bool? wineResearchPurchased,
   }) {
     return EthosAuraSettings(
       oroscopoPurchased: oroscopoPurchased ?? this.oroscopoPurchased,
@@ -16454,6 +16553,7 @@ class EthosAuraSettings {
       cyberpunkVoidPurchased: cyberpunkVoidPurchased ?? this.cyberpunkVoidPurchased,
       blockNotePurchased: blockNotePurchased ?? this.blockNotePurchased,
       paperStickyPurchased: paperStickyPurchased ?? this.paperStickyPurchased,
+      wineResearchPurchased: wineResearchPurchased ?? this.wineResearchPurchased,
     );
   }
 
@@ -16482,6 +16582,7 @@ class EthosAuraSettings {
     'cyberpunkVoidPurchased': cyberpunkVoidPurchased,
     'blockNotePurchased': blockNotePurchased,
     'paperStickyPurchased': paperStickyPurchased,
+    'wineResearchPurchased': wineResearchPurchased,
   };
 
   factory EthosAuraSettings.fromJson(Map<String, dynamic> json) =>
@@ -16510,6 +16611,7 @@ class EthosAuraSettings {
         cyberpunkVoidPurchased: json['cyberpunkVoidPurchased'] ?? false,
         blockNotePurchased: json['blockNotePurchased'] ?? false,
         paperStickyPurchased: json['paperStickyPurchased'] ?? false,
+        wineResearchPurchased: json['wineResearchPurchased'] ?? false,
       );
 
   static Future<EthosAuraSettings> load() async {
@@ -16579,6 +16681,9 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
         break;
       case 'cycle_tracking':
         updated = _auraSettings.copyWith(cycleTrackingPurchased: true);
+        break;
+      case 'wine_research':
+        updated = _auraSettings.copyWith(wineResearchPurchased: true);
         break;
       case 'ephemera_theme':
         updated = _auraSettings.copyWith(ephemeraThemePurchased: true);
@@ -16725,6 +16830,16 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                   price: '€1,99',
                   purchased: _auraSettings.cycleTrackingPurchased,
                   onTap: () => _simulatePurchase('cycle_tracking'),
+                  colorScheme: colorScheme,
+                ),
+
+                // Wine Research
+                _buildPurchaseTile(
+                  icon: Icons.wine_bar,
+                  title: tr('unlock_wine_research'),
+                  price: '€2,99',
+                  purchased: _auraSettings.wineResearchPurchased,
+                  onTap: () => _simulatePurchase('wine_research'),
                   colorScheme: colorScheme,
                 ),
 
@@ -17815,7 +17930,9 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   Future<void> _tryPhotoRecognition(String imagePath) async {
     final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    if (!auraSettings.photoRecognitionPurchased) return; // non acquistato — silenzioso
+    final hasPhotoRec = auraSettings.photoRecognitionPurchased;
+    final hasWineRes = auraSettings.wineResearchPurchased;
+    if (!hasPhotoRec && !hasWineRes) return; // nessun acquisto — silenzioso
     if (!settings.geminiEnabled || settings.geminiApiKey.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -17850,7 +17967,9 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       ),
     );
 
-    final (result, error) = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey);
+    final wineOnly = !hasPhotoRec && hasWineRes;
+    final wineIncluded = hasPhotoRec && hasWineRes;
+    final (result, error) = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey, includeWineLabel: wineIncluded, onlyWineLabel: wineOnly);
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
@@ -17875,6 +17994,11 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
+      return;
+    }
+    // Wine label → dedicated dialog
+    if (result.category == 'wine_label' && mounted) {
+      _showWineRecognitionDialog(result, imagePath);
       return;
     }
     if (!mounted) return;
@@ -17992,6 +18116,66 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
         }
       }
     }
+  }
+
+  void _showWineRecognitionDialog(PhotoRecognitionResult result, String imagePath) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => _WineRecognitionSheet(
+        result: result,
+        imagePath: imagePath,
+        onKeepAsFlash: () => Navigator.pop(ctx),
+        onSaveToCantina: (wineData) async {
+          Navigator.pop(ctx);
+          try {
+            await ensurePhotoFolder('Cantina Vini', Icons.wine_bar, const Color(0xFF880E4F));
+            final imgHelper = ImageStorageHelper();
+            final bytes = await File(imagePath).readAsBytes();
+            final fileName = imgHelper.generateFileName('pro');
+            final proImagePath = await imgHelper.saveBytesToFile(bytes, fileName);
+            final wineName = wineData['nome_vino'] as String? ?? result.title;
+            final buf = StringBuffer();
+            if (wineData['nome_vino'] != null) buf.writeln('${tr('wine_name')}: ${wineData['nome_vino']}');
+            if (wineData['cantina'] != null) buf.writeln('${tr('winery')}: ${wineData['cantina']}');
+            if (wineData['annata'] != null) buf.writeln('${tr('vintage')}: ${wineData['annata']}');
+            if (wineData['gradazione'] != null) buf.writeln('${tr('alcohol')}: ${wineData['gradazione']}');
+            if (wineData['vitigno'] != null) buf.writeln('${tr('grape_variety')}: ${wineData['vitigno']}');
+            if (wineData['regione'] != null) buf.writeln('${tr('region')}: ${wineData['regione']}');
+            final proNote = ProNote(
+              title: wineName.isNotEmpty ? wineName : tr('wine_label'),
+              content: buf.toString().trim(),
+              folder: 'Cantina Vini',
+              imagePath: proImagePath,
+              wineData: json.encode(wineData),
+            );
+            await DatabaseHelper().insertProNote(proNote);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.wine_bar, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(tr('saved_to_cantina'))),
+                  ],
+                ),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            );
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              );
+            }
+          }
+        },
+      ),
+    );
   }
 
   String _formatDurationMs(int ms) {
@@ -18834,7 +19018,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   Future<void> _runPhotoRecognition(String imagePath) async {
     final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    if (!auraSettings.photoRecognitionPurchased) return;
+    final hasPhotoRec = auraSettings.photoRecognitionPurchased;
+    final hasWineRes = auraSettings.wineResearchPurchased;
+    if (!hasPhotoRec && !hasWineRes) return;
     if (!settings.geminiEnabled || settings.geminiApiKey.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -18857,7 +19043,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
     setState(() => _isAnalyzingPhoto = true);
 
-    final (result, error) = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey);
+    final wineOnly = !hasPhotoRec && hasWineRes;
+    final wineIncluded = hasPhotoRec && hasWineRes;
+    final (result, error) = await classifyPhotoWithGemini(base64Image, settings.geminiApiKey, includeWineLabel: wineIncluded, onlyWineLabel: wineOnly);
     if (!mounted) return;
     setState(() => _isAnalyzingPhoto = false);
 
@@ -18882,6 +19070,11 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
+      return;
+    }
+    // Wine label → dedicated dialog
+    if (result.category == 'wine_label' && mounted) {
+      _showWineRecognitionDialog(result, imagePath);
       return;
     }
     if (!mounted) return;
@@ -19112,6 +19305,86 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         );
       }
     }
+  }
+
+  void _showWineRecognitionDialog(PhotoRecognitionResult result, String imagePath) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => _WineRecognitionSheet(
+        result: result,
+        imagePath: imagePath,
+        onKeepAsFlash: () => Navigator.pop(ctx),
+        onSaveToCantina: (wineData) async {
+          Navigator.pop(ctx);
+          await _saveAsWineNote(result, imagePath, wineData);
+        },
+      ),
+    );
+  }
+
+  Future<void> _saveAsWineNote(PhotoRecognitionResult result, String imagePath, Map<String, dynamic> wineData) async {
+    try {
+      await ensurePhotoFolder('Cantina Vini', Icons.wine_bar, const Color(0xFF880E4F));
+      final imgHelper = ImageStorageHelper();
+      final bytes = await File(imagePath).readAsBytes();
+      final fileName = imgHelper.generateFileName('pro');
+      final proImagePath = await imgHelper.saveBytesToFile(bytes, fileName);
+      final content = _formatWineAsPlainText(wineData);
+      final wineName = wineData['nome_vino'] as String? ?? result.title;
+      final proNote = ProNote(
+        title: wineName.isNotEmpty ? wineName : tr('wine_label'),
+        content: content,
+        folder: 'Cantina Vini',
+        imagePath: proImagePath,
+        wineData: json.encode(wineData),
+      );
+      await DatabaseHelper().insertProNote(proNote);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.wine_bar, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(tr('saved_to_cantina'))),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr('error')}: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatWineAsPlainText(Map<String, dynamic> data) {
+    final buf = StringBuffer();
+    if (data['nome_vino'] != null) buf.writeln('${tr('wine_name')}: ${data['nome_vino']}');
+    if (data['cantina'] != null) buf.writeln('${tr('winery')}: ${data['cantina']}');
+    if (data['annata'] != null) buf.writeln('${tr('vintage')}: ${data['annata']}');
+    if (data['gradazione'] != null) buf.writeln('${tr('alcohol')}: ${data['gradazione']}');
+    if (data['vitigno'] != null) buf.writeln('${tr('grape_variety')}: ${data['vitigno']}');
+    if (data['regione'] != null) buf.writeln('${tr('region')}: ${data['regione']}');
+    if (data['denominazione'] != null && (data['denominazione'] as String).isNotEmpty) buf.writeln('${tr('denomination')}: ${data['denominazione']}');
+    if (data['formato'] != null && (data['formato'] as String).isNotEmpty) buf.writeln('${tr('bottle_size')}: ${data['formato']}');
+    if (data['sito_cantina'] != null) buf.writeln('${tr('winery_website')}: ${data['sito_cantina']}');
+    if (data['rating'] != null) buf.writeln('${tr('rating')}: ${data['rating']}/5 ${tr('goblets')}');
+    if (data['note_sommelier'] != null && (data['note_sommelier'] as String).isNotEmpty) {
+      buf.writeln('\n${tr('sommelier_notes')}:');
+      buf.writeln(data['note_sommelier']);
+    }
+    return buf.toString().trim();
   }
 
   Future<void> _createEventFromFlashNote(FlashNote note) async {
@@ -21715,6 +21988,7 @@ class ProNote {
   final String? imageBase64;
   final String? imagePath;
   final bool isPinned;
+  final String? wineData;
 
   ProNote({
     this.id,
@@ -21730,8 +22004,11 @@ class ProNote {
     this.imagePath,
     this.updatedAt,
     this.isPinned = false,
+    this.wineData,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
+
+  bool get isWineNote => wineData != null && wineData!.isNotEmpty;
 
   /// The effective sort date: updatedAt if available, otherwise createdAt.
   DateTime get sortDate => updatedAt ?? createdAt;
@@ -21751,6 +22028,7 @@ class ProNote {
     DateTime? updatedAt,
     DateTime? createdAt,
     bool? isPinned,
+    String? wineData,
   }) => ProNote(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -21766,6 +22044,7 @@ class ProNote {
     updatedAt: updatedAt ?? this.updatedAt,
     createdAt: createdAt ?? this.createdAt,
     isPinned: isPinned ?? this.isPinned,
+    wineData: wineData ?? this.wineData,
   );
 
   Map<String, dynamic> toJson() => {
@@ -21782,6 +22061,7 @@ class ProNote {
     'imageBase64': imageBase64,
     if (imagePath != null) 'imagePath': imagePath,
     'isPinned': isPinned,
+    if (wineData != null) 'wineData': wineData,
   };
 
   factory ProNote.fromJson(Map<String, dynamic> json) => ProNote(
@@ -21798,6 +22078,7 @@ class ProNote {
     imageBase64: json['imageBase64'],
     imagePath: json['imagePath'],
     isPinned: json['isPinned'] == true,
+    wineData: json['wineData'],
   );
 
   Map<String, dynamic> toDbMap() => {
@@ -21814,6 +22095,7 @@ class ProNote {
     'image_base64': imageBase64,
     'image_path': imagePath,
     'is_pinned': isPinned ? 1 : 0,
+    'wine_data': wineData,
   };
 
   factory ProNote.fromDbMap(Map<String, dynamic> m) => ProNote(
@@ -21831,6 +22113,7 @@ class ProNote {
     imageBase64: m['image_base64'] as String?,
     imagePath: m['image_path'] as String?,
     isPinned: (m['is_pinned'] as int?) == 1,
+    wineData: m['wine_data'] as String?,
   );
 }
 
@@ -21986,6 +22269,259 @@ class TrashedNote {
     await DatabaseHelper().cleanExpiredTrash(retentionDays);
   }
 }
+
+// ─── Wine Recognition Sheet ──────────────────────────────────────────────────
+
+class _WineRecognitionSheet extends StatefulWidget {
+  final PhotoRecognitionResult result;
+  final String imagePath;
+  final VoidCallback onKeepAsFlash;
+  final Future<void> Function(Map<String, dynamic>) onSaveToCantina;
+
+  const _WineRecognitionSheet({
+    required this.result,
+    required this.imagePath,
+    required this.onKeepAsFlash,
+    required this.onSaveToCantina,
+  });
+
+  @override
+  State<_WineRecognitionSheet> createState() => _WineRecognitionSheetState();
+}
+
+class _WineRecognitionSheetState extends State<_WineRecognitionSheet> {
+  int _rating = 0;
+  final _sommelierController = TextEditingController();
+  String? _verifiedUrl;
+  bool _urlVerified = false;
+  bool _urlChecking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _rating = int.tryParse(widget.result.fields['rating'] ?? '') ?? 0;
+    _verifyUrl();
+  }
+
+  Future<void> _verifyUrl() async {
+    final suggestedUrl = widget.result.fields['sito_cantina'];
+    final wineryName = widget.result.fields['cantina'] ?? widget.result.title;
+    final (url, verified) = await verifyWineryUrl(suggestedUrl, wineryName);
+    if (!mounted) return;
+    setState(() {
+      _verifiedUrl = url;
+      _urlVerified = verified;
+      _urlChecking = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _sommelierController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final fields = widget.result.fields;
+    const burgundy = Color(0xFF880E4F);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) => SingleChildScrollView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Title
+            Row(
+              children: [
+                const Icon(Icons.wine_bar, color: burgundy, size: 24),
+                const SizedBox(width: 8),
+                Text(tr('wine_recognized'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Photo preview
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(File(widget.imagePath), height: 200, width: double.infinity, fit: BoxFit.cover),
+            ),
+            const SizedBox(height: 16),
+            // Wine data card
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: colorScheme.surfaceContainerLowest,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (fields['nome_vino'] != null && fields['nome_vino']!.isNotEmpty)
+                      Text(fields['nome_vino']!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    if (fields['cantina'] != null && fields['cantina']!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(fields['cantina']!, style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant)),
+                    ],
+                    const SizedBox(height: 12),
+                    _buildDataRow(tr('vintage'), fields['annata']),
+                    _buildDataRow(tr('alcohol'), fields['gradazione']),
+                    _buildDataRow(tr('grape_variety'), fields['vitigno']),
+                    _buildDataRow(tr('region'), fields['regione']),
+                    _buildDataRow(tr('denomination'), fields['denominazione']),
+                    _buildDataRow(tr('bottle_size'), fields['formato']),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // URL status
+            if (_urlChecking)
+              Row(
+                children: [
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(width: 8),
+                  Text(tr('verifying_url'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                ],
+              )
+            else if (_verifiedUrl != null)
+              Row(
+                children: [
+                  Icon(_urlVerified ? Icons.verified : Icons.search, size: 16, color: _urlVerified ? Colors.green : Colors.orange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _urlVerified ? _verifiedUrl! : tr('url_not_found'),
+                      style: TextStyle(fontSize: 13, color: _urlVerified ? Colors.green : Colors.orange),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 16),
+            // Rating selector
+            Text(tr('rating'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Row(
+              children: List.generate(5, (i) => GestureDetector(
+                onTap: () => setState(() => _rating = i + 1),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(
+                    Icons.wine_bar,
+                    size: 32,
+                    color: i < _rating ? burgundy : colorScheme.outlineVariant,
+                  ),
+                ),
+              )),
+            ),
+            if (_rating > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('$_rating/5 ${tr('goblets')}', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+              ),
+            const SizedBox(height: 16),
+            // Sommelier notes
+            Text(tr('sommelier_notes'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _sommelierController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: tr('add_sommelier_notes'),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: widget.onKeepAsFlash,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(tr('keep_as_flash')),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      final wineData = <String, dynamic>{
+                        'nome_vino': fields['nome_vino'] ?? '',
+                        'cantina': fields['cantina'] ?? '',
+                        'annata': fields['annata'] ?? '',
+                        'gradazione': fields['gradazione'] ?? '',
+                        'vitigno': fields['vitigno'] ?? '',
+                        'regione': fields['regione'] ?? '',
+                        'denominazione': fields['denominazione'] ?? '',
+                        'formato': fields['formato'] ?? '',
+                        'sito_cantina': _verifiedUrl ?? '',
+                        'sito_verificato': _urlVerified,
+                        'rating': _rating,
+                        'note_sommelier': _sommelierController.text,
+                        'extra_photos': <String>[],
+                      };
+                      widget.onSaveToCantina(wineData);
+                    },
+                    icon: const Icon(Icons.wine_bar),
+                    label: Text(tr('save_to_cantina')),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: burgundy,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDataRow(String label, String? value) {
+    if (value == null || value.isEmpty || value == 'N/D') return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(label, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Notes Pro ───────────────────────────────────────────────────────────────
 
 class NotesProPage extends StatefulWidget {
   const NotesProPage({super.key});
@@ -22207,6 +22743,29 @@ class _NotesProPageState extends State<NotesProPage> {
       _editCycleDiaryNote(note);
       return;
     }
+    // Wine notes open in dedicated reader
+    if (note.isWineNote) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WineNoteReadPage(
+            note: note,
+            onSave: (updatedNote) async {
+              final withTimestamp = updatedNote.copyWith(
+                updatedAt: DateTime.now(),
+              );
+              if (note.id != null) {
+                await DatabaseHelper().updateProNote(note.id!, withTimestamp);
+              } else {
+                await DatabaseHelper().insertProNote(withTimestamp);
+              }
+              if (mounted) await _loadNotes();
+            },
+          ),
+        ),
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -22236,6 +22795,115 @@ class _NotesProPageState extends State<NotesProPage> {
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildWineGridCard(ProNote note, Color folderColor, ColorScheme colorScheme, Color accentColor) {
+    const burgundy = Color(0xFF880E4F);
+    Map<String, dynamic> wineData = {};
+    try { wineData = json.decode(note.wineData!) as Map<String, dynamic>; } catch (_) {}
+    final cantina = wineData['cantina'] as String? ?? '';
+    final rating = (wineData['rating'] as num?)?.toInt() ?? 0;
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Thumbnail
+          if (note.imagePath != null)
+            Expanded(
+              flex: 3,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.file(File(note.imagePath!), width: double.infinity, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(color: burgundy.withValues(alpha: 0.08),
+                    child: const Center(child: Icon(Icons.wine_bar, color: burgundy, size: 28)))),
+              ),
+            )
+          else
+            Expanded(
+              flex: 3,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: burgundy.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(child: Icon(Icons.wine_bar, color: burgundy, size: 28)),
+              ),
+            ),
+          const SizedBox(height: 6),
+          // Name
+          Row(
+            children: [
+              const Icon(Icons.wine_bar, size: 13, color: burgundy),
+              const SizedBox(width: 4),
+              Expanded(child: Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+            ],
+          ),
+          // Winery
+          if (cantina.isNotEmpty)
+            Text(cantina, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 2),
+          // Rating goblets
+          Row(
+            children: List.generate(5, (i) => Icon(
+              Icons.wine_bar, size: 10,
+              color: i < rating ? burgundy : colorScheme.outlineVariant,
+            )),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWineListCard(ProNote note, ColorScheme colorScheme) {
+    const burgundy = Color(0xFF880E4F);
+    Map<String, dynamic> wineData = {};
+    try { wineData = json.decode(note.wineData!) as Map<String, dynamic>; } catch (_) {}
+    final cantina = wineData['cantina'] as String? ?? '';
+    final rating = (wineData['rating'] as num?)?.toInt() ?? 0;
+    return Row(
+      children: [
+        // Thumbnail
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: note.imagePath != null
+            ? Image.file(File(note.imagePath!), width: 48, height: 48, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(width: 48, height: 48,
+                  decoration: BoxDecoration(color: burgundy.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.wine_bar, color: burgundy, size: 22)))
+            : Container(width: 48, height: 48,
+                decoration: BoxDecoration(color: burgundy.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.wine_bar, color: burgundy, size: 22)),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+              if (cantina.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(cantina, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+              ],
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  ...List.generate(5, (i) => Icon(Icons.wine_bar, size: 12,
+                    color: i < rating ? burgundy : colorScheme.outlineVariant)),
+                  const Spacer(),
+                  Text('${note.createdAt.day.toString().padLeft(2, '0')}/${note.createdAt.month.toString().padLeft(2, '0')}/${note.createdAt.year}',
+                    style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5))),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -23404,7 +24072,9 @@ class _NotesProPageState extends State<NotesProPage> {
                                         width: isSelected ? 2 : 1,
                                       ),
                                     ),
-                                    child: Padding(
+                                    child: note.isWineNote
+                                      ? _buildWineGridCard(note, folderColor, colorScheme, accentColor)
+                                      : Padding(
                                       padding: const EdgeInsets.all(10),
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -23553,7 +24223,9 @@ class _NotesProPageState extends State<NotesProPage> {
                                             width: isSelected ? 2 : 1,
                                           ),
                                         ),
-                                        child: Row(
+                                        child: note.isWineNote
+                                          ? _buildWineListCard(note, colorScheme)
+                                          : Row(
                                           children: [
                                             CircleAvatar(
                                               radius: 22,
@@ -24182,6 +24854,504 @@ class _NotesProPageState extends State<NotesProPage> {
     ));
   }
 
+}
+
+// ── Wine Note Read Page ──
+
+class WineNoteReadPage extends StatefulWidget {
+  final ProNote note;
+  final Function(ProNote) onSave;
+
+  const WineNoteReadPage({super.key, required this.note, required this.onSave});
+
+  @override
+  State<WineNoteReadPage> createState() => _WineNoteReadPageState();
+}
+
+class _WineNoteReadPageState extends State<WineNoteReadPage> {
+  late ProNote _currentNote;
+  late Map<String, dynamic> _wineData;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentNote = widget.note;
+    _wineData = _currentNote.wineData != null ? (json.decode(_currentNote.wineData!) as Map<String, dynamic>) : {};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const burgundy = Color(0xFF880E4F);
+    final wineName = _wineData['nome_vino'] as String? ?? _currentNote.title;
+    final cantina = _wineData['cantina'] as String? ?? '';
+    final rating = (_wineData['rating'] as num?)?.toInt() ?? 0;
+    final regione = _wineData['regione'] as String? ?? '';
+    final annata = _wineData['annata'] as String? ?? '';
+    final gradazione = _wineData['gradazione'] as String? ?? '';
+    final vitigno = _wineData['vitigno'] as String? ?? '';
+    final denominazione = _wineData['denominazione'] as String? ?? '';
+    final formato = _wineData['formato'] as String? ?? '';
+    final sitoCantina = _wineData['sito_cantina'] as String? ?? '';
+    final sitoVerificato = _wineData['sito_verificato'] == true;
+    final noteSommelier = _wineData['note_sommelier'] as String? ?? '';
+    final extraPhotos = (_wineData['extra_photos'] as List<dynamic>?)?.cast<String>() ?? [];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(wineName, maxLines: 1, overflow: TextOverflow.ellipsis),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () async {
+              final result = await Navigator.push<ProNote>(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => WineNoteEditorPage(
+                    note: _currentNote,
+                    onSave: widget.onSave,
+                  ),
+                ),
+              );
+              if (result != null && mounted) {
+                setState(() {
+                  _currentNote = result;
+                  _wineData = _currentNote.wineData != null ? (json.decode(_currentNote.wineData!) as Map<String, dynamic>) : {};
+                });
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () {
+              final text = _currentNote.content;
+              // ignore: deprecated_member_use
+              Share.share(text);
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Main photo
+            if (_currentNote.imagePath != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.file(
+                  File(_currentNote.imagePath!),
+                  width: double.infinity,
+                  height: 250,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            // Extra photos thumbnails
+            if (extraPhotos.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 64,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: extraPhotos.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) => ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(File(extraPhotos[i]), width: 64, height: 64, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox(width: 64, height: 64)),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            // Identity card
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: colorScheme.surfaceContainerLowest,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(wineName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    if (cantina.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(cantina, style: TextStyle(fontSize: 15, color: colorScheme.onSurfaceVariant)),
+                    ],
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        if (regione.isNotEmpty && regione != 'N/D')
+                          Chip(
+                            label: Text(regione, style: const TextStyle(fontSize: 12)),
+                            backgroundColor: burgundy.withValues(alpha: 0.08),
+                            side: BorderSide.none,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        if (annata.isNotEmpty && annata != 'N/D')
+                          Chip(
+                            label: Text(annata, style: const TextStyle(fontSize: 12)),
+                            backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                            side: BorderSide.none,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        if (denominazione.isNotEmpty && denominazione != 'N/D')
+                          Chip(
+                            label: Text(denominazione, style: const TextStyle(fontSize: 12)),
+                            backgroundColor: Colors.amber.withValues(alpha: 0.12),
+                            side: BorderSide.none,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Rating
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: colorScheme.surfaceContainerLowest,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    ...List.generate(5, (i) => Icon(
+                      Icons.wine_bar,
+                      size: 28,
+                      color: i < rating ? burgundy : colorScheme.outlineVariant,
+                    )),
+                    const SizedBox(width: 12),
+                    Text('$rating/5 ${tr('goblets')}', style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Technical data
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: colorScheme.surfaceContainerLowest,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tr('technical_data'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                    const SizedBox(height: 12),
+                    _techRow(tr('alcohol'), gradazione),
+                    _techRow(tr('grape_variety'), vitigno),
+                    _techRow(tr('region'), regione),
+                    _techRow(tr('denomination'), denominazione),
+                    _techRow(tr('vintage'), annata),
+                    _techRow(tr('bottle_size'), formato),
+                  ],
+                ),
+              ),
+            ),
+            // Winery website
+            if (sitoCantina.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => launchUrl(Uri.parse(sitoCantina), mode: LaunchMode.externalApplication),
+                icon: Icon(sitoVerificato ? Icons.language : Icons.search, size: 18),
+                label: Text(tr('visit_winery_website')),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: burgundy,
+                  side: const BorderSide(color: burgundy),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ],
+            // Sommelier notes
+            if (noteSommelier.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(tr('sommelier_notes'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              const SizedBox(height: 8),
+              Text(noteSommelier, style: TextStyle(fontSize: 14, color: colorScheme.onSurface)),
+            ],
+            // Date footer
+            const SizedBox(height: 24),
+            Center(
+              child: Text(
+                '${tr('created_on')} ${_currentNote.createdAt.day.toString().padLeft(2, '0')}/${_currentNote.createdAt.month.toString().padLeft(2, '0')}/${_currentNote.createdAt.year}',
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _techRow(String label, String value) {
+    if (value.isEmpty || value == 'N/D') return const SizedBox.shrink();
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant))),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Wine Note Editor Page ──
+
+class WineNoteEditorPage extends StatefulWidget {
+  final ProNote note;
+  final Function(ProNote) onSave;
+
+  const WineNoteEditorPage({super.key, required this.note, required this.onSave});
+
+  @override
+  State<WineNoteEditorPage> createState() => _WineNoteEditorPageState();
+}
+
+class _WineNoteEditorPageState extends State<WineNoteEditorPage> {
+  late Map<String, dynamic> _wineData;
+  late TextEditingController _nomeVinoCtrl;
+  late TextEditingController _cantinaCtrl;
+  late TextEditingController _annataCtrl;
+  late TextEditingController _gradazioneCtrl;
+  late TextEditingController _vitignoCtrl;
+  late TextEditingController _regioneCtrl;
+  late TextEditingController _denominazioneCtrl;
+  late TextEditingController _formatoCtrl;
+  late TextEditingController _sitoCantinaCtrl;
+  late TextEditingController _sommelierCtrl;
+  int _rating = 0;
+  late List<String> _extraPhotos;
+
+  @override
+  void initState() {
+    super.initState();
+    _wineData = widget.note.wineData != null ? (json.decode(widget.note.wineData!) as Map<String, dynamic>) : {};
+    _nomeVinoCtrl = TextEditingController(text: _wineData['nome_vino'] as String? ?? '');
+    _cantinaCtrl = TextEditingController(text: _wineData['cantina'] as String? ?? '');
+    _annataCtrl = TextEditingController(text: _wineData['annata'] as String? ?? '');
+    _gradazioneCtrl = TextEditingController(text: _wineData['gradazione'] as String? ?? '');
+    _vitignoCtrl = TextEditingController(text: _wineData['vitigno'] as String? ?? '');
+    _regioneCtrl = TextEditingController(text: _wineData['regione'] as String? ?? '');
+    _denominazioneCtrl = TextEditingController(text: _wineData['denominazione'] as String? ?? '');
+    _formatoCtrl = TextEditingController(text: _wineData['formato'] as String? ?? '');
+    _sitoCantinaCtrl = TextEditingController(text: _wineData['sito_cantina'] as String? ?? '');
+    _sommelierCtrl = TextEditingController(text: _wineData['note_sommelier'] as String? ?? '');
+    _rating = (_wineData['rating'] as num?)?.toInt() ?? 0;
+    _extraPhotos = (_wineData['extra_photos'] as List<dynamic>?)?.cast<String>() ?? [];
+  }
+
+  @override
+  void dispose() {
+    _nomeVinoCtrl.dispose();
+    _cantinaCtrl.dispose();
+    _annataCtrl.dispose();
+    _gradazioneCtrl.dispose();
+    _vitignoCtrl.dispose();
+    _regioneCtrl.dispose();
+    _denominazioneCtrl.dispose();
+    _formatoCtrl.dispose();
+    _sitoCantinaCtrl.dispose();
+    _sommelierCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _addPhoto() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1200, maxHeight: 1200, imageQuality: 80);
+    if (image == null) return;
+    final bytes = await image.readAsBytes();
+    final imgHelper = ImageStorageHelper();
+    final fileName = imgHelper.generateFileName('wine');
+    final filePath = await imgHelper.saveBytesToFile(bytes, fileName);
+    if (!mounted) return;
+    setState(() => _extraPhotos.add(filePath));
+  }
+
+  Future<void> _save() async {
+    final updatedWineData = {
+      'nome_vino': _nomeVinoCtrl.text,
+      'cantina': _cantinaCtrl.text,
+      'annata': _annataCtrl.text,
+      'gradazione': _gradazioneCtrl.text,
+      'vitigno': _vitignoCtrl.text,
+      'regione': _regioneCtrl.text,
+      'denominazione': _denominazioneCtrl.text,
+      'formato': _formatoCtrl.text,
+      'sito_cantina': _sitoCantinaCtrl.text,
+      'sito_verificato': _wineData['sito_verificato'] ?? false,
+      'rating': _rating,
+      'note_sommelier': _sommelierCtrl.text,
+      'extra_photos': _extraPhotos,
+    };
+
+    // Build plain text content
+    final buf = StringBuffer();
+    if (_nomeVinoCtrl.text.isNotEmpty) buf.writeln('${tr('wine_name')}: ${_nomeVinoCtrl.text}');
+    if (_cantinaCtrl.text.isNotEmpty) buf.writeln('${tr('winery')}: ${_cantinaCtrl.text}');
+    if (_annataCtrl.text.isNotEmpty) buf.writeln('${tr('vintage')}: ${_annataCtrl.text}');
+    if (_gradazioneCtrl.text.isNotEmpty) buf.writeln('${tr('alcohol')}: ${_gradazioneCtrl.text}');
+    if (_vitignoCtrl.text.isNotEmpty) buf.writeln('${tr('grape_variety')}: ${_vitignoCtrl.text}');
+    if (_regioneCtrl.text.isNotEmpty) buf.writeln('${tr('region')}: ${_regioneCtrl.text}');
+    if (_denominazioneCtrl.text.isNotEmpty) buf.writeln('${tr('denomination')}: ${_denominazioneCtrl.text}');
+    if (_formatoCtrl.text.isNotEmpty) buf.writeln('${tr('bottle_size')}: ${_formatoCtrl.text}');
+    if (_sitoCantinaCtrl.text.isNotEmpty) buf.writeln('${tr('winery_website')}: ${_sitoCantinaCtrl.text}');
+    if (_rating > 0) buf.writeln('${tr('rating')}: $_rating/5 ${tr('goblets')}');
+    if (_sommelierCtrl.text.isNotEmpty) {
+      buf.writeln('\n${tr('sommelier_notes')}:');
+      buf.writeln(_sommelierCtrl.text);
+    }
+
+    final updatedNote = widget.note.copyWith(
+      title: _nomeVinoCtrl.text.isNotEmpty ? _nomeVinoCtrl.text : widget.note.title,
+      content: buf.toString().trim(),
+      wineData: json.encode(updatedWineData),
+      updatedAt: DateTime.now(),
+    );
+    await widget.onSave(updatedNote);
+    if (!mounted) return;
+    Navigator.pop(context, updatedNote);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const burgundy = Color(0xFF880E4F);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(tr('wine_label')),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
+        actions: [
+          FilledButton(
+            onPressed: _save,
+            style: FilledButton.styleFrom(backgroundColor: burgundy),
+            child: Text(tr('save')),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildField(_nomeVinoCtrl, tr('wine_name')),
+            _buildField(_cantinaCtrl, tr('winery')),
+            Row(
+              children: [
+                Expanded(child: _buildField(_annataCtrl, tr('vintage'))),
+                const SizedBox(width: 12),
+                Expanded(child: _buildField(_gradazioneCtrl, tr('alcohol'))),
+              ],
+            ),
+            _buildField(_vitignoCtrl, tr('grape_variety')),
+            _buildField(_regioneCtrl, tr('region')),
+            _buildField(_denominazioneCtrl, tr('denomination')),
+            _buildField(_formatoCtrl, tr('bottle_size')),
+            _buildField(_sitoCantinaCtrl, tr('winery_website')),
+            const SizedBox(height: 16),
+            // Rating
+            Text(tr('rating'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Row(
+              children: List.generate(5, (i) => GestureDetector(
+                onTap: () => setState(() => _rating = i + 1),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(Icons.wine_bar, size: 32, color: i < _rating ? burgundy : colorScheme.outlineVariant),
+                ),
+              )),
+            ),
+            const SizedBox(height: 16),
+            // Extra photos
+            Text(tr('add_photo'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ..._extraPhotos.asMap().entries.map((entry) => Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(File(entry.value), width: 72, height: 72, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(width: 72, height: 72, color: Colors.grey.shade200)),
+                    ),
+                    Positioned(
+                      right: 0, top: 0,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _extraPhotos.removeAt(entry.key)),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                )),
+                GestureDetector(
+                  onTap: _addPhoto,
+                  child: Container(
+                    width: 72, height: 72,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: colorScheme.outlineVariant),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.add_a_photo, color: colorScheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Sommelier notes
+            Text(tr('sommelier_notes'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _sommelierCtrl,
+              maxLines: 5,
+              decoration: InputDecoration(
+                hintText: tr('add_sommelier_notes'),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField(TextEditingController controller, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        ),
+      ),
+    );
+  }
 }
 
 // ── Note Read Page (Reading View) ──
