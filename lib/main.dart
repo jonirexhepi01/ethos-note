@@ -7976,8 +7976,8 @@ class _CalendarPageState extends State<CalendarPage> {
             flex: 5,
             child: SegmentedButton<String>(
               segments: [
-                ButtonSegment(value: 'split', icon: const Icon(Icons.view_agenda, size: 16), label: Text(tr('split_layout'))),
-                ButtonSegment(value: 'fullScreen', icon: const _CalendarIcon9(size: 16), label: Text(tr('full_layout'))),
+                ButtonSegment(value: 'split', icon: const Icon(Icons.view_agenda, size: 16), label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('split_layout')))),
+                ButtonSegment(value: 'fullScreen', icon: const _CalendarIcon9(size: 16), label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('full_layout')))),
               ],
               selected: {_calSettings.calendarLayout},
               onSelectionChanged: (v) {
@@ -8003,8 +8003,8 @@ class _CalendarPageState extends State<CalendarPage> {
                 ignoring: !isFullScreen,
                 child: SegmentedButton<String>(
                   segments: [
-                    ButtonSegment(value: 'month', label: Text(tr('month'))),
-                    ButtonSegment(value: 'week', label: Text(tr('week'))),
+                    ButtonSegment(value: 'month', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('month')))),
+                    ButtonSegment(value: 'week', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('week')))),
                   ],
                   selected: {_calSettings.calendarViewMode},
                   onSelectionChanged: (v) {
