@@ -555,8 +555,9 @@ const _translations = <String, Map<String, String>>{
   'phone': {'it': 'Telefono', 'en': 'Phone', 'fr': 'Téléphone', 'es': 'Teléfono'},
   'nickname': {'it': 'Nickname', 'en': 'Nickname', 'fr': 'Pseudo', 'es': 'Apodo'},
   'birth_date': {'it': 'Data di nascita', 'en': 'Date of birth', 'fr': 'Date de naissance', 'es': 'Fecha de nacimiento'},
+  'enabled': {'it': 'Attivo', 'en': 'Enabled', 'fr': 'Activé', 'es': 'Activado'},
+  'disabled': {'it': 'Disattivo', 'en': 'Disabled', 'fr': 'Désactivé', 'es': 'Desactivado'},
   'religion': {'it': 'Religione', 'en': 'Religion', 'fr': 'Religion', 'es': 'Religión'},
-  'password': {'it': 'Password', 'en': 'Password', 'fr': 'Mot de passe', 'es': 'Contraseña'},
   'edit_profile': {'it': 'Modifica Profilo', 'en': 'Edit Profile', 'fr': 'Modifier le profil', 'es': 'Editar perfil'},
   'years_old': {'it': 'anni', 'en': 'years old', 'fr': 'ans', 'es': 'años'},
   'guest': {'it': 'Ospite', 'en': 'Guest', 'fr': 'Invité', 'es': 'Invitado'},
@@ -688,6 +689,9 @@ const _translations = <String, Map<String, String>>{
   'cycle_set_next_date': {'it': 'Data prevista prossimo ciclo', 'en': 'Expected next period date', 'fr': 'Date prévue des prochaines règles', 'es': 'Fecha prevista del próximo periodo'},
   'cycle_set_next_date_sub': {'it': 'Imposta quando prevedi il prossimo ciclo', 'en': 'Set when you expect your next period', 'fr': 'Définir quand vous attendez vos prochaines règles', 'es': 'Establece cuándo esperas tu próximo periodo'},
   'cycle_test_questionnaire': {'it': 'Prova questionario', 'en': 'Test questionnaire', 'fr': 'Tester le questionnaire', 'es': 'Probar cuestionario'},
+  'clear_cycle_data': {'it': 'Cancella dati ciclo', 'en': 'Clear cycle data', 'fr': 'Effacer les données du cycle', 'es': 'Borrar datos del ciclo'},
+  'clear_cycle_data_confirm': {'it': 'Vuoi cancellare tutti i dati del ciclo? Questa azione non è reversibile.', 'en': 'Do you want to delete all cycle data? This action cannot be undone.', 'fr': 'Voulez-vous supprimer toutes les données du cycle ? Cette action est irréversible.', 'es': '¿Quieres borrar todos los datos del ciclo? Esta acción no se puede deshacer.'},
+  'cycle_data_cleared': {'it': 'Dati ciclo cancellati', 'en': 'Cycle data cleared', 'fr': 'Données du cycle effacées', 'es': 'Datos del ciclo borrados'},
   'cycle_ended_notif': {'it': 'Il tuo ciclo è terminato — Come è andata?', 'en': 'Your period ended — How did it go?', 'fr': 'Tes règles sont terminées — Comment ça s\'est passé ?', 'es': 'Tu periodo terminó — ¿Cómo te fue?'},
   'cycle_missing': {'it': 'Ciclo mancante', 'en': 'Missing period', 'fr': 'Règles manquées', 'es': 'Periodo faltante'},
   'cycle_missing_why': {'it': 'Perché non hai segnato il ciclo?', 'en': 'Why didn\'t you mark your period?', 'fr': 'Pourquoi n\'as-tu pas marqué tes règles ?', 'es': '¿Por qué no marcaste tu periodo?'},
@@ -941,8 +945,6 @@ const _translations = <String, Map<String, String>>{
   'none_religion': {'it': 'Nessuna', 'en': 'None', 'fr': 'Aucune', 'es': 'Ninguna'},
 
   // ── Account deletion dialog reasons ──
-  'confirm_with_password': {'it': 'Conferma con password', 'en': 'Confirm with password', 'fr': 'Confirmer avec le mot de passe', 'es': 'Confirmar con contraseña'},
-  'enter_password': {'it': 'Inserisci la tua password', 'en': 'Enter your password', 'fr': 'Entrez votre mot de passe', 'es': 'Introduce tu contraseña'},
   'account_deleted': {'it': 'Account eliminato', 'en': 'Account deleted', 'fr': 'Compte supprimé', 'es': 'Cuenta eliminada'},
 
   // ── Horoscope ──
@@ -999,7 +1001,6 @@ const _translations = <String, Map<String, String>>{
   // --- Status ---
   'not_set_m': {'it': 'Non impostato', 'en': 'Not set', 'fr': 'Non défini', 'es': 'No establecido'},
   'not_set_f': {'it': 'Non impostata', 'en': 'Not set', 'fr': 'Non définie', 'es': 'No establecida'},
-  'wrong_password': {'it': 'Password errata', 'en': 'Wrong password', 'fr': 'Mot de passe incorrect', 'es': 'Contraseña incorrecta'},
   'connected_success': {'it': 'connesso!', 'en': 'connected!', 'fr': 'connecté !', 'es': '¡conectado!'},
   'auth_failed': {'it': 'Autorizzazione non riuscita', 'en': 'Authorization failed', 'fr': 'Échec de l\'autorisation', 'es': 'Error de autorización'},
   'disconnected': {'it': 'disconnesso', 'en': 'disconnected', 'fr': 'déconnecté', 'es': 'desconectado'},
@@ -1007,7 +1008,6 @@ const _translations = <String, Map<String, String>>{
   'health_disconnected': {'it': 'Salute disconnessa', 'en': 'Health disconnected', 'fr': 'Santé déconnectée', 'es': 'Salud desconectada'},
   'available_ios_android': {'it': 'Disponibile su iOS e Android', 'en': 'Available on iOS and Android', 'fr': 'Disponible sur iOS et Android', 'es': 'Disponible en iOS y Android'},
   'not_available_web': {'it': 'Non disponibile sul web', 'en': 'Not available on web', 'fr': 'Non disponible sur le web', 'es': 'No disponible en la web'},
-  'password_updated': {'it': 'Password aggiornata', 'en': 'Password updated', 'fr': 'Mot de passe mis à jour', 'es': 'Contraseña actualizada'},
   'profile_copied': {'it': 'Profilo copiato negli appunti (vCard)', 'en': 'Profile copied to clipboard (vCard)', 'fr': 'Profil copié dans le presse-papiers (vCard)', 'es': 'Perfil copiado al portapapeles (vCard)'},
   'welcome_pro': {'it': 'Benvenuto in Ethos Note PRO!', 'en': 'Welcome to Ethos Note PRO!', 'fr': 'Bienvenue dans Ethos Note PRO !', 'es': '¡Bienvenido a Ethos Note PRO!'},
 
@@ -1198,10 +1198,6 @@ const _translations = <String, Map<String, String>>{
   'register': {'it': 'Registrati', 'en': 'Register', 'fr': 'S\'inscrire', 'es': 'Registrarse'},
   'email_hint': {'it': 'tuaemail@esempio.com', 'en': 'your@email.com', 'fr': 'votre@email.com', 'es': 'tu@email.com'},
   'nickname_hint': {'it': 'es. marco_r', 'en': 'e.g. john_d', 'fr': 'ex. jean_d', 'es': 'ej. juan_r'},
-  'phone_number': {'it': 'Numero di telefono', 'en': 'Phone number', 'fr': 'Numéro de téléphone', 'es': 'Número de teléfono'},
-  'current_password': {'it': 'Password attuale', 'en': 'Current password', 'fr': 'Mot de passe actuel', 'es': 'Contraseña actual'},
-  'new_password': {'it': 'Nuova password', 'en': 'New password', 'fr': 'Nouveau mot de passe', 'es': 'Nueva contraseña'},
-  'change_password': {'it': 'Cambia Password', 'en': 'Change Password', 'fr': 'Changer le mot de passe', 'es': 'Cambiar contraseña'},
   'url_or_username': {'it': 'URL o username', 'en': 'URL or username', 'fr': 'URL ou nom d\'utilisateur', 'es': 'URL o nombre de usuario'},
   'new_account': {'it': 'Nuovo Account', 'en': 'New Account', 'fr': 'Nouveau compte', 'es': 'Nueva cuenta'},
   'add_social': {'it': 'Aggiungi Link Social', 'en': 'Add Social Link', 'fr': 'Ajouter un lien social', 'es': 'Añadir enlace social'},
@@ -1239,7 +1235,6 @@ const _translations = <String, Map<String, String>>{
   'unlock_unlimited_voice': {'it': 'Sblocca note vocali illimitate', 'en': 'Unlock unlimited voice notes', 'fr': 'Débloquer notes vocales illimitées', 'es': 'Desbloquear notas de voz ilimitadas'},
   'unlock_photo_recognition': {'it': 'Riconoscimento Foto AI', 'en': 'AI Photo Recognition', 'fr': 'Reconnaissance photo IA', 'es': 'Reconocimiento de fotos IA'},
   'unlock_paper_sticky': {'it': 'Stile Paper & Sticky', 'en': 'Paper & Sticky Style', 'fr': 'Style Paper & Sticky', 'es': 'Estilo Paper & Sticky'},
-  'unlock_cycle_tracking': {'it': 'Tracciamento Ciclo', 'en': 'Cycle Tracking', 'fr': 'Suivi du cycle', 'es': 'Seguimiento del ciclo'},
   'ephemera_theme': {'it': 'Ephemera', 'en': 'Ephemera', 'fr': 'Ephemera', 'es': 'Ephemera'},
   'unlock_ephemera_theme': {'it': 'Tema Ephemera', 'en': 'Ephemera Theme', 'fr': 'Thème Ephemera', 'es': 'Tema Ephemera'},
   'ephemera_theme_desc': {'it': 'L\'anima del diario: palette crema e seppia', 'en': 'The soul of a diary: cream and sepia palette', 'fr': 'L\'âme du journal: palette crème et sépia', 'es': 'El alma del diario: paleta crema y sepia'},
@@ -4649,8 +4644,6 @@ class UserProfile {
   bool geminiConnected;
   String backupMode;
   String religione;
-  String? telefono;
-  String? password;
   List<String> socialLinks;
   List<String> friends;
   List<String> oldPhotos;
@@ -4673,8 +4666,6 @@ class UserProfile {
     this.geminiConnected = false,
     this.backupMode = 'local',
     this.religione = 'Cattolica',
-    this.telefono,
-    this.password,
     List<String>? socialLinks,
     List<String>? friends,
     List<String>? oldPhotos,
@@ -4713,8 +4704,6 @@ class UserProfile {
       'geminiConnected': geminiConnected,
       'backupMode': backupMode,
       'religione': religione,
-      'telefono': telefono,
-      'password': password,
       'socialLinks': socialLinks,
       'friends': friends,
       'oldPhotos': oldPhotos,
@@ -4742,8 +4731,6 @@ class UserProfile {
       geminiConnected: json['geminiConnected'] ?? false,
       backupMode: json['backupMode'] ?? 'local',
       religione: json['religione'] ?? tr('catholic'),
-      telefono: json['telefono'],
-      password: json['password'],
       socialLinks: (json['socialLinks'] as List<dynamic>?)?.cast<String>() ?? [],
       friends: (json['friends'] as List<dynamic>?)?.cast<String>() ?? [],
       oldPhotos: (json['oldPhotos'] as List<dynamic>?)?.cast<String>() ?? [],
@@ -4791,8 +4778,6 @@ class UserProfile {
     'gemini_connected': geminiConnected ? 1 : 0,
     'backup_mode': backupMode,
     'religione': religione,
-    'telefono': telefono,
-    'password': password,
     'social_links': json.encode(socialLinks),
     'friends': json.encode(friends),
     'old_photos': json.encode(oldPhotos),
@@ -4816,8 +4801,6 @@ class UserProfile {
     geminiConnected: (m['gemini_connected'] as int?) == 1,
     backupMode: (m['backup_mode'] as String?) ?? 'local',
     religione: (m['religione'] as String?) ?? 'Cattolica',
-    telefono: m['telefono'] as String?,
-    password: m['password'] as String?,
     socialLinks: m['social_links'] != null ? (json.decode(m['social_links'] as String) as List).cast<String>() : [],
     friends: m['friends'] != null ? (json.decode(m['friends'] as String) as List).cast<String>() : [],
     oldPhotos: m['old_photos'] != null ? (json.decode(m['old_photos'] as String) as List).cast<String>() : [],
@@ -6288,7 +6271,6 @@ class _CalendarPageState extends State<CalendarPage> {
   // Cycle tracking (private)
   Set<String> _cycleDays = {};
   Map<String, String> _cycleDaysIntensity = {};
-  EthosAuraSettings _auraSettings = const EthosAuraSettings();
 
   // Split layout: calendar compression on scroll
   bool _isCalendarCompact = false;
@@ -6316,7 +6298,6 @@ class _CalendarPageState extends State<CalendarPage> {
     _selectedDay = _focusedDay;
     _holidays = _calSettings.showHolidays ? Holidays.getHolidays(_calSettings.religione) : {};
     _initNotificationsAndEvents();
-    _loadAuraSettings();
     _loadCycleDays();
     _loadCompletedGoogleEventIds();
     _initGoogleCalendar();
@@ -6357,12 +6338,6 @@ class _CalendarPageState extends State<CalendarPage> {
 
     // 4) Schedule cycle reminder
     _scheduleCycleReminder();
-  }
-
-  Future<void> _loadAuraSettings() async {
-    final s = await EthosAuraSettings.load();
-    if (!mounted) return;
-    setState(() => _auraSettings = s);
   }
 
   void _onEventsScroll() {
@@ -6573,7 +6548,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   bool _isPredictedCycleDay(DateTime day) {
-    if (!_auraSettings.cycleTrackingPurchased || !_calSettings.showCycleTracking) return false;
+    if (!_calSettings.showCycleTracking) return false;
     if (_isCycleDay(day)) return false;
     final cyclePeriod = _calSettings.cyclePeriodDays;
     final duration = _calSettings.cycleDurationDays;
@@ -6724,7 +6699,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _scheduleCycleReminder() {
-    if (!_auraSettings.cycleTrackingPurchased || !_calSettings.showCycleTracking || !_calSettings.cycleReminder) {
+    if (!_calSettings.showCycleTracking || !_calSettings.cycleReminder) {
       NotificationService.cancelCycleReminder();
       return;
     }
@@ -6738,7 +6713,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _checkAndCreateCycleDiary() async {
-    if (!_auraSettings.cycleTrackingPurchased || !_calSettings.showCycleTracking) return;
+    if (!_calSettings.showCycleTracking) return;
     final now = DateTime.now();
     final todayNorm = DateTime(now.year, now.month, now.day);
     final months = localizedMonths();
@@ -7462,9 +7437,9 @@ class _CalendarPageState extends State<CalendarPage> {
                       _buildCategoryDots(eventsForDay, dotSize: 4),
                     if (holiday != null)
                       Text(holiday.emoji, style: const TextStyle(fontSize: 8)),
-                    if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && _isCycleDay(day) && !isOutsideMonth)
+                    if (_calSettings.showCycleTracking && _isCycleDay(day) && !isOutsideMonth)
                       Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 8))),
-                    if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && !_isCycleDay(day) && !isOutsideMonth && _isPredictedCycleDay(day))
+                    if (_calSettings.showCycleTracking && !_isCycleDay(day) && !isOutsideMonth && _isPredictedCycleDay(day))
                       Text('🩸', style: TextStyle(fontSize: 7, color: Colors.red.withValues(alpha: 0.3))),
                     if (isToday && !isOutsideMonth && _healthSnapshot?.allGoalsMet == true)
                       const Text('⭐', style: TextStyle(fontSize: 8)),
@@ -7616,8 +7591,8 @@ class _CalendarPageState extends State<CalendarPage> {
                 const Spacer(),
                 if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 13)),
                 if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 10)),
-                if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 10))),
-                if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 8, color: Colors.red.withValues(alpha: 0.3))),
+                if (_calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 10))),
+                if (_calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 8, color: Colors.red.withValues(alpha: 0.3))),
                 if (isToday && _healthSnapshot?.allGoalsMet == true) const Text('⭐', style: TextStyle(fontSize: 10)),
               ],
             ),
@@ -7831,7 +7806,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking)
+                            if (_calSettings.showCycleTracking)
                               Padding(
                                 padding: const EdgeInsets.only(right: 8),
                                 child: _isCycleDay(day)
@@ -8399,7 +8374,7 @@ class _CalendarPageState extends State<CalendarPage> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking)
+                          if (_calSettings.showCycleTracking)
                             Padding(
                               padding: const EdgeInsets.only(right: 4),
                               child: _isCycleDay(_selectedDay!)
@@ -8465,7 +8440,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                   ],
                   // Health progress bar
-                  if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && _isCycleDay(DateTime.now()))
+                  if (_calSettings.showCycleTracking && _isCycleDay(DateTime.now()))
                     _buildCycleFlowBar(DateTime.now()),
                 ],
               ),
@@ -8564,8 +8539,8 @@ class _CalendarPageState extends State<CalendarPage> {
                         children: [
                           if (weather != null) Text(weather.icon, style: const TextStyle(fontSize: 16)),
                           if (holiday != null) Text(holiday.emoji, style: const TextStyle(fontSize: 12)),
-                          if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 12))),
-                          if (_auraSettings.cycleTrackingPurchased && _calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 10, color: Colors.red.withValues(alpha: 0.3))),
+                          if (_calSettings.showCycleTracking && _isCycleDay(day)) Text('🩸', style: TextStyle(fontSize: _intensityFontSize(_getCycleIntensity(day), 12))),
+                          if (_calSettings.showCycleTracking && !_isCycleDay(day) && _isPredictedCycleDay(day)) Text('🩸', style: TextStyle(fontSize: 10, color: Colors.red.withValues(alpha: 0.3))),
                         ],
                       ),
                     ],
@@ -10085,7 +10060,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   bool _isSearchingCity = false;
   Timer? _citySearchDebounce;
   DateTime? _nextPredictedCycleStart;
-  EthosAuraSettings _auraSettings = const EthosAuraSettings();
 
   static final _availableAlertMinutes = <int, String>{
     5: tr('5_min_before'),
@@ -10111,14 +10085,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     super.initState();
     _settings = widget.settings;
     _weatherCityController = TextEditingController(text: _settings.weatherCity ?? '');
-    _loadAuraSettings();
     _loadCyclePrediction();
-  }
-
-  Future<void> _loadAuraSettings() async {
-    final s = await EthosAuraSettings.load();
-    if (!mounted) return;
-    setState(() => _auraSettings = s);
   }
 
   Future<void> _loadCyclePrediction() async {
@@ -10275,32 +10242,10 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             // ── SECTION: Ciclo Mestruale ──
             _buildSectionHeader(tr('cycle_tracking'), Icons.water_drop),
             const SizedBox(height: 8),
-            if (_auraSettings.cycleTrackingPurchased)
-              _buildCycleTrackingSettingsCard()
-            else
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                color: colorScheme.surfaceContainerLowest,
-                child: ListTile(
-                  leading: const Icon(Icons.lock_outline),
-                  title: Text(tr('cycle_tracking'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(tr('ethos_aura'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                ),
-              ),
+            _buildCycleTrackingSettingsCard(),
             const SizedBox(height: 24),
 
-            const SizedBox(height: 8),
-
-            // Save button
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _saveAndPop,
-                icon: const Icon(Icons.save),
-                label: Text(tr('save')),
-              ),
-            ),
+            const SizedBox(height: 32),
           ],
         ),
     );
@@ -10777,66 +10722,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             ),
             if (_settings.showCycleTracking) ...[
               const SizedBox(height: 16),
-              // Prediction card (prominent)
-              if (_nextPredictedCycleStart != null)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.red.withValues(alpha: 0.12), Colors.red.withValues(alpha: 0.04)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.red.withValues(alpha: 0.15)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.event, color: Colors.red, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(tr('next_cycle_predicted'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${_nextPredictedCycleStart!.day.toString().padLeft(2, '0')}/${_nextPredictedCycleStart!.month.toString().padLeft(2, '0')}/${_nextPredictedCycleStart!.year}',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: colorScheme.onSurfaceVariant, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(tr('no_cycle_data'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               // Cycle period (interval between cycles)
               Text(tr('cycle_period_days'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
@@ -11001,6 +10887,44 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red,
                     side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text(tr('clear_cycle_data')),
+                        content: Text(tr('clear_cycle_data_confirm')),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+                          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('delete'))),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true) {
+                      await DatabaseHelper().replaceAllCycleDays([]);
+                      if (!mounted) return;
+                      setState(() { _nextPredictedCycleStart = null; });
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(tr('cycle_data_cleared')),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ));
+                    }
+                  },
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: Text(tr('clear_cycle_data')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colorScheme.error,
+                    side: BorderSide(color: colorScheme.error.withValues(alpha: 0.3)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
@@ -12435,8 +12359,6 @@ class _SettingsPageState extends State<SettingsPage> {
       geminiConnected: widget.userProfile.geminiConnected,
       backupMode: widget.userProfile.backupMode,
       religione: widget.userProfile.religione,
-      telefono: widget.userProfile.telefono,
-      password: widget.userProfile.password,
       socialLinks: List<String>.from(widget.userProfile.socialLinks),
       friends: List<String>.from(widget.userProfile.friends),
       oldPhotos: List<String>.from(widget.userProfile.oldPhotos),
@@ -12674,24 +12596,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     subtitle: Text(_profile.email!),
                     dense: true,
                   ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.phone_outlined),
-                  title: Text(tr('phone')),
-                  subtitle: Text(_profile.telefono ?? tr('not_set_m')),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
-                  dense: true,
-                  onTap: () { Navigator.pop(ctx); _showPhoneEditor(); },
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.lock_outline),
-                  title: Text(tr('password')),
-                  subtitle: Text(_profile.password != null && _profile.password!.isNotEmpty ? '********' : tr('not_set_f')),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
-                  dense: true,
-                  onTap: () { Navigator.pop(ctx); _showPasswordEditor(); },
-                ),
                 // Cronologia Foto
                 if (_profile.oldPhotos.isNotEmpty) ...[
                   const Divider(height: 32),
@@ -12836,98 +12740,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showPhoneEditor() {
-    final controller = TextEditingController(text: _profile.telefono ?? '');
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(tr('phone')),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            labelText: tr('phone'),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            prefixIcon: const Icon(Icons.phone),
-          ),
-          keyboardType: TextInputType.phone,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
-          FilledButton(
-            onPressed: () {
-              setState(() => _profile.telefono = controller.text.isEmpty ? null : controller.text);
-              Navigator.pop(context);
-            },
-            child: Text(tr('save')),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPasswordEditor() {
-    final oldController = TextEditingController();
-    final newController = TextEditingController();
-    String? error;
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Text(tr('change_pin')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_profile.password != null && _profile.password!.isNotEmpty)
-                TextField(
-                  controller: oldController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: tr('password'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    errorText: error,
-                  ),
-                ),
-              if (_profile.password != null && _profile.password!.isNotEmpty) const SizedBox(height: 12),
-              TextField(
-                controller: newController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: tr('password'),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  prefixIcon: const Icon(Icons.lock),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
-            FilledButton(
-              onPressed: () {
-                if (_profile.password != null && _profile.password!.isNotEmpty && oldController.text != _profile.password) {
-                  setDialogState(() => error = tr('wrong_password'));
-                  return;
-                }
-                setState(() => _profile.password = newController.text.isEmpty ? null : newController.text);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(tr('success')),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-              },
-              child: Text(tr('save')),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _shareProfile() {
     final vcard = StringBuffer();
     vcard.writeln('BEGIN:VCARD');
@@ -12935,7 +12747,6 @@ class _SettingsPageState extends State<SettingsPage> {
     vcard.writeln('FN:${_profile.fullName}');
     if (_profile.nome != null) vcard.writeln('N:${_profile.cognome ?? ''};${_profile.nome};;;');
     if (_profile.email != null) vcard.writeln('EMAIL:${_profile.email}');
-    if (_profile.telefono != null) vcard.writeln('TEL:${_profile.telefono}');
     for (final link in _profile.socialLinks) {
       vcard.writeln('URL:$link');
     }
@@ -15314,7 +15125,7 @@ class FlashNotesSettings {
     this.aiCorrectionLevel = 0.0,
     this.groupingMode = 'weekly',
     this.maxAudioDurationSeconds = 120,
-    this.photoRecognitionEnabled = false,
+    this.photoRecognitionEnabled = true,
     this.noteStyle = 'modern',
   });
 
@@ -15371,7 +15182,7 @@ class FlashNotesSettings {
         aiCorrectionLevel: (json['aiCorrectionLevel'] ?? 0.0).toDouble(),
         groupingMode: json['groupingMode'] ?? 'weekly',
         maxAudioDurationSeconds: json['maxAudioDurationSeconds'] ?? 120,
-        photoRecognitionEnabled: json['photoRecognitionEnabled'] ?? false,
+        photoRecognitionEnabled: json['photoRecognitionEnabled'] ?? true,
         noteStyle: json['noteStyle'] ?? 'modern',
       );
 
@@ -16055,107 +15866,29 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // SEZIONE A: Gemini AI (gestito in Integrazioni)
-          _buildSectionHeader(tr('gemini_ai'), Icons.auto_awesome, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: ListTile(
-              leading: Icon(
-                _settings.geminiEnabled && _settings.geminiApiKey.isNotEmpty
-                    ? Icons.check_circle
-                    : Icons.radio_button_unchecked,
-                color: _settings.geminiEnabled && _settings.geminiApiKey.isNotEmpty
-                    ? Colors.green
-                    : colorScheme.onSurfaceVariant,
-              ),
-              title: Text(
-                _settings.geminiEnabled && _settings.geminiApiKey.isNotEmpty
-                    ? tr('connected')
-                    : tr('not_connected'),
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text(tr('configure_gemini')),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const IntegrationsPage())).then((_) async {
-                  final updated = await FlashNotesSettings.load();
-                  if (!mounted) return;
-                  setState(() {
-                    _settings = updated;
-                    _apiKeyController.text = updated.geminiApiKey;
-                  });
-                });
-              },
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // SEZIONE: Riconoscimento Foto AI (stato acquisto Ethos Aura)
+          // SEZIONE: Riconoscimento Foto AI con toggle on/off
           _buildSectionHeader(tr('photo_recognition'), Icons.image_search, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             color: colorScheme.surfaceContainerLowest,
-            child: ListTile(
-              leading: Icon(
-                _auraSettings.photoRecognitionPurchased ? Icons.check_circle : Icons.lock_outline,
-                color: _auraSettings.photoRecognitionPurchased ? Colors.green : colorScheme.onSurfaceVariant,
+            child: SwitchListTile(
+              secondary: Icon(
+                Icons.image_search,
+                color: _auraSettings.photoRecognitionPurchased ? sectionColor : colorScheme.onSurfaceVariant,
               ),
               title: Text(tr('photo_recognition'), style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text(
                 _auraSettings.photoRecognitionPurchased
-                    ? tr('purchased')
+                    ? (_settings.photoRecognitionEnabled ? tr('enabled') : tr('disabled'))
                     : tr('ethos_aura'),
-                style: TextStyle(fontSize: 12, color: _auraSettings.photoRecognitionPurchased ? Colors.green : colorScheme.onSurfaceVariant),
+                style: TextStyle(fontSize: 12, color: _auraSettings.photoRecognitionPurchased ? (_settings.photoRecognitionEnabled ? Colors.green : colorScheme.onSurfaceVariant) : colorScheme.onSurfaceVariant),
               ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // SEZIONE B: Salvataggio flash note su Deep Note
-          _buildSectionHeader(tr('save_flash_to_deep'), Icons.save_alt, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<String>(
-                  segments: [
-                    ButtonSegment(value: 'never', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('auto_save_never'), style: const TextStyle(fontSize: 11)))),
-                    ButtonSegment(value: 'daily', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('daily'), style: const TextStyle(fontSize: 11)))),
-                    ButtonSegment(value: 'weekly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('weekly'), style: const TextStyle(fontSize: 11)))),
-                    ButtonSegment(value: 'monthly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('monthly'), style: const TextStyle(fontSize: 11)))),
-                  ],
-                  selected: {_settings.autoSaveMode == 'custom' ? 'never' : _settings.autoSaveMode},
-                  onSelectionChanged: (sel) {
-                    _updateSettings(_settings.copyWith(autoSaveMode: sel.first));
-                  },
-                  showSelectedIcon: false,
-                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              '${tr('auto_save_weekly_desc')} → Deep Note',
-              style: TextStyle(
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-                color: colorScheme.onSurfaceVariant,
-              ),
+              value: _settings.photoRecognitionEnabled,
+              onChanged: _auraSettings.photoRecognitionPurchased ? (val) {
+                _updateSettings(_settings.copyWith(photoRecognitionEnabled: val));
+              } : null,
             ),
           ),
 
@@ -16192,63 +15925,6 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
 
           const SizedBox(height: 24),
 
-          // SEZIONE: Stile Note
-          _buildSectionHeader(tr('note_style'), Icons.style, sectionColor),
-          const SizedBox(height: 8),
-          if (_auraSettings.paperStickyPurchased)
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              color: colorScheme.surfaceContainerLowest,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<String>(
-                        segments: [
-                          ButtonSegment(value: 'modern', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('note_style_modern'), style: const TextStyle(fontSize: 11)))),
-                          ButtonSegment(value: 'paper', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('note_style_paper'), style: const TextStyle(fontSize: 11)))),
-                        ],
-                        selected: {_settings.noteStyle},
-                        onSelectionChanged: (sel) {
-                          _updateSettings(_settings.copyWith(noteStyle: sel.first));
-                        },
-                        showSelectedIcon: false,
-                        style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                      ),
-                    ),
-                    if (_settings.noteStyle == 'paper') ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        tr('note_style_paper_desc'),
-                        style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            )
-          else
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              color: colorScheme.surfaceContainerLowest,
-              child: ListTile(
-                leading: Icon(Icons.lock_outline, color: colorScheme.onSurfaceVariant),
-                title: Text(tr('note_style_paper'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(tr('ethos_aura'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const EthosAuraPage())).then((_) => _loadAuraSettings());
-                },
-              ),
-            ),
-
-          const SizedBox(height: 24),
-
           // SEZIONE C: Durata nota vocale
           _buildSectionHeader(tr('voice_duration'), Icons.mic, sectionColor),
           const SizedBox(height: 8),
@@ -16280,17 +15956,6 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
             ),
           ),
 
-          const SizedBox(height: 24),
-
-          // Save button
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _saveAndPop,
-              icon: const Icon(Icons.save),
-              label: Text(tr('save')),
-            ),
-          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -16645,7 +16310,6 @@ class EthosAuraSettings {
   final bool unlimitedVoicePurchased;
   final bool unlimitedProfilesPurchased;
   final bool photoRecognitionPurchased;
-  final bool cycleTrackingPurchased;
   final bool ephemeraThemePurchased;
   final bool nordicZenPurchased;
   final bool greenSalviaPurchased;
@@ -16672,7 +16336,6 @@ class EthosAuraSettings {
     this.unlimitedVoicePurchased = false,
     this.unlimitedProfilesPurchased = false,
     this.photoRecognitionPurchased = false,
-    this.cycleTrackingPurchased = false,
     this.ephemeraThemePurchased = false,
     this.nordicZenPurchased = false,
     this.greenSalviaPurchased = false,
@@ -16700,7 +16363,6 @@ class EthosAuraSettings {
     bool? unlimitedVoicePurchased,
     bool? unlimitedProfilesPurchased,
     bool? photoRecognitionPurchased,
-    bool? cycleTrackingPurchased,
     bool? ephemeraThemePurchased,
     bool? nordicZenPurchased,
     bool? greenSalviaPurchased,
@@ -16727,7 +16389,6 @@ class EthosAuraSettings {
       unlimitedVoicePurchased: unlimitedVoicePurchased ?? this.unlimitedVoicePurchased,
       unlimitedProfilesPurchased: unlimitedProfilesPurchased ?? this.unlimitedProfilesPurchased,
       photoRecognitionPurchased: photoRecognitionPurchased ?? this.photoRecognitionPurchased,
-      cycleTrackingPurchased: cycleTrackingPurchased ?? this.cycleTrackingPurchased,
       ephemeraThemePurchased: ephemeraThemePurchased ?? this.ephemeraThemePurchased,
       nordicZenPurchased: nordicZenPurchased ?? this.nordicZenPurchased,
       greenSalviaPurchased: greenSalviaPurchased ?? this.greenSalviaPurchased,
@@ -16756,7 +16417,6 @@ class EthosAuraSettings {
     'unlimitedVoicePurchased': unlimitedVoicePurchased,
     'unlimitedProfilesPurchased': unlimitedProfilesPurchased,
     'photoRecognitionPurchased': photoRecognitionPurchased,
-    'cycleTrackingPurchased': cycleTrackingPurchased,
     'ephemeraThemePurchased': ephemeraThemePurchased,
     'nordicZenPurchased': nordicZenPurchased,
     'greenSalviaPurchased': greenSalviaPurchased,
@@ -16785,7 +16445,6 @@ class EthosAuraSettings {
         unlimitedVoicePurchased: json['unlimitedVoicePurchased'] ?? false,
         unlimitedProfilesPurchased: json['unlimitedProfilesPurchased'] ?? false,
         photoRecognitionPurchased: json['photoRecognitionPurchased'] ?? false,
-        cycleTrackingPurchased: json['cycleTrackingPurchased'] ?? false,
         ephemeraThemePurchased: json['ephemeraThemePurchased'] ?? false,
         nordicZenPurchased: json['nordicZenPurchased'] ?? false,
         greenSalviaPurchased: json['greenSalviaPurchased'] ?? false,
@@ -16872,9 +16531,6 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
         break;
       case 'photo_recognition':
         updated = _auraSettings.copyWith(photoRecognitionPurchased: true);
-        break;
-      case 'cycle_tracking':
-        updated = _auraSettings.copyWith(cycleTrackingPurchased: true);
         break;
       case 'wine_research':
         updated = _auraSettings.copyWith(wineResearchPurchased: true);
@@ -17014,16 +16670,6 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                   price: '€0,99',
                   purchased: _auraSettings.photoRecognitionPurchased,
                   onTap: () => _simulatePurchase('photo_recognition'),
-                  colorScheme: colorScheme,
-                ),
-
-                // Cycle Tracking
-                _buildPurchaseTile(
-                  icon: Icons.water_drop,
-                  title: tr('unlock_cycle_tracking'),
-                  price: '€1,99',
-                  purchased: _auraSettings.cycleTrackingPurchased,
-                  onTap: () => _simulatePurchase('cycle_tracking'),
                   colorScheme: colorScheme,
                 ),
 
@@ -17562,17 +17208,6 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
             ),
           ),
 
-          const SizedBox(height: 24),
-
-          // Save button
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _saveAndPop,
-              icon: const Icon(Icons.save),
-              label: Text(tr('save')),
-            ),
-          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -18127,9 +17762,9 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   Future<void> _tryPhotoRecognition(String imagePath) async {
     final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    final hasPhotoRec = auraSettings.photoRecognitionPurchased;
+    final hasPhotoRec = auraSettings.photoRecognitionPurchased && settings.photoRecognitionEnabled;
     final hasWineRes = auraSettings.wineResearchPurchased;
-    if (!hasPhotoRec && !hasWineRes) return; // nessun acquisto — silenzioso
+    if (!hasPhotoRec && !hasWineRes) return; // nessun acquisto o disattivato — silenzioso
     if (!settings.geminiEnabled || settings.geminiApiKey.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -19214,7 +18849,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   Future<void> _runPhotoRecognition(String imagePath) async {
     final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    final hasPhotoRec = auraSettings.photoRecognitionPurchased;
+    final hasPhotoRec = auraSettings.photoRecognitionPurchased && settings.photoRecognitionEnabled;
     final hasWineRes = auraSettings.wineResearchPurchased;
     if (!hasPhotoRec && !hasWineRes) return;
     if (!settings.geminiEnabled || settings.geminiApiKey.isEmpty) {
