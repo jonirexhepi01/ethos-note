@@ -73,6 +73,9 @@ bool _isSakuraTheme(BuildContext context) =>
 bool _isYellowNoteTheme(BuildContext context) =>
     Theme.of(context).colorScheme.primary == const Color(0xFF1E3A8A);
 
+bool _isBlockNoteTheme(BuildContext context) =>
+    Theme.of(context).colorScheme.primary == const Color(0xFFE6A100);
+
 /// Draws horizontal ruled lines (blue) and a double red margin line,
 /// simulating classic yellow legal-pad paper.
 class _LinedPaperPainter extends CustomPainter {
@@ -212,6 +215,7 @@ List<int> _widgetColorsForTheme(String mode) {
     'deep_abyss':    [0xFF000000, 0xFF1A237E, 0x33FFFFFF],
     'midnight_forest': [0xFF050A05, 0xFF2E7D32, 0x33FFFFFF],
     'cyberpunk_void':  [0xFF0F0F10, 0xFF00BCD4, 0x33FFFFFF],
+    'block_note':      [0xFFFFF8E1, 0xFFE6A100, 0x33000000],
   };
   return map[mode] ?? map['default']!;
 }
@@ -260,6 +264,7 @@ Color _sectionAccent(BuildContext context, int section) {
     0xFF1A237E: [Color(0xFF3949AB), Color(0xFF1A237E), Color(0xFF7C4DFF)], // Deep Abyss
     0xFF2E7D32: [Color(0xFF388E3C), Color(0xFF2E7D32), Color(0xFF8D6E63)], // Midnight Forest
     0xFF00BCD4: [Color(0xFF00ACC1), Color(0xFF00BCD4), Color(0xFFFF4081)], // Cyberpunk Void
+    0xFFE6A100: [Color(0xFFE53935), Color(0xFFE6A100), Color(0xFFFF7043)], // Block Note
   };
   return map[v]?[section] ?? const [Color(0xFFE53935), Color(0xFF1E88E5), Color(0xFFFFA726)][section];
 }
@@ -276,6 +281,7 @@ String? _themedFont(BuildContext context) {
     0xFF1E3A8A: 'Courier Prime', // Yellow Note — typewriter
     0xFF2E7D32: 'Lora', // Midnight Forest — organic
     0xFF00BCD4: 'Share Tech Mono', // Cyberpunk Void — tech
+    0xFFE6A100: 'Patrick Hand', // Block Note — handwritten
   };
   return map[v];
 }
@@ -287,7 +293,7 @@ bool _hasCustomTheme(BuildContext context) {
     0xFFA3274F, 0xFF795548, 0xFF78909C, 0xFF6B8F71, 0xFFB5838D,
     0xFF1B4D3E, 0xFFD32F2F, 0xFFE6A800, 0xFF7C4DFF, 0xFFE65100,
     0xFF691212, 0xFF003B6F, 0xFFB71C1C, 0xFF32CD32, 0xFF1E3A8A,
-    0xFF1A237E, 0xFF2E7D32, 0xFF00BCD4,
+    0xFF1A237E, 0xFF2E7D32, 0xFF00BCD4, 0xFFE6A100,
   }.contains(v);
 }
 
@@ -313,6 +319,7 @@ String _themedHighlight(BuildContext context) {
     0xFF1A237E: '#060606', // Deep Abyss — dark surface
     0xFF2E7D32: '#0A120A', // Midnight Forest — dark green
     0xFF00BCD4: '#141418', // Cyberpunk Void — dark surface
+    0xFFE6A100: '#FFF8E1', // Block Note — warm paper
   };
   return map[v] ?? '#FFF9C4';
 }
@@ -330,6 +337,7 @@ Color? _themeOverlayColor(BuildContext context) {
     0xFF32CD32: Color(0x0832CD32), // Fallout — terminal glow
     0xFF1E3A8A: Color(0x061E3A8A), // Yellow Note — subtle paper tint
     0xFF2E7D32: Color(0x06050A05), // Midnight Forest — moss effect
+    0xFFE6A100: Color(0x08E6A100), // Block Note — warm paper tint
   };
   return map[v];
 }
@@ -1249,6 +1257,8 @@ const _translations = <String, Map<String, String>>{
   'midnight_forest_desc': {'it': 'Verde notte organico, toni bronzo e atmosfera rilassante', 'en': 'Organic night green, bronze tones and relaxing atmosphere', 'fr': 'Vert nuit organique, tons bronze et atmosphère relaxante', 'es': 'Verde noche orgánico, tonos bronce y atmósfera relajante'},
   'cyberpunk_void_theme': {'it': 'Cyberpunk Void', 'en': 'Cyberpunk Void', 'fr': 'Cyberpunk Void', 'es': 'Cyberpunk Void'},
   'cyberpunk_void_desc': {'it': 'Neon ciano e magenta su antracite futuristico', 'en': 'Neon cyan and magenta on futuristic anthracite', 'fr': 'Néon cyan et magenta sur anthracite futuriste', 'es': 'Neón cian y magenta sobre antracita futurista'},
+  'block_note_theme': {'it': 'Like a Block Note', 'en': 'Like a Block Note', 'fr': 'Like a Block Note', 'es': 'Like a Block Note'},
+  'block_note_desc': {'it': 'Carta riciclata, post-it colorati e margine legale sbavato', 'en': 'Recycled paper, colorful post-its and smudged legal margin', 'fr': 'Papier recyclé, post-its colorés et marge légale bavée', 'es': 'Papel reciclado, post-its coloridos y margen legal difuminado'},
   'unlock_unlimited_profiles': {'it': 'Sblocca profili illimitati', 'en': 'Unlock unlimited profiles', 'fr': 'Débloquer profils illimités', 'es': 'Desbloquear perfiles ilimitados'},
   'max_duration': {'it': 'Durata massima', 'en': 'Max duration', 'fr': 'Durée maximale', 'es': 'Duración máxima'},
   'unlimited': {'it': 'Illimitata', 'en': 'Unlimited', 'fr': 'Illimitée', 'es': 'Ilimitada'},
@@ -3864,6 +3874,79 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
     );
   }
 
+  // ── Like a Block Note Theme (paper & sticky aesthetic) ──
+  static const _bnPrimary = Color(0xFFE6A100);
+  static const _bnScaffold = Color(0xFFFFF8E1);
+  static const _bnCard = Color(0xFFFFF176);
+  static const _bnText = Color(0xFF37474F);
+  static const _bnRed = Color(0xFFE53935);
+  static const _bnBorder = Color(0xFFE0C97A);
+
+  ThemeData _buildBlockNoteTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _bnPrimary, brightness: Brightness.light,
+      primary: _bnPrimary, onPrimary: _bnText,
+      surface: _bnScaffold, onSurface: _bnText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _bnScaffold,
+      textTheme: GoogleFonts.patrickHandTextTheme(ThemeData.light().textTheme).apply(
+        bodyColor: _bnText, displayColor: _bnText,
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _bnText,
+        titleTextStyle: GoogleFonts.patrickHand(fontSize: 22, fontWeight: FontWeight.bold, color: _bnText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(2), topRight: Radius.circular(4),
+            bottomLeft: Radius.circular(3), bottomRight: Radius.circular(1),
+          ),
+          side: BorderSide(color: _bnBorder.withValues(alpha: 0.4)),
+        ),
+        color: _bnCard, clipBehavior: Clip.antiAlias,
+        shadowColor: const Color(0x33795548),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _bnRed, foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          side: BorderSide(color: _bnPrimary.withValues(alpha: 0.5)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: const Color(0xFFFFFDE7),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _bnBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _bnBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _bnPrimary, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _bnPrimary.withValues(alpha: 0.15),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _bnScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      dividerTheme: DividerThemeData(color: _bnBorder.withValues(alpha: 0.5), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 4, backgroundColor: _bnCard, foregroundColor: _bnText,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _bnRed : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
   // ── Deep Abyss Theme (OLED pure black, spectral minimalism) ──
   static const _daIndigo = Color(0xFF1A237E);
   static const _daViolet = Color(0xFF7C4DFF);
@@ -4013,6 +4096,13 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
       seedColor: _cvCyan, brightness: Brightness.dark,
       primary: _cvCyan, onPrimary: Colors.black,
       surface: _cvSurface, onSurface: _cvText,
+      surfaceContainerLowest: const Color(0xFF111114),
+      surfaceContainerLow: const Color(0xFF151518),
+      surfaceContainer: const Color(0xFF1A1A1E),
+      surfaceContainerHigh: const Color(0xFF1E1E22),
+      surfaceContainerHighest: const Color(0xFF232328),
+      outline: const Color(0xFF3A3A42),
+      outlineVariant: const Color(0xFF2A2A30),
     );
     return ThemeData(
       colorScheme: colorScheme, useMaterial3: true,
@@ -4088,6 +4178,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
       case 'deep_abyss': return _buildDeepAbyssTheme();
       case 'midnight_forest': return _buildMidnightForestTheme();
       case 'cyberpunk_void': return _buildCyberpunkVoidTheme();
+      case 'block_note': return _buildBlockNoteTheme();
       default: return _buildTheme(Brightness.light);
     }
   }
@@ -6823,17 +6914,63 @@ class _CalendarPageState extends State<CalendarPage> {
         builder: (context) => EventEditorPage(
           selectedDate: _selectedDay!,
           onSave: (event) {
+            // Build full list: base event + recurring instances
+            final allEvents = <CalendarEventFull>[event];
+            if (event.recurrence != null) {
+              final duration = event.endTime.difference(event.startTime);
+              DateTime nextStart = event.startTime;
+              final effectiveEnd = event.recurrenceEndDate != null
+                  ? DateTime.parse(event.recurrenceEndDate!)
+                  : event.startTime.add(const Duration(days: 730));
+              int count = 0;
+              while (count < 730) {
+                count++;
+                switch (event.recurrence) {
+                  case 'daily':
+                    nextStart = nextStart.add(const Duration(days: 1));
+                    break;
+                  case 'weekly':
+                    nextStart = nextStart.add(const Duration(days: 7));
+                    break;
+                  case 'monthly':
+                    nextStart = DateTime(nextStart.year, nextStart.month + 1, nextStart.day, nextStart.hour, nextStart.minute);
+                    break;
+                  case 'yearly':
+                    nextStart = DateTime(nextStart.year + 1, nextStart.month, nextStart.day, nextStart.hour, nextStart.minute);
+                    break;
+                  default:
+                    count = 730;
+                    continue;
+                }
+                if (nextStart.isAfter(effectiveEnd)) break;
+                allEvents.add(CalendarEventFull(
+                  title: event.title,
+                  startTime: nextStart,
+                  endTime: nextStart.add(duration),
+                  calendar: event.calendar,
+                  reminder: event.reminder,
+                  sharedWith: event.sharedWith,
+                  recurrence: event.recurrence,
+                  recurrenceEndDate: event.recurrenceEndDate,
+                ));
+              }
+            }
+            // Single setState — add all events to correct dates
             setState(() {
-              final key = _dateKey(_selectedDay!);
-              _events.putIfAbsent(key, () => []).add(event);
+              for (final e in allEvents) {
+                final key = _dateKey(e.startTime);
+                _events.putIfAbsent(key, () => []).add(e);
+              }
             });
+            // Single DB save, then schedule notifications
             _saveEvents().then((_) async {
-              await _scheduleNotification(event);
-              debugPrint('NotificationService: scheduled notification for new event "${event.title}"');
+              for (final e in allEvents) {
+                await _scheduleNotification(e);
+              }
+              debugPrint('NotificationService: scheduled ${allEvents.length} notifications for "${event.title}"');
             });
-            // Push to Google Calendar if connected
             if (GoogleCalendarService.isSignedIn) {
-              _pushEventToGoogle(event);
+              _pushEventToGoogle(event); // push base event only
             }
           },
         ),
@@ -11546,48 +11683,8 @@ class _EventEditorPageState extends State<EventEditorPage> {
         recurrence: _recurrence,
         recurrenceEndDate: _recurrenceEndDate?.toIso8601String(),
       );
+      // Pass single event — CalendarPage handles recurrence expansion
       widget.onSave(baseEvent);
-
-      // Generate recurring copies
-      if (_recurrence != null) {
-        final duration = _endTime.difference(_startTime);
-        DateTime nextStart = _startTime;
-        // "Per sempre" = null end date → generate 2 years of events
-        final effectiveEnd = _recurrenceEndDate ?? _startTime.add(const Duration(days: 730));
-        int maxOccurrences = 730;
-        int count = 0;
-        while (count < maxOccurrences) {
-          count++;
-          switch (_recurrence) {
-            case 'daily':
-              nextStart = nextStart.add(const Duration(days: 1));
-              break;
-            case 'weekly':
-              nextStart = nextStart.add(const Duration(days: 7));
-              break;
-            case 'monthly':
-              nextStart = DateTime(nextStart.year, nextStart.month + 1, nextStart.day, nextStart.hour, nextStart.minute);
-              break;
-            case 'yearly':
-              nextStart = DateTime(nextStart.year + 1, nextStart.month, nextStart.day, nextStart.hour, nextStart.minute);
-              break;
-            default:
-              count = maxOccurrences;
-              continue;
-          }
-          if (nextStart.isAfter(effectiveEnd)) break;
-          widget.onSave(CalendarEventFull(
-            title: title,
-            startTime: nextStart,
-            endTime: nextStart.add(duration),
-            calendar: _selectedCalendar,
-            reminder: _selectedReminder,
-            sharedWith: _sharedWith,
-            recurrence: _recurrence,
-            recurrenceEndDate: _recurrenceEndDate?.toIso8601String(),
-          ));
-        }
-      }
 
       Navigator.pop(context);
     }
@@ -12180,6 +12277,7 @@ class _SettingsPageState extends State<SettingsPage> {
       case 'deep_abyss': return 'Deep Abyss';
       case 'midnight_forest': return 'Midnight Forest';
       case 'cyberpunk_void': return 'Cyberpunk Void';
+      case 'block_note': return 'Like a Block Note';
       default: return 'Ethos';
     }
   }
@@ -16090,6 +16188,12 @@ class _ThemeCatalogPageState extends State<_ThemeCatalogPage> {
         color: const Color(0xFF1E3A8A), previewColors: const [Color(0xFFFEF9C3), Color(0xFF1E3A8A), Color(0xFFEF4444)],
       ));
     }
+    if (_auraSettings.blockNotePurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'block_note', name: tr('block_note_theme'), description: tr('block_note_desc'), icon: Icons.sticky_note_2,
+        color: const Color(0xFFE6A100), previewColors: const [Color(0xFFFFF8E1), Color(0xFFFFF176), Color(0xFFE53935)],
+      ));
+    }
     // Notte Profonda
     if (_auraSettings.deepAbyssPurchased) {
       purchasedThemes.add(_PremiumThemeInfo(
@@ -16267,6 +16371,7 @@ class EthosAuraSettings {
   final bool deepAbyssPurchased;
   final bool midnightForestPurchased;
   final bool cyberpunkVoidPurchased;
+  final bool blockNotePurchased;
   final bool paperStickyPurchased;
 
   const EthosAuraSettings({
@@ -16292,6 +16397,7 @@ class EthosAuraSettings {
     this.deepAbyssPurchased = false,
     this.midnightForestPurchased = false,
     this.cyberpunkVoidPurchased = false,
+    this.blockNotePurchased = false,
     this.paperStickyPurchased = false,
   });
 
@@ -16318,6 +16424,7 @@ class EthosAuraSettings {
     bool? deepAbyssPurchased,
     bool? midnightForestPurchased,
     bool? cyberpunkVoidPurchased,
+    bool? blockNotePurchased,
     bool? paperStickyPurchased,
   }) {
     return EthosAuraSettings(
@@ -16343,6 +16450,7 @@ class EthosAuraSettings {
       deepAbyssPurchased: deepAbyssPurchased ?? this.deepAbyssPurchased,
       midnightForestPurchased: midnightForestPurchased ?? this.midnightForestPurchased,
       cyberpunkVoidPurchased: cyberpunkVoidPurchased ?? this.cyberpunkVoidPurchased,
+      blockNotePurchased: blockNotePurchased ?? this.blockNotePurchased,
       paperStickyPurchased: paperStickyPurchased ?? this.paperStickyPurchased,
     );
   }
@@ -16370,6 +16478,7 @@ class EthosAuraSettings {
     'deepAbyssPurchased': deepAbyssPurchased,
     'midnightForestPurchased': midnightForestPurchased,
     'cyberpunkVoidPurchased': cyberpunkVoidPurchased,
+    'blockNotePurchased': blockNotePurchased,
     'paperStickyPurchased': paperStickyPurchased,
   };
 
@@ -16397,6 +16506,7 @@ class EthosAuraSettings {
         deepAbyssPurchased: json['deepAbyssPurchased'] ?? false,
         midnightForestPurchased: json['midnightForestPurchased'] ?? false,
         cyberpunkVoidPurchased: json['cyberpunkVoidPurchased'] ?? false,
+        blockNotePurchased: json['blockNotePurchased'] ?? false,
         paperStickyPurchased: json['paperStickyPurchased'] ?? false,
       );
 
@@ -16518,6 +16628,9 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
         break;
       case 'cyberpunk_void_theme':
         updated = _auraSettings.copyWith(cyberpunkVoidPurchased: true);
+        break;
+      case 'block_note_theme':
+        updated = _auraSettings.copyWith(blockNotePurchased: true);
         break;
       case 'paper_sticky':
         updated = _auraSettings.copyWith(paperStickyPurchased: true);
@@ -16733,6 +16846,7 @@ class _AuraThemeStorePageState extends State<_AuraThemeStorePage> {
       {'id': 'green_salvia_theme', 'name': 'Green Salvia', 'desc': tr('green_salvia_desc'), 'color': const Color(0xFF6B8F71), 'price': '€0,99', 'purchased': _aura.greenSalviaPurchased, 'preview': [const Color(0xFFE2E8E4), const Color(0xFF6B8F71), const Color(0xFF2A3B32)]},
       {'id': 'sakura_theme', 'name': 'Sakura', 'desc': tr('sakura_desc'), 'color': const Color(0xFFB5838D), 'price': '€0,99', 'purchased': _aura.sakuraPurchased, 'preview': [const Color(0xFFF7E7E6), const Color(0xFFB5838D), const Color(0xFF2D3748)]},
       {'id': 'yellow_note_theme', 'name': tr('yellow_note_theme'), 'desc': tr('yellow_note_desc'), 'color': const Color(0xFF1E3A8A), 'price': '€0,99', 'purchased': _aura.yellowNotePurchased, 'preview': [const Color(0xFFFEF9C3), const Color(0xFF1E3A8A), const Color(0xFFEF4444)]},
+      {'id': 'block_note_theme', 'name': tr('block_note_theme'), 'desc': tr('block_note_desc'), 'color': const Color(0xFFE6A100), 'price': '€0,99', 'purchased': _aura.blockNotePurchased, 'preview': [const Color(0xFFFFF8E1), const Color(0xFFFFF176), const Color(0xFFE53935)]},
     ];
     final oceano = <Map<String, dynamic>>[
       {'id': 'spadaccino_theme', 'name': tr('spadaccino_theme'), 'desc': tr('spadaccino_desc'), 'color': const Color(0xFF1B4D3E), 'price': '€0,99', 'purchased': _aura.spadaccinoPurchased, 'preview': [const Color(0xFF0D2818), const Color(0xFF1B4D3E), const Color(0xFF2E7D5B)]},
@@ -20487,7 +20601,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(color: accentColor, width: 2),
                                 )
-                              : ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern'))
+                              : ((_noteStyle == 'paper' && _paperStickyPurchased) || ((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) && _noteStyle == 'modern'))
                                 ? _paperStickyDecoration(index)
                                 : BoxDecoration(
                                     color: colorScheme.surfaceContainerLowest,
@@ -20499,7 +20613,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                   ),
                             child: Stack(
                               children: [
-                                if (!isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern'))) ...[
+                                if (!isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || ((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) && _noteStyle == 'modern'))) ...[
                                   Positioned.fill(child: ClipRRect(
                                     borderRadius: const BorderRadius.only(topLeft: Radius.circular(2), topRight: Radius.circular(4), bottomLeft: Radius.circular(3), bottomRight: Radius.circular(1)),
                                     child: CustomPaint(painter: _PaperTexturePainter(seed: index)),
@@ -20511,7 +20625,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                   Positioned.fill(child: CustomPaint(painter: _CornerCurlPainter(baseColor: _paperStickyColors[index % _paperStickyColors.length]))),
                                 ],
                                 Padding(
-                              padding: EdgeInsets.only(left: !isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern')) ? 50 : 10, top: 10, right: 10, bottom: 10),
+                              padding: EdgeInsets.only(left: !isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || ((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) && _noteStyle == 'modern')) ? 50 : 10, top: 10, right: 10, bottom: 10),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -20746,7 +20860,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(color: accentColor, width: 2),
                                     )
-                                  : ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern'))
+                                  : ((_noteStyle == 'paper' && _paperStickyPurchased) || ((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) && _noteStyle == 'modern'))
                                     ? _paperStickyDecoration(index)
                                     : BoxDecoration(
                                         color: colorScheme.surfaceContainerLowest,
@@ -20758,7 +20872,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                       ),
                                 child: Stack(
                                   children: [
-                                    if (!isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern'))) ...[
+                                    if (!isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || ((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) && _noteStyle == 'modern'))) ...[
                                       Positioned.fill(child: ClipRRect(
                                         borderRadius: const BorderRadius.only(topLeft: Radius.circular(2), topRight: Radius.circular(4), bottomLeft: Radius.circular(3), bottomRight: Radius.circular(1)),
                                         child: CustomPaint(painter: _PaperTexturePainter(seed: index)),
@@ -20771,7 +20885,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                     ],
                                     Padding(
                                       padding: EdgeInsets.only(
-                                        left: !isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern')) ? 50 : 16,
+                                        left: !isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || ((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) && _noteStyle == 'modern')) ? 50 : 16,
                                         top: 16, right: 16, bottom: 16,
                                       ),
                                       child: Row(
@@ -23292,7 +23406,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                     margin: const EdgeInsets.all(2),
                                     decoration: BoxDecoration(
                                       color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
-                                      borderRadius: BorderRadius.circular(_isYellowNoteTheme(context) ? 2 : 16),
+                                      borderRadius: BorderRadius.circular((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) ? 2 : 16),
                                       border: Border.all(
                                         color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
                                         width: isSelected ? 2 : 1,
@@ -23441,7 +23555,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
                                           color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
-                                          borderRadius: BorderRadius.circular(_isYellowNoteTheme(context) ? 2 : 16),
+                                          borderRadius: BorderRadius.circular((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) ? 2 : 16),
                                           border: Border.all(
                                             color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
                                             width: isSelected ? 2 : 1,
@@ -25918,7 +26032,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               child: Container(color: _themeOverlayColor(context)),
             ),
           // Yellow Note ruled lines
-          if (_isYellowNoteTheme(context))
+          if ((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)))
             Positioned.fill(
               child: IgnorePointer(
                 child: CustomPaint(painter: _LinedPaperPainter()),
