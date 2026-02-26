@@ -362,6 +362,11 @@ List<String> localizedMonths() => [
 
 List<String> localizedWeekdaysShort() => [tr('mon'), tr('tue'), tr('wed'), tr('thu'), tr('fri'), tr('sat'), tr('sun')];
 
+List<String> localizedMonthsShort() => [
+  '', tr('jan_short'), tr('feb_short'), tr('mar_short'), tr('apr_short'), tr('may_short'), tr('jun_short'),
+  tr('jul_short'), tr('aug_short'), tr('sep_short'), tr('oct_short'), tr('nov_short'), tr('dec_short'),
+];
+
 /// Post-it / sticky-note decoration for Flash Notes paper mode.
 const _paperStickyColors = [
   Color(0xFFFFEB3B), // giallo
@@ -1076,6 +1081,10 @@ const _translations = <String, Map<String, String>>{
   'unsaved_changes': {'it': 'Modifiche non salvate', 'en': 'Unsaved changes', 'fr': 'Modifications non enregistrées', 'es': 'Cambios sin guardar'},
   'save_changes_question': {'it': 'Vuoi salvare le modifiche?', 'en': 'Do you want to save the changes?', 'fr': 'Voulez-vous enregistrer les modifications ?', 'es': '¿Deseas guardar los cambios?'},
   'discard': {'it': 'Scarta', 'en': 'Discard', 'fr': 'Annuler', 'es': 'Descartar'},
+  'exit_without_saving': {'it': 'Hai modifiche non salvate. Vuoi uscire senza salvare?', 'en': 'You have unsaved changes. Do you want to exit without saving?', 'fr': 'Vous avez des modifications non enregistrées. Voulez-vous quitter sans enregistrer ?', 'es': 'Tienes cambios sin guardar. ¿Deseas salir sin guardar?'},
+  'exit': {'it': 'Esci', 'en': 'Exit', 'fr': 'Quitter', 'es': 'Salir'},
+  'continue_editing': {'it': 'Continua a modificare', 'en': 'Continue editing', 'fr': 'Continuer à modifier', 'es': 'Seguir editando'},
+  'end_before_start_error': {'it': 'L\'ora di fine deve essere dopo l\'ora di inizio', 'en': 'End time must be after start time', 'fr': 'L\'heure de fin doit être après l\'heure de début', 'es': 'La hora de fin debe ser posterior a la hora de inicio'},
   'transcribe_voice_note': {'it': 'Trascrivi nota vocale', 'en': 'Transcribe voice note', 'fr': 'Transcrire la note vocale', 'es': 'Transcribir nota de voz'},
   'convert_audio_to_text': {'it': 'Converti l\'audio in testo', 'en': 'Convert audio to text', 'fr': 'Convertir l\'audio en texte', 'es': 'Convertir audio a texto'},
   'smart_summary': {'it': 'Riassunto intelligente', 'en': 'Smart summary', 'fr': 'Résumé intelligent', 'es': 'Resumen inteligente'},
@@ -1718,6 +1727,37 @@ const _translations = <String, Map<String, String>>{
   'align_left_short': {'it': 'Sinistra', 'en': 'Left', 'fr': 'Gauche', 'es': 'Izquierda'},
   'align_center_short': {'it': 'Centro', 'en': 'Center', 'fr': 'Centre', 'es': 'Centro'},
   'align_right_short': {'it': 'Destra', 'en': 'Right', 'fr': 'Droite', 'es': 'Derecha'},
+
+  // ── Missing 'days' key (BUG #11) ──
+  'days': {'it': 'giorni', 'en': 'days', 'fr': 'jours', 'es': 'días'},
+
+  // ── Short month abbreviations (BUG #12) ──
+  'jan_short': {'it': 'Gen', 'en': 'Jan', 'fr': 'Jan', 'es': 'Ene'},
+  'feb_short': {'it': 'Feb', 'en': 'Feb', 'fr': 'Fév', 'es': 'Feb'},
+  'mar_short': {'it': 'Mar', 'en': 'Mar', 'fr': 'Mar', 'es': 'Mar'},
+  'apr_short': {'it': 'Apr', 'en': 'Apr', 'fr': 'Avr', 'es': 'Abr'},
+  'may_short': {'it': 'Mag', 'en': 'May', 'fr': 'Mai', 'es': 'May'},
+  'jun_short': {'it': 'Giu', 'en': 'Jun', 'fr': 'Jui', 'es': 'Jun'},
+  'jul_short': {'it': 'Lug', 'en': 'Jul', 'fr': 'Jul', 'es': 'Jul'},
+  'aug_short': {'it': 'Ago', 'en': 'Aug', 'fr': 'Aoû', 'es': 'Ago'},
+  'sep_short': {'it': 'Set', 'en': 'Sep', 'fr': 'Sep', 'es': 'Sep'},
+  'oct_short': {'it': 'Ott', 'en': 'Oct', 'fr': 'Oct', 'es': 'Oct'},
+  'nov_short': {'it': 'Nov', 'en': 'Nov', 'fr': 'Nov', 'es': 'Nov'},
+  'dec_short': {'it': 'Dic', 'en': 'Dec', 'fr': 'Déc', 'es': 'Dic'},
+
+  // ── Notification body text (BUG #20) ──
+  'notif_now': {'it': 'adesso!', 'en': 'now!', 'fr': 'maintenant !', 'es': '¡ahora!'},
+  'notif_in_minutes': {'it': 'tra {n} minuti', 'en': 'in {n} minutes', 'fr': 'dans {n} minutes', 'es': 'en {n} minutos'},
+  'notif_in_1_minute': {'it': 'tra 1 minuto', 'en': 'in 1 minute', 'fr': 'dans 1 minute', 'es': 'en 1 minuto'},
+  'notif_in_hours': {'it': 'tra {n} ore', 'en': 'in {n} hours', 'fr': 'dans {n} heures', 'es': 'en {n} horas'},
+  'notif_in_1_hour': {'it': 'tra 1 ora', 'en': 'in 1 hour', 'fr': 'dans 1 heure', 'es': 'en 1 hora'},
+  'notif_in_days': {'it': 'tra {n} giorni', 'en': 'in {n} days', 'fr': 'dans {n} jours', 'es': 'en {n} días'},
+  'notif_in_1_day': {'it': 'tra 1 giorno', 'en': 'in 1 day', 'fr': 'dans 1 jour', 'es': 'en 1 día'},
+  'notif_in_weeks': {'it': 'tra {n} settimane', 'en': 'in {n} weeks', 'fr': 'dans {n} semaines', 'es': 'en {n} semanas'},
+  'notif_in_1_week': {'it': 'tra 1 settimana', 'en': 'in 1 week', 'fr': 'dans 1 semaine', 'es': 'en 1 semana'},
+  'notifications_working': {'it': 'Le notifiche funzionano!', 'en': 'Notifications are working!', 'fr': 'Les notifications fonctionnent !', 'es': '¡Las notificaciones funcionan!'},
+  'scheduled_notif_working': {'it': 'Notifica programmata funziona! (10s)', 'en': 'Scheduled notification works! (10s)', 'fr': 'Notification programmée fonctionne ! (10s)', 'es': '¡Notificación programada funciona! (10s)'},
+  'week_prefix': {'it': 'Sett.', 'en': 'Wk.', 'fr': 'Sem.', 'es': 'Sem.'},
 };
 
 // ─── SQLite Database Helper ──────────────────────────────────────────────────
@@ -1728,6 +1768,7 @@ class DatabaseHelper {
   DatabaseHelper._internal();
 
   static Database? _database;
+  static Completer<Database>? _dbCompleter;
   static bool _webMode = false;
   static void enableWebMode() => _webMode = true;
   bool get isWebMode => _webMode;
@@ -1748,14 +1789,28 @@ class DatabaseHelper {
   Future<Database> get database async {
     if (_webMode) throw StateError('Web mode — use CRUD methods directly');
     if (_database != null) return _database!;
-    _database = await _initDatabase();
-    return _database!;
+    // Use Completer to prevent race condition: if two callers arrive
+    // while _database is null, only the first one initializes the DB.
+    if (_dbCompleter != null) return _dbCompleter!.future;
+    _dbCompleter = Completer<Database>();
+    try {
+      final db = await _initDatabase();
+      _database = db;
+      _dbCompleter!.complete(db);
+      return db;
+    } catch (e) {
+      _dbCompleter!.completeError(e);
+      rethrow;
+    } finally {
+      _dbCompleter = null;
+    }
   }
 
   Future<void> close() async {
     if (_database != null) {
       await _database!.close();
       _database = null;
+      _dbCompleter = null;
     }
   }
 
@@ -2352,6 +2407,54 @@ class ImageStorageHelper {
       final file = File(filePath);
       if (await file.exists()) await file.delete();
     } catch (_) {}
+  }
+
+  /// Convert absolute image_path values in a DB file to relative basenames
+  /// (e.g. `/data/.../images/abc.jpg` → `abc.jpg`) for cross-device backup.
+  static Future<void> convertPathsToRelativeInDb(String dbFilePath) async {
+    final db = await openDatabase(dbFilePath);
+    try {
+      for (final table in ['flash_notes', 'pro_notes']) {
+        final rows = await db.rawQuery(
+          "SELECT id, image_path FROM $table WHERE image_path IS NOT NULL AND image_path != ''",
+        );
+        for (final row in rows) {
+          final absPath = row['image_path'] as String;
+          final baseName = p.basename(absPath);
+          if (baseName != absPath) {
+            await db.update(table, {'image_path': baseName}, where: 'id = ?', whereArgs: [row['id']]);
+          }
+        }
+      }
+    } finally {
+      await db.close();
+    }
+  }
+
+  /// Convert relative image_path basenames back to absolute paths for the
+  /// current device after a backup restore.
+  static Future<void> convertPathsToAbsoluteInDb(String dbFilePath) async {
+    final imgDir = await ImageStorageHelper().imagesDir;
+    final imgDirPath = imgDir.path;
+    final db = await openDatabase(dbFilePath);
+    try {
+      for (final table in ['flash_notes', 'pro_notes']) {
+        final rows = await db.rawQuery(
+          "SELECT id, image_path FROM $table WHERE image_path IS NOT NULL AND image_path != ''",
+        );
+        for (final row in rows) {
+          final storedPath = row['image_path'] as String;
+          // If already an absolute path pointing to the correct directory, skip
+          if (storedPath.startsWith(imgDirPath)) continue;
+          // Extract basename (handles both relative names and foreign absolute paths)
+          final baseName = p.basename(storedPath);
+          final newPath = p.join(imgDirPath, baseName);
+          await db.update(table, {'image_path': newPath}, where: 'id = ?', whereArgs: [row['id']]);
+        }
+      }
+    } finally {
+      await db.close();
+    }
   }
 }
 
@@ -3113,8 +3216,8 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         backgroundColor: _nzIce, surfaceTintColor: Colors.transparent,
       ),
-      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       dividerTheme: DividerThemeData(color: _nzBorder.withValues(alpha: 0.4), thickness: 0.5),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0, backgroundColor: _nzAccent, foregroundColor: Colors.white,
@@ -3153,7 +3256,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _gsForest),
       ),
       cardTheme: CardThemeData(
-        elevation: 1,
+        elevation: 0,
         shadowColor: _gsAccent.withValues(alpha: 0.25),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         color: _gsCard, clipBehavior: Clip.antiAlias,
@@ -3224,7 +3327,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         titleTextStyle: GoogleFonts.libreBaskerville(fontSize: 22, fontWeight: FontWeight.bold, color: _skText),
       ),
       cardTheme: CardThemeData(
-        elevation: 1,
+        elevation: 0,
         shadowColor: _skAccent.withValues(alpha: 0.15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         color: _skCard, clipBehavior: Clip.antiAlias,
@@ -3353,7 +3456,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _luBlu),
       ),
       cardTheme: CardThemeData(
-        elevation: 1, shadowColor: _luRosso.withValues(alpha: 0.15),
+        elevation: 0, shadowColor: _luRosso.withValues(alpha: 0.15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         color: _luCard, clipBehavior: Clip.antiAlias,
       ),
@@ -3379,8 +3482,8 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         backgroundColor: _luPaglia, surfaceTintColor: Colors.transparent,
       ),
-      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       dividerTheme: DividerThemeData(color: _luBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 3, backgroundColor: _luRosso, foregroundColor: Colors.white,
@@ -3478,7 +3581,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         titleTextStyle: GoogleFonts.rajdhani(fontSize: 24, fontWeight: FontWeight.bold, color: _saText),
       ),
       cardTheme: CardThemeData(
-        elevation: 4,
+        elevation: 0,
         shadowColor: _saElectric.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12),
           side: BorderSide(color: _saElectric.withValues(alpha: 0.2))),
@@ -3542,7 +3645,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _naText),
       ),
       cardTheme: CardThemeData(
-        elevation: 2, shadowColor: _naOrange.withValues(alpha: 0.2),
+        elevation: 0, shadowColor: _naOrange.withValues(alpha: 0.2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         color: _naCard, clipBehavior: Clip.antiAlias,
       ),
@@ -3607,7 +3710,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         titleTextStyle: GoogleFonts.caveat(fontSize: 26, fontWeight: FontWeight.bold, color: _jrParchment),
       ),
       cardTheme: CardThemeData(
-        elevation: 1, shadowColor: _jrGranata.withValues(alpha: 0.3),
+        elevation: 0, shadowColor: _jrGranata.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12),
           side: BorderSide(color: _jrBorder.withValues(alpha: 0.4))),
         color: _jrCard, clipBehavior: Clip.antiAlias,
@@ -3670,7 +3773,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         titleTextStyle: GoogleFonts.shareTechMono(fontSize: 20, fontWeight: FontWeight.bold, color: _dwText),
       ),
       cardTheme: CardThemeData(
-        elevation: 2, shadowColor: _dwBorder.withValues(alpha: 0.3),
+        elevation: 0, shadowColor: _dwBorder.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: _dwBorder.withValues(alpha: 0.3))),
         color: _dwCard, clipBehavior: Clip.antiAlias,
@@ -3732,7 +3835,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         titleTextStyle: GoogleFonts.russoOne(fontSize: 22, color: _stNeon),
       ),
       cardTheme: CardThemeData(
-        elevation: 4, shadowColor: _stNeon.withValues(alpha: 0.15),
+        elevation: 0, shadowColor: _stNeon.withValues(alpha: 0.15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: _stBlood.withValues(alpha: 0.3))),
         color: _stCard, clipBehavior: Clip.antiAlias,
@@ -3824,8 +3927,8 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         backgroundColor: _faScaffold, surfaceTintColor: Colors.transparent,
       ),
-      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       dividerTheme: DividerThemeData(color: _faBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0, backgroundColor: _faVault, foregroundColor: Colors.white,
@@ -3890,8 +3993,8 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         backgroundColor: _ynYellow, surfaceTintColor: Colors.transparent,
       ),
-      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       dividerTheme: DividerThemeData(color: _ynBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0, backgroundColor: _ynRed, foregroundColor: Colors.white,
@@ -3963,8 +4066,8 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         backgroundColor: _bnScaffold, surfaceTintColor: Colors.transparent,
       ),
-      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       dividerTheme: DividerThemeData(color: _bnBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 4, backgroundColor: _bnCard, foregroundColor: _bnText,
@@ -5668,7 +5771,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         for (final dayEvents in events.values) {
           for (final event in dayEvents) {
             if (!event.startTime.isAfter(now)) continue;
-            final baseId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+            final baseId = computeEventNotifId(event);
 
             // 1) Event-specific reminder (mirrors _CalendarPageState._scheduleNotification)
             if (event.reminder != null && event.reminder!.isNotEmpty) {
@@ -5764,10 +5867,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final db = await DatabaseHelper().database;
     await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
 
+    // Create a temp copy of the DB so we can rewrite image_path to relative
+    // basenames without touching the live database.
+    final tempDir = await getTemporaryDirectory();
+    final tempDbPath = p.join(tempDir.path, 'ethos_note_autobackup_tmp.db');
+    await sourceFile.copy(tempDbPath);
+    for (final suffix in ['-wal', '-shm']) {
+      final f = File('$sourcePath$suffix');
+      if (await f.exists()) await f.copy('$tempDbPath$suffix');
+    }
+    await ImageStorageHelper.convertPathsToRelativeInDb(tempDbPath);
+
     final zip = archive.Archive();
 
-    final dbBytes = await sourceFile.readAsBytes();
+    final dbBytes = await File(tempDbPath).readAsBytes();
     zip.addFile(archive.ArchiveFile('ethos_note.db', dbBytes.length, dbBytes));
+
+    // Cleanup temp files
+    try {
+      await File(tempDbPath).delete();
+      for (final suffix in ['-wal', '-shm']) {
+        final f = File('$tempDbPath$suffix');
+        if (await f.exists()) await f.delete();
+      }
+    } catch (_) {}
 
     final imgDir = await ImageStorageHelper().imagesDir;
     if (await imgDir.exists()) {
@@ -5884,6 +6007,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
       ),
     ).then((_) {
+      if (!mounted) return;
       // Refresh pages when returning from settings
       _checkCycleDiaryBadge();
       setState(() => _refreshKey++);
@@ -6857,7 +6981,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _scheduleNotification(CalendarEventFull event, {bool allowImmediate = true}) async {
-    final baseId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+    final baseId = computeEventNotifId(event);
     final alertType = _calSettings.alertConfig.alertType;
     debugPrint('_scheduleNotification: "${event.title}" at ${event.startTime}, reminder="${event.reminder}", alertType=$alertType, allowImmediate=$allowImmediate');
 
@@ -6949,6 +7073,7 @@ class _CalendarPageState extends State<CalendarPage> {
             if (event.recurrence != null) {
               final duration = event.endTime.difference(event.startTime);
               DateTime nextStart = event.startTime;
+              final originalDay = event.startTime.day; // preserve for monthly clamping
               final effectiveEnd = event.recurrenceEndDate != null
                   ? DateTime.parse(event.recurrenceEndDate!)
                   : event.startTime.add(const Duration(days: 730));
@@ -6957,16 +7082,28 @@ class _CalendarPageState extends State<CalendarPage> {
                 count++;
                 switch (event.recurrence) {
                   case 'daily':
-                    nextStart = nextStart.add(const Duration(days: 1));
+                    // Use date arithmetic instead of Duration to avoid DST drift
+                    nextStart = DateTime(nextStart.year, nextStart.month, nextStart.day + 1, nextStart.hour, nextStart.minute);
                     break;
                   case 'weekly':
-                    nextStart = nextStart.add(const Duration(days: 7));
+                    // Use date arithmetic instead of Duration to avoid DST drift
+                    nextStart = DateTime(nextStart.year, nextStart.month, nextStart.day + 7, nextStart.hour, nextStart.minute);
                     break;
                   case 'monthly':
-                    nextStart = DateTime(nextStart.year, nextStart.month + 1, nextStart.day, nextStart.hour, nextStart.minute);
+                    // Clamp day to last day of target month to prevent overflow
+                    // (e.g. Jan 31 → Feb 28, not Mar 3)
+                    final nextMonth = nextStart.month + 1;
+                    final nextYear = nextStart.year;
+                    final lastDayOfMonth = DateTime(nextYear, nextMonth + 1, 0).day;
+                    final clampedDay = originalDay > lastDayOfMonth ? lastDayOfMonth : originalDay;
+                    nextStart = DateTime(nextYear, nextMonth, clampedDay, nextStart.hour, nextStart.minute);
                     break;
                   case 'yearly':
-                    nextStart = DateTime(nextStart.year + 1, nextStart.month, nextStart.day, nextStart.hour, nextStart.minute);
+                    // Clamp day for leap year safety (e.g. Feb 29 → Feb 28 in non-leap year)
+                    final ny = nextStart.year + 1;
+                    final lastDay = DateTime(ny, nextStart.month + 1, 0).day;
+                    final clampedD = originalDay > lastDay ? lastDay : originalDay;
+                    nextStart = DateTime(ny, nextStart.month, clampedD, nextStart.hour, nextStart.minute);
                     break;
                   default:
                     count = 730;
@@ -7077,7 +7214,7 @@ class _CalendarPageState extends State<CalendarPage> {
           deletedAt: DateTime.now(),
         ));
       }
-      final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+      final notifId = computeEventNotifId(event);
       // Cancel all notification IDs (base for event-specific, base+i+1 for global alerts)
       NotificationService.cancelReminder(notifId);
       for (int i = 0; i < _calSettings.alertMinutesBefore.length; i++) {
@@ -7136,7 +7273,7 @@ class _CalendarPageState extends State<CalendarPage> {
       final success = await GoogleCalendarService.deleteEvent(gid);
       if (success && mounted) {
         // Cancel all notification IDs for this event
-        final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+        final notifId = computeEventNotifId(event);
         NotificationService.cancelReminder(notifId);
         for (int i = 0; i < _calSettings.alertMinutesBefore.length; i++) {
           NotificationService.cancelReminder(notifId + i + 1);
@@ -7879,7 +8016,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   child: Column(
                     children: [
                       Text('${event.startTime.day}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _calSettings.calendarColor)),
-                      Text(['', 'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'][event.startTime.month], style: TextStyle(fontSize: 12, color: _calSettings.calendarColor)),
+                      Text(localizedMonthsShort()[event.startTime.month], style: TextStyle(fontSize: 12, color: _calSettings.calendarColor)),
                     ],
                   ),
                 ),
@@ -8349,7 +8486,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final days = List.generate(9, (i) => monday.add(Duration(days: i)));
 
     final weekDaysShort = [...localizedWeekdaysShort(), tr('mon'), tr('tue')];
-    const monthsShort = ['', 'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+    final monthsShort = localizedMonthsShort();
 
     Widget buildWeekDayCell(DateTime day, String label, {bool isPreview = false}) {
       final isToday = isSameDay(day, DateTime.now());
@@ -9194,6 +9331,14 @@ class HealthService {
   }
 }
 
+// ── Notification ID helper ──
+/// Computes a unique, positive 31-bit notification ID for a calendar event.
+/// Combines the event's DB id (if available) with the title hash to avoid
+/// collisions between events that happen to share the same start time.
+int computeEventNotifId(CalendarEventFull event) {
+  return ((event.id ?? 0) * 31 + event.title.hashCode) & 0x7FFFFFFF;
+}
+
 // ── Notification Service ──
 
 class NotificationService {
@@ -9429,16 +9574,28 @@ class NotificationService {
 
   static String _buildBody(String title, int minutesBefore) {
     if (minutesBefore < 60) {
-      return '$title tra $minutesBefore minuti';
+      final timeStr = minutesBefore == 1
+          ? tr('notif_in_1_minute')
+          : tr('notif_in_minutes').replaceAll('{n}', '$minutesBefore');
+      return '$title — $timeStr';
     } else if (minutesBefore < 1440) {
       final hours = minutesBefore ~/ 60;
-      return '$title tra $hours ${hours == 1 ? "ora" : "ore"}';
+      final timeStr = hours == 1
+          ? tr('notif_in_1_hour')
+          : tr('notif_in_hours').replaceAll('{n}', '$hours');
+      return '$title — $timeStr';
     } else if (minutesBefore < 10080) {
       final days = minutesBefore ~/ 1440;
-      return '$title tra $days ${days == 1 ? "giorno" : "giorni"}';
+      final timeStr = days == 1
+          ? tr('notif_in_1_day')
+          : tr('notif_in_days').replaceAll('{n}', '$days');
+      return '$title — $timeStr';
     } else {
       final weeks = minutesBefore ~/ 10080;
-      return '$title tra $weeks ${weeks == 1 ? "settimana" : "settimane"}';
+      final timeStr = weeks == 1
+          ? tr('notif_in_1_week')
+          : tr('notif_in_weeks').replaceAll('{n}', '$weeks');
+      return '$title — $timeStr';
     }
   }
 
@@ -9476,8 +9633,8 @@ class NotificationService {
       if (eventTime.isAfter(now) && minutesUntilEvent <= 30) {
         debugPrint('NotificationService: reminder time passed for #$id, event imminent ($minutesUntilEvent min), showing immediate');
         final body = minutesUntilEvent <= 0
-            ? '$title — adesso!'
-            : '$title tra $minutesUntilEvent ${minutesUntilEvent == 1 ? "minuto" : "minuti"}';
+            ? '$title — ${tr('notif_now')}'
+            : '$title — ${minutesUntilEvent == 1 ? tr('notif_in_1_minute') : tr('notif_in_minutes').replaceAll('{n}', '$minutesUntilEvent')}';
         // Use native posting for immediate notifications (Samsung compatibility)
         final nativeOk = await _showNative(
           id: id,
@@ -9627,7 +9784,7 @@ class NotificationService {
     final nativeOk = await _showNative(
       id: 99999,
       title: 'Ethos Note',
-      body: 'Le notifiche funzionano!',
+      body: tr('notifications_working'),
       channelId: _channelIdForAlertType(alertType),
     );
     if (nativeOk) {
@@ -9639,7 +9796,7 @@ class NotificationService {
       await _plugin.show(
         99999,
         'Ethos Note',
-        'Le notifiche funzionano!',
+        tr('notifications_working'),
         _buildNotifDetails(alertType),
       );
       debugPrint('NotificationService: test notification sent via plugin (alertType=$alertType)');
@@ -9664,7 +9821,7 @@ class NotificationService {
     final ok = await _scheduleNative(
       id: 99998,
       title: 'Ethos Note',
-      body: 'Notifica programmata funziona! (10s)',
+      body: tr('scheduled_notif_working'),
       channelId: channelId,
       triggerTime: triggerTime,
     );
@@ -11703,6 +11860,17 @@ class _EventEditorPageState extends State<EventEditorPage> {
         ? _titleController.text
         : ((_attachmentBase64 != null || _attachmentFilePath != null) ? tr('event') : null);
     if (title != null) {
+      // Validate end time is after start time
+      if (!_endTime.isAfter(_startTime)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr('end_before_start_error')),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
       final baseEvent = CalendarEventFull(
         title: title,
         startTime: _startTime,
@@ -13274,11 +13442,32 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     final db = await DatabaseHelper().database;
     await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
 
+    // Create a temp copy of the DB so we can rewrite image_path to relative
+    // basenames without touching the live database.
+    final tempDir = await getTemporaryDirectory();
+    final tempDbPath = p.join(tempDir.path, 'ethos_note_backup_tmp.db');
+    await sourceFile.copy(tempDbPath);
+    // Also copy WAL/SHM if they exist (shouldn't after checkpoint, but be safe)
+    for (final suffix in ['-wal', '-shm']) {
+      final f = File('$sourcePath$suffix');
+      if (await f.exists()) await f.copy('$tempDbPath$suffix');
+    }
+    await ImageStorageHelper.convertPathsToRelativeInDb(tempDbPath);
+
     final zip = archive.Archive();
 
-    // Add database file
-    final dbBytes = await sourceFile.readAsBytes();
+    // Add database file with relative paths
+    final dbBytes = await File(tempDbPath).readAsBytes();
     zip.addFile(archive.ArchiveFile('ethos_note.db', dbBytes.length, dbBytes));
+
+    // Cleanup temp files
+    try {
+      await File(tempDbPath).delete();
+      for (final suffix in ['-wal', '-shm']) {
+        final f = File('$tempDbPath$suffix');
+        if (await f.exists()) await f.delete();
+      }
+    } catch (_) {}
 
     // Add images directory
     final imgDir = await ImageStorageHelper().imagesDir;
@@ -13388,6 +13577,8 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             }
           }
         }
+        // Convert relative/foreign image_path values to this device's absolute paths
+        await ImageStorageHelper.convertPathsToAbsoluteInDb(targetPath);
       } else {
         // Legacy .db file — copy directly, migration will run on next restart
         await pickedFile.copy(targetPath);
@@ -13625,6 +13816,8 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             }
           }
         }
+        // Convert relative/foreign image_path values to this device's absolute paths
+        await ImageStorageHelper.convertPathsToAbsoluteInDb(targetPath);
       } else {
         await File(targetPath).writeAsBytes(fileBytes);
       }
@@ -13817,6 +14010,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const IntegrationsPage())).then((_) {
+                  if (!mounted) return;
                   setState(() {});
                 });
               },
@@ -17444,10 +17638,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
       await db.insertProNote(ProNote.fromJson(trashed.noteJson));
     } else if (trashed.type == 'event') {
       final event = CalendarEventFull.fromJson(trashed.noteJson);
-      final allEvents = await db.getAllEvents();
-      final key = event.dateKey;
-      allEvents.putIfAbsent(key, () => []).add(event);
-      await db.saveAllEvents(allEvents);
+      await db.insertEvent(event);
     } else {
       await db.insertFlashNote(FlashNote.fromJson(trashed.noteJson));
     }
@@ -17736,6 +17927,9 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   String _prevText = '';
   // Audio playback (for audio notes opened as text)
   ap.AudioPlayer? _editorAudioPlayer;
+  StreamSubscription? _editorPlayerCompleteSub;
+  StreamSubscription? _editorPositionSub;
+  StreamSubscription? _editorDurationSub;
   bool _isPlayingAudio = false;
   Duration _editorAudioPosition = Duration.zero;
   Duration _editorAudioDuration = Duration.zero;
@@ -17778,6 +17972,9 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   void dispose() {
     for (final r in _recognizers) { r.dispose(); }
     _recognizers.clear();
+    _editorPlayerCompleteSub?.cancel();
+    _editorPositionSub?.cancel();
+    _editorDurationSub?.cancel();
     _editorAudioPlayer?.dispose();
     _bodyController.removeListener(_handleListContinuation);
     _bodyController.dispose();
@@ -18371,13 +18568,13 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                                 } else {
                                   if (_editorAudioPlayer == null) {
                                     _editorAudioPlayer = ap.AudioPlayer();
-                                    _editorAudioPlayer!.onPlayerComplete.listen((_) {
+                                    _editorPlayerCompleteSub = _editorAudioPlayer!.onPlayerComplete.listen((_) {
                                       if (mounted) setState(() { _isPlayingAudio = false; _editorAudioPosition = Duration.zero; });
                                     });
-                                    _editorAudioPlayer!.onPositionChanged.listen((p) {
+                                    _editorPositionSub = _editorAudioPlayer!.onPositionChanged.listen((p) {
                                       if (mounted) setState(() => _editorAudioPosition = p);
                                     });
-                                    _editorAudioPlayer!.onDurationChanged.listen((d) {
+                                    _editorDurationSub = _editorAudioPlayer!.onDurationChanged.listen((d) {
                                       if (mounted) setState(() => _editorAudioDuration = d);
                                     });
                                   }
@@ -18799,8 +18996,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     }
   }
 
-  static const _months = ['', 'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
-    'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+  static List<String> get _months => localizedMonthsShort();
 
   String _getGroupKey(DateTime dt) {
     switch (_groupingMode) {
@@ -18825,7 +19021,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         final parts = key.split('/');
         return parts.length >= 2 ? '${parts[0]}/${parts[1]}' : key;
       case 'weekly':
-        return 'Sett. $key';
+        return '${tr('week_prefix')} $key';
       case 'yearly':
         return key;
       case 'monthly':
@@ -19985,7 +20181,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       }
 
       final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
-      final response = await model.generateContent([gemini.Content.text(prompt)]);
+      final response = await model.generateContent([gemini.Content.text(prompt)]).timeout(const Duration(seconds: 60));
       final result = response.text ?? tr('no_results');
 
       if (!mounted) return;
@@ -21748,8 +21944,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Progress bar (recording progress to 2 min max)
-                  if (isRecording)
+                  // Progress bar (recording progress to max duration)
+                  if (isRecording && maxDuration > 0)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 32),
                       child: ClipRRect(
@@ -21767,7 +21963,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                     isRecording ? tr('tap_to_stop') : tr('tap_to_record'),
                     style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                   ),
-                  if (isRecording)
+                  if (isRecording && maxDuration > 0)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
@@ -23534,7 +23730,7 @@ class _NotesProPageState extends State<NotesProPage> {
     return showDialog<String>(
       context: context,
       builder: (emojiCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(tr('emoji_icon')),
         content: TextField(
           controller: emojiController,
@@ -25624,7 +25820,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
     );
 
     try {
-      final pdfBytes = await generateNotePdfFromProNote(_currentNote, isFlashNote: true, photosFullPage: photosFullPage);
+      final pdfBytes = await generateNotePdfFromProNote(_currentNote, isFlashNote: false, photosFullPage: photosFullPage);
       if (!mounted) return;
       Navigator.pop(context); // dismiss loading
       Navigator.push(
@@ -25849,6 +26045,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   List<String> _documentLinks = [];
   bool _isAiLoading = false;
   List<Map<String, dynamic>> _customTemplates = [];
+  bool _hasChanges = false;
+  String _initialTitle = '';
+  String _initialDeltaJson = '';
+  String _initialHeader = '';
+  String _initialFooter = '';
 
   // Format state tracking
   bool _fmtBold = false;
@@ -26012,8 +26213,60 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     }
     _quillController.addListener(_updateDocumentLinks);
     _quillController.addListener(_updateFormatState);
+    _quillController.addListener(_onContentChanged);
+    _titleController.addListener(_onContentChanged);
+    _headerController.addListener(_onContentChanged);
+    _footerController.addListener(_onContentChanged);
+    // Store initial state for change detection
+    _initialTitle = _titleController.text;
+    _initialDeltaJson = json.encode(_quillController.document.toDelta().toJson());
+    _initialHeader = _headerController.text;
+    _initialFooter = _footerController.text;
     _updateDocumentLinks();
     _loadCustomTemplates();
+  }
+
+  void _onContentChanged() {
+    if (_hasChanges) return;
+    final currentTitle = _titleController.text;
+    final currentDelta = json.encode(_quillController.document.toDelta().toJson());
+    final currentHeader = _headerController.text;
+    final currentFooter = _footerController.text;
+    if (currentTitle != _initialTitle ||
+        currentDelta != _initialDeltaJson ||
+        currentHeader != _initialHeader ||
+        currentFooter != _initialFooter) {
+      setState(() => _hasChanges = true);
+    }
+  }
+
+  Future<void> _confirmClose() async {
+    if (!_hasChanges) {
+      Navigator.pop(context);
+      return;
+    }
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('unsaved_changes')),
+        content: Text(tr('exit_without_saving')),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'stay'),
+            child: Text(tr('continue_editing')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'exit'),
+            child: Text(tr('exit')),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'exit') {
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _loadCustomTemplates() async {
@@ -26081,7 +26334,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       }
 
       final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
-      final response = await model.generateContent([gemini.Content.text(prompt)]);
+      final response = await model.generateContent([gemini.Content.text(prompt)]).timeout(const Duration(seconds: 60));
       final result = response.text ?? tr('no_results');
 
       if (!mounted) return;
@@ -26566,6 +26819,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
   void _applyTemplate(String name, BusinessTemplate template) {
     _quillController.removeListener(_updateDocumentLinks);
+    _quillController.removeListener(_updateFormatState);
     _quillController.dispose();
     setState(() {
       _selectedTemplate = name;
@@ -26578,6 +26832,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         selection: const TextSelection.collapsed(offset: 0),
       );
       _quillController.addListener(_updateDocumentLinks);
+      _quillController.addListener(_updateFormatState);
     });
   }
 
@@ -27149,6 +27404,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     final deltaStr = t['delta'] as String?;
     if (deltaStr == null) return;
     _quillController.removeListener(_updateDocumentLinks);
+    _quillController.removeListener(_updateFormatState);
     _quillController.dispose();
     setState(() {
       _selectedTemplate = name;
@@ -27157,14 +27413,24 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         selection: const TextSelection.collapsed(offset: 0),
       );
       _quillController.addListener(_updateDocumentLinks);
+      _quillController.addListener(_updateFormatState);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    Widget scaffold = Scaffold(
+    Widget scaffold = PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmClose();
+      },
+      child: Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _confirmClose,
+        ),
         title: Text(widget.existingNote != null ? 'Modifica Nota' : 'Nuova Deep Note'),
         elevation: 0,
         scrolledUnderElevation: 2,
@@ -27387,6 +27653,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
             ),
         ],
       ),
+    ),
     );
     if (widget.heroTag != null) {
       scaffold = Hero(tag: widget.heroTag!, child: Material(type: MaterialType.transparency, child: scaffold));
@@ -27398,6 +27665,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   void dispose() {
     _quillController.removeListener(_updateDocumentLinks);
     _quillController.removeListener(_updateFormatState);
+    _quillController.removeListener(_onContentChanged);
     _titleController.dispose();
     _headerController.dispose();
     _footerController.dispose();
