@@ -39,7 +39,7 @@ import 'dart:io' show Directory, File, FileMode;
 import 'package:archive/archive.dart' as archive;
 import 'package:share_plus/share_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'dart:ui' show PlatformDispatcher;
+import 'dart:ui' as ui show PlatformDispatcher, Gradient;
 import 'package:flutter_contacts/flutter_contacts.dart' as contacts_pkg;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -96,6 +96,98 @@ class _LinedPaperPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+/// Micro-dot texture simulating recycled paper fiber.
+class _PaperTexturePainter extends CustomPainter {
+  final int seed;
+  const _PaperTexturePainter({this.seed = 0});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rng = math.Random(seed);
+    final dotPaint = Paint()..color = const Color(0x0A795548);
+    final count = (size.width * size.height / 120).clamp(50, 600).toInt();
+    for (int i = 0; i < count; i++) {
+      final x = rng.nextDouble() * size.width;
+      final y = rng.nextDouble() * size.height;
+      final r = 0.4 + rng.nextDouble() * 0.8;
+      canvas.drawCircle(Offset(x, y), r, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PaperTexturePainter old) => old.seed != seed;
+}
+
+/// Horizontal ruled lines + double red legal-pad margin with wobble effect.
+class _PaperMarginPainter extends CustomPainter {
+  final int seed;
+  const _PaperMarginPainter({this.seed = 0});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rng = math.Random(seed);
+    const lineSpacing = 22.0;
+    // Horizontal blue rules
+    final linePaint = Paint()
+      ..color = const Color(0x221565C0)
+      ..strokeWidth = 0.5;
+    for (double y = lineSpacing; y < size.height; y += lineSpacing) {
+      final wobble = (rng.nextDouble() - 0.5) * 0.6;
+      canvas.drawLine(Offset(0, y + wobble), Offset(size.width, y + wobble), linePaint);
+    }
+    // Double red margin (legal pad style) with slight wobble
+    final marginPaint = Paint()
+      ..color = const Color(0x30E53935)
+      ..strokeWidth = 0.7;
+    final marginPaint2 = Paint()
+      ..color = const Color(0x20E53935)
+      ..strokeWidth = 0.6;
+    const mx1 = 38.0;
+    const mx2 = 41.0;
+    for (double y = 0; y < size.height; y += 4) {
+      final w1 = (rng.nextDouble() - 0.5) * 0.4;
+      final w2 = (rng.nextDouble() - 0.5) * 0.4;
+      canvas.drawLine(Offset(mx1 + w1, y), Offset(mx1 + w1, y + 4), marginPaint);
+      canvas.drawLine(Offset(mx2 + w2, y), Offset(mx2 + w2, y + 4), marginPaint2);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PaperMarginPainter old) => old.seed != seed;
+}
+
+/// Triangle gradient at bottom-right corner for Post-it curl effect.
+class _CornerCurlPainter extends CustomPainter {
+  final Color baseColor;
+  const _CornerCurlPainter({required this.baseColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const curlSize = 14.0;
+    final path = Path()
+      ..moveTo(size.width, size.height - curlSize)
+      ..lineTo(size.width, size.height)
+      ..lineTo(size.width - curlSize, size.height)
+      ..close();
+    final gradient = ui.Gradient.linear(
+      Offset(size.width, size.height - curlSize),
+      Offset(size.width - curlSize, size.height),
+      [const Color(0x40000000), const Color(0x08000000)],
+    );
+    canvas.drawPath(path, Paint()..shader = gradient);
+    // Lighter triangle underneath the curl
+    final underPath = Path()
+      ..moveTo(size.width - curlSize, size.height)
+      ..lineTo(size.width, size.height - curlSize)
+      ..lineTo(size.width - curlSize + 2, size.height - 2)
+      ..close();
+    canvas.drawPath(underPath, Paint()..color = const Color(0x18FFFFFF));
+  }
+
+  @override
+  bool shouldRepaint(covariant _CornerCurlPainter old) => old.baseColor != baseColor;
+}
+
 /// Maps a theme mode string to [bgColor, iconCircleColor, separatorColor]
 /// for the Flash Notes Shortcuts home-screen widget.
 List<int> _widgetColorsForTheme(String mode) {
@@ -117,6 +209,9 @@ List<int> _widgetColorsForTheme(String mode) {
     'sottosopra':    [0xFF0A0A0A, 0xFFD50000, 0x33FFFFFF],
     'rifugio':       [0xFF1A1A0A, 0xFF32CD32, 0x33FFFFFF],
     'yellow_note':   [0xFFFEF9C3, 0xFF1E3A8A, 0x33000000],
+    'deep_abyss':    [0xFF000000, 0xFF1A237E, 0x33FFFFFF],
+    'midnight_forest': [0xFF050A05, 0xFF2E7D32, 0x33FFFFFF],
+    'cyberpunk_void':  [0xFF0F0F10, 0xFF00BCD4, 0x33FFFFFF],
   };
   return map[mode] ?? map['default']!;
 }
@@ -162,6 +257,9 @@ Color _sectionAccent(BuildContext context, int section) {
     0xFFB71C1C: [Color(0xFFD50000), Color(0xFFB71C1C), Color(0xFFFF1744)], // Stranger Things
     0xFF32CD32: [Color(0xFF32CD32), Color(0xFF005FB8), Color(0xFFFFEB3B)], // Fallout
     0xFF1E3A8A: [Color(0xFFEF4444), Color(0xFF1E3A8A), Color(0xFFFFA726)], // Yellow Note
+    0xFF1A237E: [Color(0xFF3949AB), Color(0xFF1A237E), Color(0xFF7C4DFF)], // Deep Abyss
+    0xFF2E7D32: [Color(0xFF388E3C), Color(0xFF2E7D32), Color(0xFF8D6E63)], // Midnight Forest
+    0xFF00BCD4: [Color(0xFF00ACC1), Color(0xFF00BCD4), Color(0xFFFF4081)], // Cyberpunk Void
   };
   return map[v]?[section] ?? const [Color(0xFFE53935), Color(0xFF1E88E5), Color(0xFFFFA726)][section];
 }
@@ -176,6 +274,8 @@ String? _themedFont(BuildContext context) {
     0xFF691212: 'Caveat', // Jiraiya — calligraphic brush
     0xFF32CD32: 'Share Tech Mono', // Fallout — monospaced terminal
     0xFF1E3A8A: 'Courier Prime', // Yellow Note — typewriter
+    0xFF2E7D32: 'Lora', // Midnight Forest — organic
+    0xFF00BCD4: 'Share Tech Mono', // Cyberpunk Void — tech
   };
   return map[v];
 }
@@ -187,6 +287,7 @@ bool _hasCustomTheme(BuildContext context) {
     0xFFA3274F, 0xFF795548, 0xFF78909C, 0xFF6B8F71, 0xFFB5838D,
     0xFF1B4D3E, 0xFFD32F2F, 0xFFE6A800, 0xFF7C4DFF, 0xFFE65100,
     0xFF691212, 0xFF003B6F, 0xFFB71C1C, 0xFF32CD32, 0xFF1E3A8A,
+    0xFF1A237E, 0xFF2E7D32, 0xFF00BCD4,
   }.contains(v);
 }
 
@@ -209,6 +310,9 @@ String _themedHighlight(BuildContext context) {
     0xFFB71C1C: '#0A0A1A', // Stranger Things — abyss
     0xFF32CD32: '#1A1A1A', // Fallout — terminal dark
     0xFF1E3A8A: '#FEF9C3', // Yellow Note — pad yellow
+    0xFF1A237E: '#060606', // Deep Abyss — dark surface
+    0xFF2E7D32: '#0A120A', // Midnight Forest — dark green
+    0xFF00BCD4: '#141418', // Cyberpunk Void — dark surface
   };
   return map[v] ?? '#FFF9C4';
 }
@@ -225,6 +329,7 @@ Color? _themeOverlayColor(BuildContext context) {
     0xFF003B6F: Color(0x06003B6F), // Dr. Who — retro screen
     0xFF32CD32: Color(0x0832CD32), // Fallout — terminal glow
     0xFF1E3A8A: Color(0x061E3A8A), // Yellow Note — subtle paper tint
+    0xFF2E7D32: Color(0x06050A05), // Midnight Forest — moss effect
   };
   return map[v];
 }
@@ -248,6 +353,40 @@ List<String> localizedMonths() => [
 ];
 
 List<String> localizedWeekdaysShort() => [tr('mon'), tr('tue'), tr('wed'), tr('thu'), tr('fri'), tr('sat'), tr('sun')];
+
+/// Post-it / sticky-note decoration for Flash Notes paper mode.
+const _paperStickyColors = [
+  Color(0xFFFFEB3B), // giallo
+  Color(0xFFF48FB1), // rosa
+  Color(0xFF81D4FA), // azzurro
+  Color(0xFFA5D6A7), // verde menta
+  Color(0xFFFFCC80), // pesca
+];
+
+BoxDecoration _paperStickyDecoration(int colorIndex) {
+  final color = _paperStickyColors[colorIndex % _paperStickyColors.length];
+  return BoxDecoration(
+    color: color,
+    borderRadius: const BorderRadius.only(
+      topLeft: Radius.circular(2),
+      topRight: Radius.circular(4),
+      bottomLeft: Radius.circular(3),
+      bottomRight: Radius.circular(1),
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: const Color(0x33000000),
+        offset: const Offset(3, 4),
+        blurRadius: 8,
+      ),
+      BoxShadow(
+        color: const Color(0x18000000),
+        offset: const Offset(-1, 1),
+        blurRadius: 3,
+      ),
+    ],
+  );
+}
 
 const _translations = <String, Map<String, String>>{
   // ── Navigation ──
@@ -626,6 +765,10 @@ const _translations = <String, Map<String, String>>{
   'markdown': {'it': 'Markdown', 'en': 'Markdown', 'fr': 'Markdown', 'es': 'Markdown'},
   'rich': {'it': 'Ricco', 'en': 'Rich', 'fr': 'Riche', 'es': 'Rico'},
   'ai_correction_level': {'it': 'Livello Correzione AI', 'en': 'AI Correction Level', 'fr': 'Niveau de correction IA', 'es': 'Nivel de corrección IA'},
+  'note_style': {'it': 'Stile Note', 'en': 'Note Style', 'fr': 'Style des notes', 'es': 'Estilo de notas'},
+  'note_style_modern': {'it': 'Moderno', 'en': 'Modern', 'fr': 'Moderne', 'es': 'Moderno'},
+  'note_style_paper': {'it': 'Paper & Sticky', 'en': 'Paper & Sticky', 'fr': 'Paper & Sticky', 'es': 'Paper & Sticky'},
+  'note_style_paper_desc': {'it': 'Aspetto Post-it con texture carta riciclata', 'en': 'Post-it look with recycled paper texture', 'fr': 'Aspect Post-it avec texture papier recyclé', 'es': 'Aspecto Post-it con textura de papel reciclado'},
   'grouping_mode': {'it': 'Modalità Raggruppamento', 'en': 'Grouping Mode', 'fr': 'Mode de regroupement', 'es': 'Modo de agrupación'},
   'daily': {'it': 'Giornaliero', 'en': 'Daily', 'fr': 'Quotidien', 'es': 'Diario'},
   'weekly': {'it': 'Settimanale', 'en': 'Weekly', 'fr': 'Hebdomadaire', 'es': 'Semanal'},
@@ -1053,6 +1196,7 @@ const _translations = <String, Map<String, String>>{
   'unlock_horoscope': {'it': 'Sblocca Oroscopo', 'en': 'Unlock Horoscope', 'fr': 'Débloquer Horoscope', 'es': 'Desbloquear Horóscopo'},
   'unlock_unlimited_voice': {'it': 'Sblocca note vocali illimitate', 'en': 'Unlock unlimited voice notes', 'fr': 'Débloquer notes vocales illimitées', 'es': 'Desbloquear notas de voz ilimitadas'},
   'unlock_photo_recognition': {'it': 'Riconoscimento Foto AI', 'en': 'AI Photo Recognition', 'fr': 'Reconnaissance photo IA', 'es': 'Reconocimiento de fotos IA'},
+  'unlock_paper_sticky': {'it': 'Stile Paper & Sticky', 'en': 'Paper & Sticky Style', 'fr': 'Style Paper & Sticky', 'es': 'Estilo Paper & Sticky'},
   'unlock_cycle_tracking': {'it': 'Tracciamento Ciclo', 'en': 'Cycle Tracking', 'fr': 'Suivi du cycle', 'es': 'Seguimiento del ciclo'},
   'ephemera_theme': {'it': 'Ephemera', 'en': 'Ephemera', 'fr': 'Ephemera', 'es': 'Ephemera'},
   'unlock_ephemera_theme': {'it': 'Tema Ephemera', 'en': 'Ephemera Theme', 'fr': 'Thème Ephemera', 'es': 'Tema Ephemera'},
@@ -1098,6 +1242,13 @@ const _translations = <String, Map<String, String>>{
   'collection_oceano': {'it': 'Oltre l\'Oceano', 'en': 'Beyond the Ocean', 'fr': 'Au-delà de l\'Océan', 'es': 'Más allá del Océano'},
   'collection_foglia': {'it': 'Spirito della Foglia', 'en': 'Spirit of the Leaf', 'fr': 'Esprit de la Feuille', 'es': 'Espíritu de la Hoja'},
   'collection_cult': {'it': 'Serie Cult', 'en': 'Cult Series', 'fr': 'Séries Cultes', 'es': 'Series de Culto'},
+  'collection_notte': {'it': 'Notte Profonda', 'en': 'Deep Night', 'fr': 'Nuit Profonde', 'es': 'Noche Profunda'},
+  'deep_abyss_theme': {'it': 'Deep Abyss', 'en': 'Deep Abyss', 'fr': 'Deep Abyss', 'es': 'Deep Abyss'},
+  'deep_abyss_desc': {'it': 'Nero OLED puro, minimalismo spettrale e bagliori indaco', 'en': 'Pure OLED black, spectral minimalism and indigo glow', 'fr': 'Noir OLED pur, minimalisme spectral et lueur indigo', 'es': 'Negro OLED puro, minimalismo espectral y brillo índigo'},
+  'midnight_forest_theme': {'it': 'Midnight Forest', 'en': 'Midnight Forest', 'fr': 'Midnight Forest', 'es': 'Midnight Forest'},
+  'midnight_forest_desc': {'it': 'Verde notte organico, toni bronzo e atmosfera rilassante', 'en': 'Organic night green, bronze tones and relaxing atmosphere', 'fr': 'Vert nuit organique, tons bronze et atmosphère relaxante', 'es': 'Verde noche orgánico, tonos bronce y atmósfera relajante'},
+  'cyberpunk_void_theme': {'it': 'Cyberpunk Void', 'en': 'Cyberpunk Void', 'fr': 'Cyberpunk Void', 'es': 'Cyberpunk Void'},
+  'cyberpunk_void_desc': {'it': 'Neon ciano e magenta su antracite futuristico', 'en': 'Neon cyan and magenta on futuristic anthracite', 'fr': 'Néon cyan et magenta sur anthracite futuriste', 'es': 'Neón cian y magenta sobre antracita futurista'},
   'unlock_unlimited_profiles': {'it': 'Sblocca profili illimitati', 'en': 'Unlock unlimited profiles', 'fr': 'Débloquer profils illimités', 'es': 'Desbloquear perfiles ilimitados'},
   'max_duration': {'it': 'Durata massima', 'en': 'Max duration', 'fr': 'Durée maximale', 'es': 'Duración máxima'},
   'unlimited': {'it': 'Illimitata', 'en': 'Unlimited', 'fr': 'Illimitée', 'es': 'Ilimitada'},
@@ -2255,7 +2406,7 @@ void main() {
       _logError(details.exception, details.stack);
     };
 
-    PlatformDispatcher.instance.onError = (error, stack) {
+    ui.PlatformDispatcher.instance.onError = (error, stack) {
       _logError(error, stack);
       return true;
     };
@@ -3713,6 +3864,209 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
     );
   }
 
+  // ── Deep Abyss Theme (OLED pure black, spectral minimalism) ──
+  static const _daIndigo = Color(0xFF1A237E);
+  static const _daViolet = Color(0xFF7C4DFF);
+  static const _daDarkViolet = Color(0xFF4A148C);
+  static const _daScaffold = Color(0xFF000000);
+  static const _daCard = Color(0xFF0A0A0A);
+  static const _daSurface = Color(0xFF060606);
+  static const _daText = Color(0xFFC8C8C8);
+
+  ThemeData _buildDeepAbyssTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _daIndigo, brightness: Brightness.dark,
+      primary: _daIndigo, onPrimary: Colors.white,
+      surface: _daSurface, onSurface: _daText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _daScaffold,
+      textTheme: ThemeData.dark().textTheme.apply(
+        bodyColor: _daText, displayColor: _daText,
+      ),
+      appBarTheme: const AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _daText,
+        titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _daText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+        color: _daCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _daIndigo, foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: BorderSide(color: _daIndigo.withValues(alpha: 0.4)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _daCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _daIndigo, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _daViolet.withValues(alpha: 0.12),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _daScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: Colors.white.withValues(alpha: 0.06), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 0, backgroundColor: _daDarkViolet, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _daIndigo : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Midnight Forest Theme (organic night green, relaxing) ──
+  static const _mfGreen = Color(0xFF2E7D32);
+  static const _mfBronze = Color(0xFF8D6E63);
+  static const _mfScaffold = Color(0xFF050A05);
+  static const _mfCard = Color(0xFF0C140C);
+  static const _mfSurface = Color(0xFF0A120A);
+  static const _mfText = Color(0xFFF5F0E1);
+  static const _mfBorder = Color(0xFF1B3A1B);
+
+  ThemeData _buildMidnightForestTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _mfGreen, brightness: Brightness.dark,
+      primary: _mfGreen, onPrimary: Colors.white,
+      surface: _mfSurface, onSurface: _mfText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _mfScaffold,
+      textTheme: GoogleFonts.loraTextTheme(ThemeData.dark().textTheme).apply(
+        bodyColor: _mfText, displayColor: _mfText,
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _mfText,
+        titleTextStyle: GoogleFonts.lora(fontSize: 20, fontWeight: FontWeight.bold, color: _mfText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: _mfBorder.withValues(alpha: 0.4))),
+        color: _mfCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _mfBronze, foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: BorderSide(color: _mfGreen.withValues(alpha: 0.4)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _mfCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _mfBorder.withValues(alpha: 0.4))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _mfBorder.withValues(alpha: 0.4))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _mfGreen, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _mfGreen.withValues(alpha: 0.15),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _mfScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _mfBorder.withValues(alpha: 0.3), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 0, backgroundColor: _mfGreen, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _mfGreen : null),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+      ),
+    );
+  }
+
+  // ── Cyberpunk Void Theme (neon dark, futuristic) ──
+  static const _cvCyan = Color(0xFF00BCD4);
+  static const _cvMagenta = Color(0xFFFF4081);
+  static const _cvScaffold = Color(0xFF0F0F10);
+  static const _cvCard = Color(0xFF1A1A1E);
+  static const _cvSurface = Color(0xFF141418);
+  static const _cvText = Color(0xFFB0E0E6);
+
+  ThemeData _buildCyberpunkVoidTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _cvCyan, brightness: Brightness.dark,
+      primary: _cvCyan, onPrimary: Colors.black,
+      surface: _cvSurface, onSurface: _cvText,
+    );
+    return ThemeData(
+      colorScheme: colorScheme, useMaterial3: true,
+      scaffoldBackgroundColor: _cvScaffold,
+      textTheme: GoogleFonts.shareTechMonoTextTheme(ThemeData.dark().textTheme).apply(
+        bodyColor: _cvText, displayColor: _cvText,
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0, scrolledUnderElevation: 2, centerTitle: true,
+        backgroundColor: Colors.transparent, foregroundColor: _cvText,
+        titleTextStyle: GoogleFonts.shareTechMono(fontSize: 20, fontWeight: FontWeight.bold, color: _cvText),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: _cvCyan.withValues(alpha: 0.15))),
+        color: _cvCard, clipBehavior: Clip.antiAlias,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(backgroundColor: _cvMagenta, foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          side: BorderSide(color: _cvCyan.withValues(alpha: 0.4)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: _cvCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _cvCyan.withValues(alpha: 0.15))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _cvCyan.withValues(alpha: 0.15))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _cvCyan, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0, height: 65, indicatorColor: _cvCyan.withValues(alpha: 0.15),
+        indicatorShape: const StadiumBorder(), labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: _cvScaffold, surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      dividerTheme: DividerThemeData(color: _cvCyan.withValues(alpha: 0.1), thickness: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 0, backgroundColor: _cvCyan, foregroundColor: Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? _cvCyan : null),
+        checkColor: const WidgetStatePropertyAll(Colors.black),
+      ),
+    );
+  }
+
   ThemeData get _activeTheme {
     switch (_themeMode) {
       case 'dark': return _buildTheme(Brightness.dark);
@@ -3731,6 +4085,9 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
       case 'sottosopra': return _buildSottosopaTheme();
       case 'rifugio': return _buildRifugioTheme();
       case 'yellow_note': return _buildYellowNoteTheme();
+      case 'deep_abyss': return _buildDeepAbyssTheme();
+      case 'midnight_forest': return _buildMidnightForestTheme();
+      case 'cyberpunk_void': return _buildCyberpunkVoidTheme();
       default: return _buildTheme(Brightness.light);
     }
   }
@@ -11820,6 +12177,9 @@ class _SettingsPageState extends State<SettingsPage> {
       case 'sottosopra': return 'Sottosopra';
       case 'rifugio': return 'Rifugio Atomico';
       case 'yellow_note': return 'Yellow Note';
+      case 'deep_abyss': return 'Deep Abyss';
+      case 'midnight_forest': return 'Midnight Forest';
+      case 'cyberpunk_void': return 'Cyberpunk Void';
       default: return 'Ethos';
     }
   }
@@ -14614,6 +14974,7 @@ class FlashNotesSettings {
   final String groupingMode; // 'daily', 'weekly', 'monthly', 'yearly'
   final int maxAudioDurationSeconds;
   final bool photoRecognitionEnabled;
+  final String noteStyle; // 'modern', 'paper'
 
   const FlashNotesSettings({
     this.geminiEnabled = false,
@@ -14626,6 +14987,7 @@ class FlashNotesSettings {
     this.groupingMode = 'weekly',
     this.maxAudioDurationSeconds = 120,
     this.photoRecognitionEnabled = false,
+    this.noteStyle = 'modern',
   });
 
   FlashNotesSettings copyWith({
@@ -14639,6 +15001,7 @@ class FlashNotesSettings {
     String? groupingMode,
     int? maxAudioDurationSeconds,
     bool? photoRecognitionEnabled,
+    String? noteStyle,
   }) {
     return FlashNotesSettings(
       geminiEnabled: geminiEnabled ?? this.geminiEnabled,
@@ -14651,6 +15014,7 @@ class FlashNotesSettings {
       groupingMode: groupingMode ?? this.groupingMode,
       maxAudioDurationSeconds: maxAudioDurationSeconds ?? this.maxAudioDurationSeconds,
       photoRecognitionEnabled: photoRecognitionEnabled ?? this.photoRecognitionEnabled,
+      noteStyle: noteStyle ?? this.noteStyle,
     );
   }
 
@@ -14665,6 +15029,7 @@ class FlashNotesSettings {
     'groupingMode': groupingMode,
     'maxAudioDurationSeconds': maxAudioDurationSeconds,
     'photoRecognitionEnabled': photoRecognitionEnabled,
+    'noteStyle': noteStyle,
   };
 
   factory FlashNotesSettings.fromJson(Map<String, dynamic> json) =>
@@ -14679,6 +15044,7 @@ class FlashNotesSettings {
         groupingMode: json['groupingMode'] ?? 'weekly',
         maxAudioDurationSeconds: json['maxAudioDurationSeconds'] ?? 120,
         photoRecognitionEnabled: json['photoRecognitionEnabled'] ?? false,
+        noteStyle: json['noteStyle'] ?? 'modern',
       );
 
   static Future<FlashNotesSettings> load() async {
@@ -15436,6 +15802,63 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
 
           const SizedBox(height: 24),
 
+          // SEZIONE: Stile Note
+          _buildSectionHeader(tr('note_style'), Icons.style, sectionColor),
+          const SizedBox(height: 8),
+          if (_auraSettings.paperStickyPurchased)
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: colorScheme.surfaceContainerLowest,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<String>(
+                        segments: [
+                          ButtonSegment(value: 'modern', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('note_style_modern'), style: const TextStyle(fontSize: 11)))),
+                          ButtonSegment(value: 'paper', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('note_style_paper'), style: const TextStyle(fontSize: 11)))),
+                        ],
+                        selected: {_settings.noteStyle},
+                        onSelectionChanged: (sel) {
+                          _updateSettings(_settings.copyWith(noteStyle: sel.first));
+                        },
+                        showSelectedIcon: false,
+                        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                      ),
+                    ),
+                    if (_settings.noteStyle == 'paper') ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        tr('note_style_paper_desc'),
+                        style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            )
+          else
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: colorScheme.surfaceContainerLowest,
+              child: ListTile(
+                leading: Icon(Icons.lock_outline, color: colorScheme.onSurfaceVariant),
+                title: Text(tr('note_style_paper'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(tr('ethos_aura'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const EthosAuraPage())).then((_) => _loadAuraSettings());
+                },
+              ),
+            ),
+
+          const SizedBox(height: 24),
+
           // SEZIONE C: Durata nota vocale
           _buildSectionHeader(tr('voice_duration'), Icons.mic, sectionColor),
           const SizedBox(height: 8),
@@ -15667,6 +16090,25 @@ class _ThemeCatalogPageState extends State<_ThemeCatalogPage> {
         color: const Color(0xFF1E3A8A), previewColors: const [Color(0xFFFEF9C3), Color(0xFF1E3A8A), Color(0xFFEF4444)],
       ));
     }
+    // Notte Profonda
+    if (_auraSettings.deepAbyssPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'deep_abyss', name: tr('deep_abyss_theme'), description: tr('deep_abyss_desc'), icon: Icons.dark_mode,
+        color: const Color(0xFF1A237E), previewColors: const [Color(0xFF000000), Color(0xFF1A237E), Color(0xFF7C4DFF)],
+      ));
+    }
+    if (_auraSettings.midnightForestPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'midnight_forest', name: tr('midnight_forest_theme'), description: tr('midnight_forest_desc'), icon: Icons.forest,
+        color: const Color(0xFF2E7D32), previewColors: const [Color(0xFF050A05), Color(0xFF2E7D32), Color(0xFF8D6E63)],
+      ));
+    }
+    if (_auraSettings.cyberpunkVoidPurchased) {
+      purchasedThemes.add(_PremiumThemeInfo(
+        id: 'cyberpunk_void', name: tr('cyberpunk_void_theme'), description: tr('cyberpunk_void_desc'), icon: Icons.electric_bolt,
+        color: const Color(0xFF00BCD4), previewColors: const [Color(0xFF0F0F10), Color(0xFF00BCD4), Color(0xFFFF4081)],
+      ));
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -15822,6 +16264,10 @@ class EthosAuraSettings {
   final bool sottosopraPurchased;
   final bool rifugioPurchased;
   final bool yellowNotePurchased;
+  final bool deepAbyssPurchased;
+  final bool midnightForestPurchased;
+  final bool cyberpunkVoidPurchased;
+  final bool paperStickyPurchased;
 
   const EthosAuraSettings({
     this.oroscopoPurchased = false,
@@ -15843,6 +16289,10 @@ class EthosAuraSettings {
     this.sottosopraPurchased = false,
     this.rifugioPurchased = false,
     this.yellowNotePurchased = false,
+    this.deepAbyssPurchased = false,
+    this.midnightForestPurchased = false,
+    this.cyberpunkVoidPurchased = false,
+    this.paperStickyPurchased = false,
   });
 
   EthosAuraSettings copyWith({
@@ -15865,6 +16315,10 @@ class EthosAuraSettings {
     bool? sottosopraPurchased,
     bool? rifugioPurchased,
     bool? yellowNotePurchased,
+    bool? deepAbyssPurchased,
+    bool? midnightForestPurchased,
+    bool? cyberpunkVoidPurchased,
+    bool? paperStickyPurchased,
   }) {
     return EthosAuraSettings(
       oroscopoPurchased: oroscopoPurchased ?? this.oroscopoPurchased,
@@ -15886,6 +16340,10 @@ class EthosAuraSettings {
       sottosopraPurchased: sottosopraPurchased ?? this.sottosopraPurchased,
       rifugioPurchased: rifugioPurchased ?? this.rifugioPurchased,
       yellowNotePurchased: yellowNotePurchased ?? this.yellowNotePurchased,
+      deepAbyssPurchased: deepAbyssPurchased ?? this.deepAbyssPurchased,
+      midnightForestPurchased: midnightForestPurchased ?? this.midnightForestPurchased,
+      cyberpunkVoidPurchased: cyberpunkVoidPurchased ?? this.cyberpunkVoidPurchased,
+      paperStickyPurchased: paperStickyPurchased ?? this.paperStickyPurchased,
     );
   }
 
@@ -15909,6 +16367,10 @@ class EthosAuraSettings {
     'sottosopraPurchased': sottosopraPurchased,
     'rifugioPurchased': rifugioPurchased,
     'yellowNotePurchased': yellowNotePurchased,
+    'deepAbyssPurchased': deepAbyssPurchased,
+    'midnightForestPurchased': midnightForestPurchased,
+    'cyberpunkVoidPurchased': cyberpunkVoidPurchased,
+    'paperStickyPurchased': paperStickyPurchased,
   };
 
   factory EthosAuraSettings.fromJson(Map<String, dynamic> json) =>
@@ -15932,6 +16394,10 @@ class EthosAuraSettings {
         sottosopraPurchased: json['sottosopraPurchased'] ?? false,
         rifugioPurchased: json['rifugioPurchased'] ?? false,
         yellowNotePurchased: json['yellowNotePurchased'] ?? false,
+        deepAbyssPurchased: json['deepAbyssPurchased'] ?? false,
+        midnightForestPurchased: json['midnightForestPurchased'] ?? false,
+        cyberpunkVoidPurchased: json['cyberpunkVoidPurchased'] ?? false,
+        paperStickyPurchased: json['paperStickyPurchased'] ?? false,
       );
 
   static Future<EthosAuraSettings> load() async {
@@ -16044,6 +16510,18 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
       case 'yellow_note_theme':
         updated = _auraSettings.copyWith(yellowNotePurchased: true);
         break;
+      case 'deep_abyss_theme':
+        updated = _auraSettings.copyWith(deepAbyssPurchased: true);
+        break;
+      case 'midnight_forest_theme':
+        updated = _auraSettings.copyWith(midnightForestPurchased: true);
+        break;
+      case 'cyberpunk_void_theme':
+        updated = _auraSettings.copyWith(cyberpunkVoidPurchased: true);
+        break;
+      case 'paper_sticky':
+        updated = _auraSettings.copyWith(paperStickyPurchased: true);
+        break;
       default:
         return;
     }
@@ -16132,6 +16610,16 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                   price: '€1,99',
                   purchased: _auraSettings.cycleTrackingPurchased,
                   onTap: () => _simulatePurchase('cycle_tracking'),
+                  colorScheme: colorScheme,
+                ),
+
+                // Paper & Sticky style
+                _buildPurchaseTile(
+                  icon: Icons.sticky_note_2,
+                  title: tr('unlock_paper_sticky'),
+                  price: '€0,99',
+                  purchased: _auraSettings.paperStickyPurchased,
+                  onTap: () => _simulatePurchase('paper_sticky'),
                   colorScheme: colorScheme,
                 ),
 
@@ -16261,6 +16749,11 @@ class _AuraThemeStorePageState extends State<_AuraThemeStorePage> {
       {'id': 'sottosopra_theme', 'name': tr('sottosopra_theme'), 'desc': tr('sottosopra_desc'), 'color': const Color(0xFFB71C1C), 'price': '€0,99', 'purchased': _aura.sottosopraPurchased, 'preview': [const Color(0xFF050510), const Color(0xFFB71C1C), const Color(0xFFFF1744)]},
       {'id': 'rifugio_theme', 'name': tr('rifugio_theme'), 'desc': tr('rifugio_desc'), 'color': const Color(0xFF32CD32), 'price': '€0,99', 'purchased': _aura.rifugioPurchased, 'preview': [const Color(0xFF1A1A1A), const Color(0xFF32CD32), const Color(0xFF005FB8)]},
     ];
+    final notte = <Map<String, dynamic>>[
+      {'id': 'deep_abyss_theme', 'name': tr('deep_abyss_theme'), 'desc': tr('deep_abyss_desc'), 'color': const Color(0xFF1A237E), 'price': '€0,99', 'purchased': _aura.deepAbyssPurchased, 'preview': [const Color(0xFF000000), const Color(0xFF1A237E), const Color(0xFF7C4DFF)]},
+      {'id': 'midnight_forest_theme', 'name': tr('midnight_forest_theme'), 'desc': tr('midnight_forest_desc'), 'color': const Color(0xFF2E7D32), 'price': '€0,99', 'purchased': _aura.midnightForestPurchased, 'preview': [const Color(0xFF050A05), const Color(0xFF2E7D32), const Color(0xFF8D6E63)]},
+      {'id': 'cyberpunk_void_theme', 'name': tr('cyberpunk_void_theme'), 'desc': tr('cyberpunk_void_desc'), 'color': const Color(0xFF00BCD4), 'price': '€0,99', 'purchased': _aura.cyberpunkVoidPurchased, 'preview': [const Color(0xFF0F0F10), const Color(0xFF00BCD4), const Color(0xFFFF4081)]},
+    ];
 
     Widget buildThemeTile(Map<String, dynamic> t) {
       final purchased = t['purchased'] as bool;
@@ -16333,6 +16826,8 @@ class _AuraThemeStorePageState extends State<_AuraThemeStorePage> {
           ...foglia.map(buildThemeTile),
           sectionHeader(tr('collection_cult')),
           ...cult.map(buildThemeTile),
+          sectionHeader(tr('collection_notte')),
+          ...notte.map(buildThemeTile),
           const SizedBox(height: 16),
         ],
       ),
@@ -17928,6 +18423,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   bool _isAnalyzingPhoto = false;
   // Direct camera launch from widget — shows black screen while camera opens
   bool _launchingCamera = false;
+  // Note style: 'modern' or 'paper' (gated by Ethos Aura)
+  String _noteStyle = 'modern';
+  bool _paperStickyPurchased = false;
 
   @override
   void initState() {
@@ -17995,8 +18493,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
   Future<void> _loadGroupingMode() async {
     final settings = await FlashNotesSettings.load();
+    final aura = await EthosAuraSettings.load();
     if (!mounted) return;
-    setState(() => _groupingMode = settings.groupingMode);
+    setState(() {
+      _groupingMode = settings.groupingMode;
+      _noteStyle = settings.noteStyle;
+      _paperStickyPurchased = aura.paperStickyPurchased;
+    });
   }
 
   Future<void> _loadAiAvailability() async {
@@ -19978,25 +20481,37 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             margin: const EdgeInsets.all(2),
-                            decoration: _isYellowNoteTheme(context) && !isSelected
+                            decoration: isSelected
                               ? BoxDecoration(
-                                  color: const [Color(0xFFFEF9C3), Color(0xFFFFCDD2), Color(0xFFB2EBF2), Color(0xFFE1BEE7)][groupKeys.indexOf(_getGroupKey(note.createdAt)).abs() % 4],
-                                  borderRadius: const BorderRadius.only(
-                                    topLeft: Radius.circular(3), topRight: Radius.circular(3), bottomLeft: Radius.circular(3),
-                                    bottomRight: Radius.circular(0),
-                                  ),
-                                  boxShadow: const [BoxShadow(color: Color(0x29000000), offset: Offset(2, 3), blurRadius: 6)],
+                                  color: accentColor.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: accentColor, width: 2),
                                 )
-                              : BoxDecoration(
-                              color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
-                                width: isSelected ? 2 : 1,
-                              ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(10),
+                              : ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern'))
+                                ? _paperStickyDecoration(index)
+                                : BoxDecoration(
+                                    color: colorScheme.surfaceContainerLowest,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                            child: Stack(
+                              children: [
+                                if (!isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern'))) ...[
+                                  Positioned.fill(child: ClipRRect(
+                                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(2), topRight: Radius.circular(4), bottomLeft: Radius.circular(3), bottomRight: Radius.circular(1)),
+                                    child: CustomPaint(painter: _PaperTexturePainter(seed: index)),
+                                  )),
+                                  Positioned.fill(child: ClipRRect(
+                                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(2), topRight: Radius.circular(4), bottomLeft: Radius.circular(3), bottomRight: Radius.circular(1)),
+                                    child: CustomPaint(painter: _PaperMarginPainter(seed: index)),
+                                  )),
+                                  Positioned.fill(child: CustomPaint(painter: _CornerCurlPainter(baseColor: _paperStickyColors[index % _paperStickyColors.length]))),
+                                ],
+                                Padding(
+                              padding: EdgeInsets.only(left: !isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern')) ? 50 : 10, top: 10, right: 10, bottom: 10),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -20157,6 +20672,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                 ],
                               ),
                             ),
+                              ],
+                            ),
                           ),
                         );
                       },
@@ -20223,25 +20740,41 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.all(16),
-                                decoration: _isYellowNoteTheme(context) && !isSelected
+                                decoration: isSelected
                                   ? BoxDecoration(
-                                      color: const [Color(0xFFFEF9C3), Color(0xFFFFCDD2), Color(0xFFB2EBF2), Color(0xFFE1BEE7)][groupKeys.indexOf(_getGroupKey(note.createdAt)).abs() % 4],
-                                      borderRadius: const BorderRadius.only(
-                                        topLeft: Radius.circular(3), topRight: Radius.circular(3), bottomLeft: Radius.circular(3),
-                                        bottomRight: Radius.circular(0),
-                                      ),
-                                      boxShadow: const [BoxShadow(color: Color(0x29000000), offset: Offset(2, 3), blurRadius: 6)],
+                                      color: accentColor.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: accentColor, width: 2),
                                     )
-                                  : BoxDecoration(
-                                  color: isSelected ? accentColor.withValues(alpha: 0.08) : colorScheme.surfaceContainerLowest,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: isSelected ? accentColor : colorScheme.outlineVariant.withValues(alpha: 0.3),
-                                    width: isSelected ? 2 : 1,
-                                  ),
-                                ),
-                                child: Row(
+                                  : ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern'))
+                                    ? _paperStickyDecoration(index)
+                                    : BoxDecoration(
+                                        color: colorScheme.surfaceContainerLowest,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                child: Stack(
+                                  children: [
+                                    if (!isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern'))) ...[
+                                      Positioned.fill(child: ClipRRect(
+                                        borderRadius: const BorderRadius.only(topLeft: Radius.circular(2), topRight: Radius.circular(4), bottomLeft: Radius.circular(3), bottomRight: Radius.circular(1)),
+                                        child: CustomPaint(painter: _PaperTexturePainter(seed: index)),
+                                      )),
+                                      Positioned.fill(child: ClipRRect(
+                                        borderRadius: const BorderRadius.only(topLeft: Radius.circular(2), topRight: Radius.circular(4), bottomLeft: Radius.circular(3), bottomRight: Radius.circular(1)),
+                                        child: CustomPaint(painter: _PaperMarginPainter(seed: index)),
+                                      )),
+                                      Positioned.fill(child: CustomPaint(painter: _CornerCurlPainter(baseColor: _paperStickyColors[index % _paperStickyColors.length]))),
+                                    ],
+                                    Padding(
+                                      padding: EdgeInsets.only(
+                                        left: !isSelected && ((_noteStyle == 'paper' && _paperStickyPurchased) || (_isYellowNoteTheme(context) && _noteStyle == 'modern')) ? 50 : 16,
+                                        top: 16, right: 16, bottom: 16,
+                                      ),
+                                      child: Row(
                                   children: [
                                     if (_selectionMode)
                                       Padding(
@@ -20411,6 +20944,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                         tooltip: 'AI',
                                         onPressed: () => _showAIOptions(note, originalIndex),
                                       ),
+                                  ],
+                                ),
+                              ),
                                   ],
                                 ),
                               ),
