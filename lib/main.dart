@@ -16630,7 +16630,7 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
         updated = _auraSettings.copyWith(cyberpunkVoidPurchased: true);
         break;
       case 'block_note_theme':
-        updated = _auraSettings.copyWith(blockNotePurchased: true);
+        updated = _auraSettings.copyWith(blockNotePurchased: true, paperStickyPurchased: true);
         break;
       case 'paper_sticky':
         updated = _auraSettings.copyWith(paperStickyPurchased: true);
@@ -16723,16 +16723,6 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                   price: '€1,99',
                   purchased: _auraSettings.cycleTrackingPurchased,
                   onTap: () => _simulatePurchase('cycle_tracking'),
-                  colorScheme: colorScheme,
-                ),
-
-                // Paper & Sticky style
-                _buildPurchaseTile(
-                  icon: Icons.sticky_note_2,
-                  title: tr('unlock_paper_sticky'),
-                  price: '€0,99',
-                  purchased: _auraSettings.paperStickyPurchased,
-                  onTap: () => _simulatePurchase('paper_sticky'),
                   colorScheme: colorScheme,
                 ),
 
