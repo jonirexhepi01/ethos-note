@@ -8673,8 +8673,10 @@ class HealthService {
 class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static const _nativeChannel = MethodChannel('com.ethosnote.app/notification');
+  static const _batteryChannel = MethodChannel('com.ethosnote.app/battery');
   static bool _initialized = false;
   static bool _permissionsGranted = false;
+  static bool _exactAlarmChecked = false;
   static Future<bool>? _pendingPermissionRequest;
   static void Function(String payload)? onNotificationTap;
 
@@ -8702,12 +8704,64 @@ class NotificationService {
     }
   }
 
+  /// Schedule a notification via native AlarmManager + NotificationReceiver.
+  /// Bypasses flutter_local_notifications zonedSchedule which fails on Android 16.
+  static Future<bool> _scheduleNative({
+    required int id,
+    required String title,
+    required String body,
+    required String channelId,
+    required DateTime triggerTime,
+  }) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return false;
+    try {
+      final result = await _nativeChannel.invokeMethod<bool>('scheduleNotification', {
+        'id': id,
+        'title': title,
+        'body': body,
+        'channelId': channelId,
+        'triggerAtMs': triggerTime.millisecondsSinceEpoch,
+      });
+      debugPrint('NotificationService: native schedule #$id for $triggerTime result=$result');
+      return result ?? false;
+    } catch (e) {
+      debugPrint('NotificationService: native schedule error: $e');
+      return false;
+    }
+  }
+
+  /// Cancel a notification via native channel (cancels both alarm and shown notification).
+  static Future<void> _cancelNative(int id) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _nativeChannel.invokeMethod('cancelNotification', {'id': id});
+    } catch (e) {
+      debugPrint('NotificationService: native cancel error: $e');
+    }
+  }
+
   /// Get the channel ID for the given alert type.
   static String _channelIdForAlertType(String alertType) {
     switch (alertType) {
       case 'sound': return 'event_sound_v3';
       case 'vibration': return 'event_vibration_v3';
       default: return 'event_both_v3';
+    }
+  }
+
+  /// Check if exact alarm permission is granted; if not, open system settings.
+  static Future<void> _ensureExactAlarmPermission() async {
+    if (_exactAlarmChecked || kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    _exactAlarmChecked = true;
+    try {
+      final canSchedule = await _batteryChannel.invokeMethod<bool>('canScheduleExactAlarms');
+      debugPrint('NotificationService: canScheduleExactAlarms = $canSchedule');
+      if (canSchedule != true) {
+        debugPrint('NotificationService: exact alarm NOT granted — opening settings');
+        await _batteryChannel.invokeMethod('requestExactAlarmPermission');
+      }
+    } catch (e) {
+      debugPrint('NotificationService: exact alarm check error: $e');
     }
   }
 
@@ -8780,7 +8834,9 @@ class NotificationService {
         debugPrint('NotificationService: POST_NOTIFICATIONS = $notifGranted');
         // Request SCHEDULE_EXACT_ALARM (Android 12+)
         final exactGranted = await androidPlugin.requestExactAlarmsPermission();
-        debugPrint('NotificationService: EXACT_ALARM = $exactGranted');
+        debugPrint('NotificationService: EXACT_ALARM (plugin) = $exactGranted');
+        // Double-check via native channel — Samsung may need manual enable
+        await _ensureExactAlarmPermission();
         _permissionsGranted = (notifGranted ?? false);
       } else {
         // iOS
@@ -8916,24 +8972,21 @@ class NotificationService {
       return;
     }
 
-    final tzScheduled = tz.TZDateTime.from(scheduledTime, tz.local);
     final body = _buildBody(title, minutesBefore);
-    final details = _buildNotifDetails(alertType);
-    try {
-      await _plugin.zonedSchedule(
-        id,
-        tr('reminder'),
-        body,
-        tzScheduled,
-        details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: 'event_$id',
-      );
-      debugPrint('NotificationService: scheduled #$id for $tzScheduled ("$title")');
-    } catch (e) {
-      debugPrint('NotificationService schedule error: $e');
-      // Fallback: try inexact if exact fails
+    final channelId = _channelIdForAlertType(alertType);
+    // Use native AlarmManager scheduling (bypasses flutter_local_notifications
+    // which silently fails on Android 16 / Samsung OneUI)
+    final nativeOk = await _scheduleNative(
+      id: id,
+      title: tr('reminder'),
+      body: body,
+      channelId: channelId,
+      triggerTime: scheduledTime,
+    );
+    if (!nativeOk) {
+      // Fallback to flutter_local_notifications zonedSchedule
+      final tzScheduled = tz.TZDateTime.from(scheduledTime, tz.local);
+      final details = _buildNotifDetails(alertType);
       try {
         await _plugin.zonedSchedule(
           id,
@@ -8941,18 +8994,13 @@ class NotificationService {
           body,
           tzScheduled,
           details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           payload: 'event_$id',
         );
-        debugPrint('NotificationService: scheduled #$id (inexact fallback)');
-      } catch (e2) {
-        debugPrint('NotificationService fallback error: $e2');
-        // Ultimate fallback: show immediately
-        try {
-          await _plugin.show(id, tr('reminder'), body, details, payload: 'event_$id');
-          debugPrint('NotificationService: immediate show #$id as last resort');
-        } catch (e) { debugPrint('NotificationService last resort error: $e'); }
+        debugPrint('NotificationService: fallback zonedSchedule #$id for $tzScheduled');
+      } catch (e) {
+        debugPrint('NotificationService: all scheduling methods failed for #$id: $e');
       }
     }
   }
@@ -8964,36 +9012,15 @@ class NotificationService {
     if (!_permissionsGranted) return;
     final reminderTime = DateTime(predictedStart.year, predictedStart.month, predictedStart.day, 9, 0).subtract(const Duration(days: 1));
     if (reminderTime.isBefore(DateTime.now())) return;
-    final tzScheduled = tz.TZDateTime.from(reminderTime, tz.local);
-    final details = _buildNotifDetails(alertType);
     const id = 999888;
-    try {
-      await _plugin.zonedSchedule(
-        id,
-        'Promemoria Ciclo',
-        'Il ciclo è previsto per domani',
-        tzScheduled,
-        details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: 'cycle_reminder',
-      );
-      debugPrint('NotificationService: scheduled cycle reminder for $tzScheduled');
-    } catch (e) {
-      debugPrint('NotificationService cycle reminder error: $e');
-      try {
-        await _plugin.zonedSchedule(
-          id,
-          'Promemoria Ciclo',
-          'Il ciclo è previsto per domani',
-          tzScheduled,
-          details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-          payload: 'cycle_reminder',
-        );
-      } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
-    }
+    final channelId = _channelIdForAlertType(alertType);
+    await _scheduleNative(
+      id: id,
+      title: 'Promemoria Ciclo',
+      body: 'Il ciclo è previsto per domani',
+      channelId: channelId,
+      triggerTime: reminderTime,
+    );
   }
 
   /// Schedule cycle diary notification at a specific time.
@@ -9001,26 +9028,14 @@ class NotificationService {
     if (kIsWeb || !_initialized) return;
     await ensurePermissions();
     if (!_permissionsGranted) return;
-    final tzScheduled = tz.TZDateTime.from(time, tz.local);
-    final details = _buildNotifDetails(alertType);
     const id = 999777;
-    try {
-      await _plugin.zonedSchedule(
-        id, 'Ethos Note', tr('cycle_ended_notif'), tzScheduled, details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: 'cycle_diary',
-      );
-    } catch (_) {
-      try {
-        await _plugin.zonedSchedule(
-          id, 'Ethos Note', tr('cycle_ended_notif'), tzScheduled, details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-          payload: 'cycle_diary',
-        );
-      } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
-    }
+    await _scheduleNative(
+      id: id,
+      title: 'Ethos Note',
+      body: tr('cycle_ended_notif'),
+      channelId: _channelIdForAlertType(alertType),
+      triggerTime: time,
+    );
   }
 
   /// Show cycle diary notification immediately.
@@ -9041,15 +9056,15 @@ class NotificationService {
 
   static Future<void> cancelReminder(int id) async {
     if (kIsWeb || !_initialized) return;
+    await _cancelNative(id);
     await _plugin.cancel(id);
   }
 
   static Future<void> cancelAll() async {
     if (kIsWeb || !_initialized) return;
+    try { await _nativeChannel.invokeMethod('cancelAllNotifications'); } catch (_) {}
     await _plugin.cancelAll();
   }
-
-  static const _batteryChannel = MethodChannel('com.ethosnote.app/battery');
 
   /// Check if battery optimization is already disabled for this app.
   static Future<bool> isIgnoringBatteryOptimizations() async {
@@ -9109,7 +9124,7 @@ class NotificationService {
     }
   }
 
-  /// Schedule a test notification 10 seconds in the future to verify zonedSchedule works.
+  /// Schedule a test notification 10 seconds in the future to verify native scheduling works.
   static Future<bool> showScheduledTestNotification({String alertType = 'sound_vibration'}) async {
     if (kIsWeb) return false;
     if (!_initialized) await init();
@@ -9118,24 +9133,17 @@ class NotificationService {
       debugPrint('NotificationService: scheduled test FAILED — permissions not granted');
       return false;
     }
-    try {
-      final scheduledTime = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 10));
-      await _plugin.zonedSchedule(
-        99998,
-        'Ethos Note',
-        'Notifica programmata funziona! ⏰ (10s)',
-        scheduledTime,
-        _buildNotifDetails(alertType),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: 'scheduled_test',
-      );
-      debugPrint('NotificationService: scheduled test for $scheduledTime');
-      return true;
-    } catch (e) {
-      debugPrint('NotificationService scheduled test error: $e');
-      return false;
-    }
+    final triggerTime = DateTime.now().add(const Duration(seconds: 10));
+    final channelId = _channelIdForAlertType(alertType);
+    final ok = await _scheduleNative(
+      id: 99998,
+      title: 'Ethos Note',
+      body: 'Notifica programmata funziona! (10s)',
+      channelId: channelId,
+      triggerTime: triggerTime,
+    );
+    debugPrint('NotificationService: scheduled test for $triggerTime — native=$ok');
+    return ok;
   }
 
   /// Returns the number of pending (scheduled) notifications.

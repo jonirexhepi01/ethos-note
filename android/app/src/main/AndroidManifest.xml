@@ -102,6 +102,12 @@
         </receiver>
 
 
+        <!-- Native notification receiver: fires when AlarmManager alarm triggers -->
+        <receiver
+            android:name=".NotificationReceiver"
+            android:enabled="true"
+            android:exported="false"/>
+
         <!-- Boot receiver: reschedule notifications after device reboot -->
         <receiver
             android:name=".BootReceiver"

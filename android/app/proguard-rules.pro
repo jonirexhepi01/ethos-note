@@ -21,6 +21,9 @@
 -keep class androidx.health.connect.** { *; }
 -dontwarn androidx.health.connect.**
 
+# Ethos Note native notification receiver
+-keep class com.ethosnote.app.NotificationReceiver { *; }
+
 # Flutter Local Notifications — keep ScheduledNotificationReceiver and all its internals
 -keep class com.dexterous.** { *; }
 -keep class com.dexterous.flutterlocalnotifications.** { *; }

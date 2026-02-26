@@ -1,8 +1,10 @@
 package com.ethosnote.app
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -214,6 +216,26 @@ class MainActivity : FlutterFragmentActivity() {
                         result.success(false)
                     }
                 }
+                "canScheduleExactAlarms" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                        result.success(am.canScheduleExactAlarms())
+                    } else {
+                        result.success(true) // Pre-Android 12: always allowed
+                    }
+                }
+                "requestExactAlarmPermission" -> {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                            intent.data = Uri.parse("package:$packageName")
+                            startActivity(intent)
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -231,13 +253,23 @@ class MainActivity : FlutterFragmentActivity() {
 
                         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+                        // PendingIntent to open app when tapped
+                        val tapIntent = Intent(this, MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        }
+                        val pendingIntent = PendingIntent.getActivity(
+                            this, id, tapIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+
                         val defaultSound = android.media.RingtoneManager.getDefaultUri(
                             android.media.RingtoneManager.TYPE_NOTIFICATION
                         )
                         val builder = NotificationCompat.Builder(this, channelId)
-                            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                            .setSmallIcon(R.mipmap.ic_launcher)
                             .setContentTitle(title)
                             .setContentText(body)
+                            .setContentIntent(pendingIntent)
                             .setPriority(NotificationCompat.PRIORITY_MAX)
                             .setCategory(NotificationCompat.CATEGORY_ALARM)
                             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -251,6 +283,67 @@ class MainActivity : FlutterFragmentActivity() {
                         result.success(true)
                     } catch (e: Exception) {
                         android.util.Log.e("EthosNotif", "Native notification error: ${e.message}", e)
+                        result.success(false)
+                    }
+                }
+                "scheduleNotification" -> {
+                    try {
+                        val id = call.argument<Int>("id") ?: 0
+                        val title = call.argument<String>("title") ?: "Ethos Note"
+                        val body = call.argument<String>("body") ?: ""
+                        val channelId = call.argument<String>("channelId") ?: "event_both_v3"
+                        val triggerAtMs = call.argument<Number>("triggerAtMs")?.toLong() ?: 0L
+
+                        val alarmIntent = Intent(this, NotificationReceiver::class.java).apply {
+                            putExtra("notif_id", id)
+                            putExtra("notif_title", title)
+                            putExtra("notif_body", body)
+                            putExtra("notif_channel", channelId)
+                        }
+                        val pi = PendingIntent.getBroadcast(
+                            this, id, alarmIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                        val am = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && am.canScheduleExactAlarms()) {
+                            am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAtMs, pi)
+                        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                            am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAtMs, pi)
+                        } else {
+                            // Fallback: inexact alarm
+                            am.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAtMs, pi)
+                        }
+                        android.util.Log.d("EthosNotif", "Scheduled native alarm #$id for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(triggerAtMs))}")
+                        result.success(true)
+                    } catch (e: Exception) {
+                        android.util.Log.e("EthosNotif", "Schedule error: ${e.message}", e)
+                        result.success(false)
+                    }
+                }
+                "cancelNotification" -> {
+                    try {
+                        val id = call.argument<Int>("id") ?: 0
+                        val alarmIntent = Intent(this, NotificationReceiver::class.java)
+                        val pi = PendingIntent.getBroadcast(
+                            this, id, alarmIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                        val am = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+                        am.cancel(pi)
+                        // Also cancel any already-shown notification
+                        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        nm.cancel(id)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
+                "cancelAllNotifications" -> {
+                    try {
+                        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        nm.cancelAll()
+                        result.success(true)
+                    } catch (e: Exception) {
                         result.success(false)
                     }
                 }
