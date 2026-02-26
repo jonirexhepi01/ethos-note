@@ -1,5 +1,6 @@
 package com.ethosnote.app
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ContentValues
@@ -11,6 +12,7 @@ import android.os.PowerManager
 import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds
 import android.provider.Settings
+import androidx.core.app.NotificationCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -21,19 +23,24 @@ class MainActivity : FlutterFragmentActivity() {
     private val DEEP_LINK_CHANNEL = "com.ethosnote.app/deeplink"
     private val CONTACTS_CHANNEL = "com.ethosnote.app/contacts"
     private val BATTERY_CHANNEL = "com.ethosnote.app/battery"
+    private val NOTIFICATION_CHANNEL = "com.ethosnote.app/notification"
     private var sharedFilePath: String? = null
     private var pendingDeepLink: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Create 3 notification channels (v2) for different alert types (Android 8+)
+        // Create 3 notification channels (v3) for different alert types (Android 8+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager =
                 getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
             // Delete ALL legacy channels (cached with wrong settings)
-            for (old in listOf("event_reminders_v2", "event_sound", "event_vibration", "event_both")) {
+            for (old in listOf(
+                "event_reminders", "event_reminders_v2",
+                "event_sound", "event_vibration", "event_both",
+                "event_sound_v2", "event_vibration_v2", "event_both_v2"
+            )) {
                 notificationManager.deleteNotificationChannel(old)
             }
 
@@ -44,29 +51,35 @@ class MainActivity : FlutterFragmentActivity() {
                 .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
                 .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
+            val vibPattern = longArrayOf(0, 500, 200, 500)
 
-            // Channel: sound only (v2)
+            // Channel: sound only (v3)
             notificationManager.createNotificationChannel(
-                NotificationChannel("event_sound_v2", "Promemoria (suono)", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Solo suono, senza vibrazione"
+                NotificationChannel("event_sound_v3", "Promemoria (suono)", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Promemoria eventi del calendario con suono"
                     enableVibration(false)
                     setSound(defaultSound, audioAttrs)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 }
             )
-            // Channel: vibration only (v2)
+            // Channel: vibration only (v3)
             notificationManager.createNotificationChannel(
-                NotificationChannel("event_vibration_v2", "Promemoria (vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Solo vibrazione, senza suono"
+                NotificationChannel("event_vibration_v3", "Promemoria (vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Promemoria eventi del calendario con vibrazione"
                     enableVibration(true)
+                    vibrationPattern = vibPattern
                     setSound(null, null)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 }
             )
-            // Channel: sound + vibration (v2)
+            // Channel: sound + vibration (v3)
             notificationManager.createNotificationChannel(
-                NotificationChannel("event_both_v2", "Promemoria (suono + vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Suono e vibrazione insieme"
+                NotificationChannel("event_both_v3", "Promemoria (suono + vibrazione)", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Promemoria eventi del calendario con suono e vibrazione"
                     enableVibration(true)
+                    vibrationPattern = vibPattern
                     setSound(defaultSound, audioAttrs)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 }
             )
         }
@@ -195,6 +208,56 @@ class MainActivity : FlutterFragmentActivity() {
                     try {
                         val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
                         intent.data = Uri.parse("package:$packageName")
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Native notification channel — bypasses flutter_local_notifications
+        // to ensure Samsung shows notifications with sound/vibration/heads-up
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "showNotification" -> {
+                    try {
+                        val id = call.argument<Int>("id") ?: 0
+                        val title = call.argument<String>("title") ?: "Ethos Note"
+                        val body = call.argument<String>("body") ?: ""
+                        val channelId = call.argument<String>("channelId") ?: "event_both_v3"
+
+                        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+                        val defaultSound = android.media.RingtoneManager.getDefaultUri(
+                            android.media.RingtoneManager.TYPE_NOTIFICATION
+                        )
+                        val builder = NotificationCompat.Builder(this, channelId)
+                            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                            .setContentTitle(title)
+                            .setContentText(body)
+                            .setPriority(NotificationCompat.PRIORITY_MAX)
+                            .setCategory(NotificationCompat.CATEGORY_ALARM)
+                            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                            .setDefaults(Notification.DEFAULT_ALL)
+                            .setSound(defaultSound)
+                            .setVibrate(longArrayOf(0, 500, 200, 500))
+                            .setAutoCancel(true)
+
+                        nm.notify(id, builder.build())
+                        android.util.Log.d("EthosNotif", "Native notification #$id posted OK on channel $channelId")
+                        result.success(true)
+                    } catch (e: Exception) {
+                        android.util.Log.e("EthosNotif", "Native notification error: ${e.message}", e)
+                        result.success(false)
+                    }
+                }
+                "openNotificationSettings" -> {
+                    try {
+                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        intent.putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
                         startActivity(intent)
                         result.success(true)
                     } catch (e: Exception) {

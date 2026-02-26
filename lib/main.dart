@@ -5698,6 +5698,8 @@ class _CalendarPageState extends State<CalendarPage> {
   Set<String> _completedGoogleEventIds = {};
   // Track locally-deleted events so matching Google duplicates stay hidden
   final Set<String> _deletedEventSignatures = {};
+  // Only reschedule all notifications once per session
+  static bool _notificationsInitialized = false;
 
   // Health
   HealthSnapshot? _healthSnapshot;
@@ -6345,19 +6347,20 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _rescheduleAllNotifications() async {
-    // Cancel all stale notifications before rescheduling
-    try {
-      await NotificationService.cancelAll();
-      debugPrint('NotificationService: cancelled all existing notifications');
-    } catch (e) {
-      debugPrint('NotificationService: cancelAll error: $e');
+    // Only run once per app session to avoid cancelling active notifications
+    if (_notificationsInitialized) {
+      debugPrint('NotificationService: already initialized this session, skipping bulk reschedule');
+      return;
     }
+    _notificationsInitialized = true;
+    // Cancel stale alarms from previous session before rescheduling
+    try { await NotificationService.cancelAll(); } catch (_) {}
     final now = DateTime.now();
     int scheduled = 0;
     for (final dayEvents in _events.values) {
       for (final event in dayEvents) {
         if (event.startTime.isAfter(now)) {
-          await _scheduleNotification(event);
+          await _scheduleNotification(event, allowImmediate: false);
           scheduled++;
         }
       }
@@ -6375,10 +6378,10 @@ class _CalendarPageState extends State<CalendarPage> {
     await DatabaseHelper().saveAllEvents(_events);
   }
 
-  Future<void> _scheduleNotification(CalendarEventFull event) async {
+  Future<void> _scheduleNotification(CalendarEventFull event, {bool allowImmediate = true}) async {
     final baseId = event.startTime.millisecondsSinceEpoch ~/ 1000;
     final alertType = _calSettings.alertConfig.alertType;
-    debugPrint('_scheduleNotification: "${event.title}" at ${event.startTime}, reminder="${event.reminder}", alertType=$alertType, global alertMinutes=${_calSettings.alertMinutesBefore}');
+    debugPrint('_scheduleNotification: "${event.title}" at ${event.startTime}, reminder="${event.reminder}", alertType=$alertType, allowImmediate=$allowImmediate');
 
     // 1) Schedule from event-specific reminder (if set)
     if (event.reminder != null && event.reminder!.isNotEmpty) {
@@ -6406,6 +6409,7 @@ class _CalendarPageState extends State<CalendarPage> {
         eventTime: event.startTime,
         minutesBefore: minutesBefore,
         alertType: alertType,
+        allowImmediate: allowImmediate,
       );
       return;
     }
@@ -6419,6 +6423,7 @@ class _CalendarPageState extends State<CalendarPage> {
         eventTime: event.startTime,
         minutesBefore: mins,
         alertType: alertType,
+        allowImmediate: allowImmediate,
       );
     }
   }
@@ -6549,7 +6554,11 @@ class _CalendarPageState extends State<CalendarPage> {
         ));
       }
       final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
+      // Cancel all notification IDs (base for event-specific, base+i+1 for global alerts)
       NotificationService.cancelReminder(notifId);
+      for (int i = 0; i < _calSettings.alertMinutesBefore.length; i++) {
+        NotificationService.cancelReminder(notifId + i + 1);
+      }
       // Remember signature so matching Google duplicate stays hidden
       final sig = '${event.title}|${event.startTime.millisecondsSinceEpoch}';
       _deletedEventSignatures.add(sig);
@@ -6602,9 +6611,12 @@ class _CalendarPageState extends State<CalendarPage> {
       if (confirmed != true) return;
       final success = await GoogleCalendarService.deleteEvent(gid);
       if (success && mounted) {
-        // Cancel notification for this event
+        // Cancel all notification IDs for this event
         final notifId = event.startTime.millisecondsSinceEpoch ~/ 1000;
         NotificationService.cancelReminder(notifId);
+        for (int i = 0; i < _calSettings.alertMinutesBefore.length; i++) {
+          NotificationService.cancelReminder(notifId + i + 1);
+        }
         setState(() {
           // Remove from _googleEvents map
           final gKey = _dateKey(event.startTime);
@@ -8660,10 +8672,44 @@ class HealthService {
 
 class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
+  static const _nativeChannel = MethodChannel('com.ethosnote.app/notification');
   static bool _initialized = false;
   static bool _permissionsGranted = false;
   static Future<bool>? _pendingPermissionRequest;
   static void Function(String payload)? onNotificationTap;
+
+  /// Post a notification natively via Kotlin (bypasses flutter_local_notifications).
+  /// This ensures Samsung shows it with sound/vibration/heads-up.
+  static Future<bool> _showNative({
+    required int id,
+    required String title,
+    required String body,
+    required String channelId,
+  }) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return false;
+    try {
+      final result = await _nativeChannel.invokeMethod<bool>('showNotification', {
+        'id': id,
+        'title': title,
+        'body': body,
+        'channelId': channelId,
+      });
+      debugPrint('NotificationService: native show #$id result=$result');
+      return result ?? false;
+    } catch (e) {
+      debugPrint('NotificationService: native show error: $e');
+      return false;
+    }
+  }
+
+  /// Get the channel ID for the given alert type.
+  static String _channelIdForAlertType(String alertType) {
+    switch (alertType) {
+      case 'sound': return 'event_sound_v3';
+      case 'vibration': return 'event_vibration_v3';
+      default: return 'event_both_v3';
+    }
+  }
 
   /// Basic init — call from main(). Does NOT request permissions.
   static Future<void> init() async {
@@ -8688,6 +8734,20 @@ class NotificationService {
         },
       );
       _initialized = true;
+      // Delete old v2 channels so Samsung picks up fresh v3 settings
+      try {
+        final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        if (androidPlugin != null) {
+          await androidPlugin.deleteNotificationChannel('event_both_v2');
+          await androidPlugin.deleteNotificationChannel('event_sound_v2');
+          await androidPlugin.deleteNotificationChannel('event_vibration_v2');
+          // Also delete legacy v1 channels if they exist
+          await androidPlugin.deleteNotificationChannel('event_reminders');
+          debugPrint('NotificationService: deleted old channels');
+        }
+      } catch (e) {
+        debugPrint('NotificationService: channel cleanup error (non-fatal): $e');
+      }
       debugPrint('NotificationService: initialized OK');
     } catch (e) {
       debugPrint('NotificationService init error: $e');
@@ -8739,35 +8799,47 @@ class NotificationService {
   static NotificationDetails _buildNotifDetails(String alertType) {
     final String channelId;
     final String channelName;
+    final String channelDesc;
     final bool playSound;
     final bool enableVibration;
+    Int64List? vibrationPattern;
     switch (alertType) {
       case 'sound':
-        channelId = 'event_sound_v2';
+        channelId = 'event_sound_v3';
         channelName = 'Promemoria (suono)';
+        channelDesc = 'Promemoria eventi del calendario con suono';
         playSound = true;
         enableVibration = false;
         break;
       case 'vibration':
-        channelId = 'event_vibration_v2';
+        channelId = 'event_vibration_v3';
         channelName = 'Promemoria (vibrazione)';
+        channelDesc = 'Promemoria eventi del calendario con vibrazione';
         playSound = false;
         enableVibration = true;
+        vibrationPattern = Int64List.fromList([0, 500, 200, 500]);
         break;
       default: // 'sound_vibration'
-        channelId = 'event_both_v2';
+        channelId = 'event_both_v3';
         channelName = 'Promemoria (suono + vibrazione)';
+        channelDesc = 'Promemoria eventi del calendario con suono e vibrazione';
         playSound = true;
         enableVibration = true;
+        vibrationPattern = Int64List.fromList([0, 500, 200, 500]);
     }
     return NotificationDetails(
       android: AndroidNotificationDetails(
         channelId,
         channelName,
+        channelDescription: channelDesc,
         importance: Importance.max,
         priority: Priority.high,
         playSound: playSound,
         enableVibration: enableVibration,
+        vibrationPattern: vibrationPattern,
+        category: AndroidNotificationCategory.reminder,
+        visibility: NotificationVisibility.public,
+        ticker: 'Promemoria Ethos Note',
       ),
       iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
     );
@@ -8794,13 +8866,14 @@ class NotificationService {
     required DateTime eventTime,
     required int minutesBefore,
     String alertType = 'sound_vibration',
+    bool allowImmediate = true,
   }) async {
     if (kIsWeb || !_initialized) {
       debugPrint('NotificationService: skip — web=$kIsWeb, initialized=$_initialized');
       return;
     }
     final permOk = await ensurePermissions();
-    debugPrint('NotificationService: scheduling #$id "$title" — ${minutesBefore}min before $eventTime (permissions=$permOk)');
+    debugPrint('NotificationService: scheduling #$id "$title" — ${minutesBefore}min before $eventTime (permissions=$permOk, allowImmediate=$allowImmediate)');
     if (!permOk && !_permissionsGranted) {
       debugPrint('NotificationService: WARNING #$id — permissions not granted, attempting anyway');
     }
@@ -8808,22 +8881,37 @@ class NotificationService {
     final scheduledTime = eventTime.subtract(Duration(minutes: minutesBefore));
     final now = DateTime.now();
 
-    // If the reminder time has passed, only show immediate notification
-    // if the event is truly imminent (within the next 2 hours).
-    // For events farther out, skip silently — the reminder window was missed.
+    // If the reminder time has already passed:
     if (scheduledTime.isBefore(now)) {
+      // Only show immediate notification if explicitly allowed (new event creation)
+      // and the event is truly imminent (within 30 minutes).
+      // During bulk reschedule (allowImmediate=false), skip silently.
+      if (!allowImmediate) {
+        debugPrint('NotificationService: reminder time passed for #$id, bulk reschedule — skipping');
+        return;
+      }
       final minutesUntilEvent = eventTime.difference(now).inMinutes;
-      if (eventTime.isAfter(now) && minutesUntilEvent <= 120) {
+      if (eventTime.isAfter(now) && minutesUntilEvent <= 30) {
         debugPrint('NotificationService: reminder time passed for #$id, event imminent ($minutesUntilEvent min), showing immediate');
         final body = minutesUntilEvent <= 0
             ? '$title — adesso!'
             : '$title tra $minutesUntilEvent ${minutesUntilEvent == 1 ? "minuto" : "minuti"}';
-        final details = _buildNotifDetails(alertType);
-        try {
-          await _plugin.show(id, tr('reminder'), body, details, payload: 'event_$id');
-        } catch (e) { debugPrint('NotificationService immediate show error: $e'); }
+        // Use native posting for immediate notifications (Samsung compatibility)
+        final nativeOk = await _showNative(
+          id: id,
+          title: tr('reminder'),
+          body: body,
+          channelId: _channelIdForAlertType(alertType),
+        );
+        if (!nativeOk) {
+          // Fallback to flutter_local_notifications
+          final details = _buildNotifDetails(alertType);
+          try {
+            await _plugin.show(id, tr('reminder'), body, details, payload: 'event_$id');
+          } catch (e) { debugPrint('NotificationService immediate show error: $e'); }
+        }
       } else {
-        debugPrint('NotificationService: reminder time passed for #$id but event is ${minutesUntilEvent}min away, skipping');
+        debugPrint('NotificationService: reminder time passed for #$id, event is ${minutesUntilEvent}min away — skipping');
       }
       return;
     }
@@ -8994,14 +9082,26 @@ class NotificationService {
     if (!_initialized) await init();
     await ensurePermissions();
     if (!_permissionsGranted) return false;
+    // Use native posting for Samsung compatibility
+    final nativeOk = await _showNative(
+      id: 99999,
+      title: 'Ethos Note',
+      body: 'Le notifiche funzionano!',
+      channelId: _channelIdForAlertType(alertType),
+    );
+    if (nativeOk) {
+      debugPrint('NotificationService: test notification sent NATIVE (alertType=$alertType)');
+      return true;
+    }
+    // Fallback to flutter_local_notifications
     try {
       await _plugin.show(
         99999,
         'Ethos Note',
-        'Le notifiche funzionano! 🔔',
+        'Le notifiche funzionano!',
         _buildNotifDetails(alertType),
       );
-      debugPrint('NotificationService: test notification sent (alertType=$alertType)');
+      debugPrint('NotificationService: test notification sent via plugin (alertType=$alertType)');
       return true;
     } catch (e) {
       debugPrint('NotificationService test error: $e');
@@ -11034,12 +11134,21 @@ class _EventEditorPageState extends State<EventEditorPage> {
       _recurrence = existing.recurrence;
       _recurrenceEndDate = existing.recurrenceEndDate != null ? DateTime.tryParse(existing.recurrenceEndDate!) : null;
     } else {
+      final now = DateTime.now();
+      // Always start from current time, rounded up to next 15-minute slot
+      var roundedMin = ((now.minute / 15).ceil()) * 15;
+      var hour = now.hour;
+      if (roundedMin >= 60) {
+        roundedMin = 0;
+        hour = hour + 1;
+      }
+      if (hour > 23) { hour = 23; roundedMin = 45; }
       _startTime = DateTime(
         widget.selectedDate.year,
         widget.selectedDate.month,
         widget.selectedDate.day,
-        9,
-        0,
+        hour,
+        roundedMin,
       );
       _endTime = _startTime.add(const Duration(hours: 1));
     }
