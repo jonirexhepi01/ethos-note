@@ -8114,16 +8114,18 @@ class _CalendarPageState extends State<CalendarPage> {
           Expanded(
             child: eventsForSelectedDay.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.event_note_outlined, size: 64, color: colorScheme.outlineVariant),
-                        const SizedBox(height: 12),
-                        Text(tr('no_events'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
-                        const SizedBox(height: 4),
-                        Text(tr('no_events_hint'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
-                      ],
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.event_note_outlined, size: 48, color: colorScheme.outlineVariant),
+                          const SizedBox(height: 8),
+                          Text(tr('no_events'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                          const SizedBox(height: 2),
+                          Text(tr('no_events_hint'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
+                        ],
+                      ),
                     ),
                   )
                 : ListView.builder(
