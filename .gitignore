@@ -46,3 +46,7 @@ app.*.map.json
 
 # Project memory
 memory.md
+
+# Firebase config (contains API keys)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
