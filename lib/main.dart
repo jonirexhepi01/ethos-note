@@ -3375,7 +3375,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
   ThemeData _buildSpadaccinoTheme() {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: _zoAccent, brightness: Brightness.dark,
-      primary: _zoAccent, onPrimary: _zoText,
+      primary: _zoBorder, onPrimary: _zoText,
       surface: const Color(0xFF0D2818), onSurface: _zoText,
     );
     return ThemeData(
@@ -3756,7 +3756,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
   ThemeData _buildCabinaTempoTheme() {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: _dwTardis, brightness: Brightness.dark,
-      primary: _dwTardis, onPrimary: _dwText,
+      primary: _dwBorder, onPrimary: _dwText,
       surface: const Color(0xFF00264D), onSurface: _dwText,
     );
     return ThemeData(
@@ -4087,7 +4087,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
   ThemeData _buildDeepAbyssTheme() {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: _daIndigo, brightness: Brightness.dark,
-      primary: _daIndigo, onPrimary: Colors.white,
+      primary: _daViolet, onPrimary: Colors.white,
       surface: _daSurface, onSurface: _daText,
     );
     return ThemeData(
