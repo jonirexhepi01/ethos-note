@@ -11099,7 +11099,9 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     final pdf = pw.Document();
     const red = PdfColor.fromInt(0xFFE53935);
     const redLight = PdfColor.fromInt(0xFFFCE4EC);
-    const redSoft = PdfColor.fromInt(0xFFFFF5F5);
+    const redChipBg = PdfColor.fromInt(0xFFFEEBEE);
+    const cardBg = PdfColor.fromInt(0xFFFFFBFE);
+    const cardBorder = PdfColor.fromInt(0xFFEEEEEE);
     const textDark = PdfColor.fromInt(0xFF263238);
     const textMedium = PdfColor.fromInt(0xFF546E7A);
 
@@ -11132,48 +11134,62 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     final periodStart = data['periodStart'] as String? ?? '';
     final periodEnd = data['periodEnd'] as String? ?? '';
 
-    // ── Helpers ──
+    // ── Helpers matching app's CycleNoteReadPage ──
 
-    pw.Widget pdfCard(String title, pw.Widget content) {
+    // Section card (matches app's _readCard: icon dot + title + content)
+    pw.Widget sectionCard(String title, pw.Widget content) {
       return pw.Container(
         margin: const pw.EdgeInsets.only(bottom: 12),
         padding: const pw.EdgeInsets.all(16),
         decoration: pw.BoxDecoration(
-          color: redSoft,
-          borderRadius: pw.BorderRadius.circular(12),
-          border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
+          color: cardBg,
+          borderRadius: pw.BorderRadius.circular(16),
+          border: pw.Border.all(color: cardBorder, width: 0.5),
         ),
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text(title, style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
-            pw.SizedBox(height: 10),
+            pw.Row(children: [
+              pw.Container(width: 10, height: 10,
+                decoration: const pw.BoxDecoration(color: red, shape: pw.BoxShape.circle)),
+              pw.SizedBox(width: 8),
+              pw.Expanded(child: pw.Text(title, style: pw.TextStyle(font: boldFont, fontSize: 13, color: textDark))),
+            ]),
+            pw.SizedBox(height: 12),
             content,
           ],
         ),
       );
     }
 
-    pw.Widget pdfChip(String label, {bool filled = true}) {
+    // Soft chip (matches app's _readChip: light pink bg, dark text)
+    pw.Widget softChip(String label) {
       return pw.Container(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: pw.BoxDecoration(
-          color: filled ? red : const PdfColor.fromInt(0xFFFFEBEE),
-          borderRadius: pw.BorderRadius.circular(14),
+          color: redChipBg,
+          borderRadius: pw.BorderRadius.circular(20),
         ),
         child: pw.Text(label, style: pw.TextStyle(
-          font: boldFont, fontSize: 9.5,
-          color: filled ? PdfColors.white : red,
-          fontFallback: fontFallback,
+          font: boldFont, fontSize: 10, color: textDark, fontFallback: fontFallback,
         )),
       );
     }
 
-    pw.Widget pdfChipWrap(List<String> items) {
+    pw.Widget chipWrap(List<String> items) {
       if (items.isEmpty) return pw.SizedBox();
-      return pw.Wrap(
-        spacing: 6, runSpacing: 6,
-        children: items.map((item) => pdfChip(item)).toList(),
+      return pw.Wrap(spacing: 8, runSpacing: 8, children: items.map((i) => softChip(i)).toList());
+    }
+
+    // Flow dot (solid circle, matches app's water_drop icons)
+    pw.Widget flowDot(bool filled) {
+      return pw.Container(
+        width: 22, height: 22,
+        margin: const pw.EdgeInsets.only(right: 6),
+        decoration: pw.BoxDecoration(
+          color: filled ? red : const PdfColor.fromInt(0xFFE0E0E0),
+          shape: pw.BoxShape.circle,
+        ),
       );
     }
 
@@ -11183,27 +11199,8 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
         margin: const pw.EdgeInsets.only(top: 8),
         padding: const pw.EdgeInsets.all(10),
         width: double.infinity,
-        decoration: pw.BoxDecoration(
-          color: PdfColors.white,
-          borderRadius: pw.BorderRadius.circular(8),
-        ),
+        decoration: pw.BoxDecoration(color: PdfColors.white, borderRadius: pw.BorderRadius.circular(8)),
         child: pw.Text(text, style: pw.TextStyle(font: regularFont, fontSize: 10.5, color: textMedium)),
-      );
-    }
-
-    // Flow dots: ● filled, ○ empty
-    pw.Widget pdfFlowDots(int level) {
-      return pw.Row(
-        mainAxisSize: pw.MainAxisSize.min,
-        children: [
-          ...List.generate(4, (i) => pw.Padding(
-            padding: const pw.EdgeInsets.only(right: 6),
-            child: pw.Text(
-              i < level ? '●' : '○',
-              style: pw.TextStyle(font: boldFont, fontSize: 18, color: i < level ? red : const PdfColor.fromInt(0xFFE0E0E0)),
-            ),
-          )),
-        ],
       );
     }
 
@@ -11229,26 +11226,42 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
       build: (ctx) {
         final sections = <pw.Widget>[];
 
-        // Hero header card
+        // ── Hero Card (matches app's gradient hero) ──
+        final timing = isMissing ? '' : (data['timing'] as String? ?? '');
         sections.add(pw.Container(
           margin: const pw.EdgeInsets.only(bottom: 16),
-          padding: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          width: double.infinity,
+          padding: const pw.EdgeInsets.symmetric(vertical: 28, horizontal: 24),
           decoration: pw.BoxDecoration(
             color: redLight,
-            borderRadius: pw.BorderRadius.circular(16),
-            border: pw.Border.all(color: const PdfColor.fromInt(0xFFEF9A9A), width: 0.5),
+            borderRadius: pw.BorderRadius.circular(20),
           ),
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text(isMissing ? tr('cycle_missing') : tr('cycle_report'),
-                style: pw.TextStyle(font: boldFont, fontSize: 12, color: red, fontFallback: fontFallback)),
-              pw.SizedBox(height: 4),
-              pw.Text(month, style: pw.TextStyle(font: boldFont, fontSize: 26, color: textDark)),
+              // Red circle icon (replaces Icons.water_drop)
+              pw.Container(
+                width: 36, height: 36,
+                decoration: const pw.BoxDecoration(color: red, shape: pw.BoxShape.circle),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Text(month, style: pw.TextStyle(font: boldFont, fontSize: 28, color: textDark)),
               if (periodStart.isNotEmpty || periodEnd.isNotEmpty) ...[
                 pw.SizedBox(height: 6),
-                pw.Text('$periodStart  →  $periodEnd',
-                  style: pw.TextStyle(font: regularFont, fontSize: 11, color: textMedium)),
+                pw.Text('$periodStart  \u2192  $periodEnd',
+                  style: pw.TextStyle(font: regularFont, fontSize: 12, color: textMedium)),
+              ],
+              // Timing chip inside hero (like the app)
+              if (timing.isNotEmpty) ...[
+                pw.SizedBox(height: 12),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor.fromInt(0xFFF8BBD0),
+                    borderRadius: pw.BorderRadius.circular(20),
+                  ),
+                  child: pw.Text(timing, style: pw.TextStyle(font: boldFont, fontSize: 11, color: red)),
+                ),
               ],
             ],
           ),
@@ -11258,78 +11271,38 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
           final reason = data['missingReason'] as String? ?? '';
           final reasonCustom = data['missingReasonCustom'] as String? ?? '';
           if (reason.isNotEmpty || reasonCustom.isNotEmpty) {
-            sections.add(pdfCard(tr('cycle_missing_why'), pw.Column(
+            sections.add(sectionCard(tr('cycle_missing_why'), pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                if (reason.isNotEmpty) pdfChipWrap([reason]),
+                if (reason.isNotEmpty) chipWrap([reason]),
                 if (reasonCustom.isNotEmpty) pdfTextBox(reasonCustom),
               ],
             )));
           }
         } else {
-          // Timing + Flow side by side
-          final timing = data['timing'] as String? ?? '';
+          // ── Flow Card ──
           final flow = data['flow'] as String? ?? '';
           final flowLabels = [tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')];
-          final flowIdx = flowLabels.indexOf(flow) + 1;
-
-          if (timing.isNotEmpty || flow.isNotEmpty) {
-            sections.add(pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                if (timing.isNotEmpty)
-                  pw.Expanded(child: pw.Container(
-                    margin: pw.EdgeInsets.only(bottom: 12, right: flow.isNotEmpty ? 6 : 0),
-                    padding: const pw.EdgeInsets.all(16),
-                    decoration: pw.BoxDecoration(
-                      color: redSoft,
-                      borderRadius: pw.BorderRadius.circular(12),
-                      border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(tr('cycle_q_timing'), style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
-                        pw.SizedBox(height: 10),
-                        pdfChip(timing),
-                      ],
-                    ),
-                  )),
-                if (flow.isNotEmpty)
-                  pw.Expanded(child: pw.Container(
-                    margin: pw.EdgeInsets.only(bottom: 12, left: timing.isNotEmpty ? 6 : 0),
-                    padding: const pw.EdgeInsets.all(16),
-                    decoration: pw.BoxDecoration(
-                      color: redSoft,
-                      borderRadius: pw.BorderRadius.circular(12),
-                      border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(tr('cycle_q_flow'), style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
-                        pw.SizedBox(height: 10),
-                        pw.Row(children: [
-                          pdfFlowDots(flowIdx),
-                          pw.SizedBox(width: 8),
-                          pw.Text(flow, style: pw.TextStyle(font: regularFont, fontSize: 10, color: textMedium)),
-                        ]),
-                      ],
-                    ),
-                  )),
-              ],
+          final flowIdx = flowLabels.indexOf(flow);
+          if (flow.isNotEmpty) {
+            sections.add(sectionCard(tr('cycle_q_flow'),
+              pw.Row(children: [
+                ...List.generate(4, (i) => flowDot(i <= flowIdx)),
+                pw.SizedBox(width: 10),
+                pw.Text(flow, style: pw.TextStyle(font: regularFont, fontSize: 11, color: textMedium)),
+              ]),
             ));
           }
 
-          // Symptoms with emoji
+          // ── Symptoms ──
           final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
           if (symptoms.isNotEmpty) {
-            sections.add(pdfCard(tr('cycle_q_symptoms'),
-              pdfChipWrap(symptoms.map((s) => '${_symptomEmoji[s] ?? ''} $s').toList()),
+            sections.add(sectionCard(tr('cycle_q_symptoms'),
+              chipWrap(symptoms.map((s) => '${_symptomEmoji[s] ?? ''} $s').toList()),
             ));
           }
 
-          // Energy + Sleep side by side
+          // ── Energy + Sleep side by side ──
           final energy = data['energy'] as String? ?? '';
           final sleep = data['sleep'] as String? ?? '';
           final sleepCustom = data['sleepCustom'] as String? ?? '';
@@ -11342,16 +11315,21 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
                     margin: pw.EdgeInsets.only(bottom: 12, right: sleep.isNotEmpty ? 6 : 0),
                     padding: const pw.EdgeInsets.all(16),
                     decoration: pw.BoxDecoration(
-                      color: redSoft,
-                      borderRadius: pw.BorderRadius.circular(12),
-                      border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
+                      color: cardBg,
+                      borderRadius: pw.BorderRadius.circular(16),
+                      border: pw.Border.all(color: cardBorder, width: 0.5),
                     ),
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        pw.Text(tr('cycle_q_energy'), style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
-                        pw.SizedBox(height: 10),
-                        pdfChip(energy),
+                        pw.Row(children: [
+                          pw.Container(width: 10, height: 10,
+                            decoration: const pw.BoxDecoration(color: red, shape: pw.BoxShape.circle)),
+                          pw.SizedBox(width: 8),
+                          pw.Text(tr('cycle_q_energy'), style: pw.TextStyle(font: boldFont, fontSize: 13, color: textDark)),
+                        ]),
+                        pw.SizedBox(height: 12),
+                        pw.Text(energy, style: pw.TextStyle(font: boldFont, fontSize: 12, color: textDark)),
                       ],
                     ),
                   )),
@@ -11360,17 +11338,25 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
                     margin: pw.EdgeInsets.only(bottom: 12, left: energy.isNotEmpty ? 6 : 0),
                     padding: const pw.EdgeInsets.all(16),
                     decoration: pw.BoxDecoration(
-                      color: redSoft,
-                      borderRadius: pw.BorderRadius.circular(12),
-                      border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
+                      color: cardBg,
+                      borderRadius: pw.BorderRadius.circular(16),
+                      border: pw.Border.all(color: cardBorder, width: 0.5),
                     ),
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        pw.Text(tr('cycle_q_sleep'), style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
-                        pw.SizedBox(height: 10),
-                        pdfChip(sleep),
-                        if (sleepCustom.isNotEmpty) pdfTextBox(sleepCustom),
+                        pw.Row(children: [
+                          pw.Container(width: 10, height: 10,
+                            decoration: const pw.BoxDecoration(color: red, shape: pw.BoxShape.circle)),
+                          pw.SizedBox(width: 8),
+                          pw.Text(tr('cycle_q_sleep'), style: pw.TextStyle(font: boldFont, fontSize: 13, color: textDark)),
+                        ]),
+                        pw.SizedBox(height: 12),
+                        pw.Text(sleep, style: pw.TextStyle(font: boldFont, fontSize: 12, color: textDark)),
+                        if (sleepCustom.isNotEmpty) ...[
+                          pw.SizedBox(height: 4),
+                          pw.Text(sleepCustom, style: pw.TextStyle(font: regularFont, fontSize: 10, color: textMedium)),
+                        ],
                       ],
                     ),
                   )),
@@ -11378,37 +11364,37 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
             ));
           }
 
-          // Cravings with emoji
+          // ── Cravings ──
           final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
           final cravCustom = data['cravingsCustom'] as String? ?? '';
           if (cravings.isNotEmpty || cravCustom.isNotEmpty) {
-            sections.add(pdfCard(tr('cycle_q_cravings'), pw.Column(
+            sections.add(sectionCard(tr('cycle_q_cravings'), pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                if (cravings.isNotEmpty) pdfChipWrap(cravings.map((c) => '${_cravingEmoji[c] ?? ''} $c').toList()),
+                if (cravings.isNotEmpty) chipWrap(cravings.map((c) => '${_cravingEmoji[c] ?? ''} $c').toList()),
                 if (cravCustom.isNotEmpty) pdfTextBox(cravCustom),
               ],
             )));
           }
 
-          // Emotions
+          // ── Emotions ──
           final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
           final emoCustom = data['emotionsCustom'] as String? ?? '';
           if (emotions.isNotEmpty || emoCustom.isNotEmpty) {
-            sections.add(pdfCard(tr('cycle_q_emotions'), pw.Column(
+            sections.add(sectionCard(tr('cycle_q_emotions'), pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                if (emotions.isNotEmpty) pdfChipWrap(emotions),
+                if (emotions.isNotEmpty) chipWrap(emotions),
                 if (emoCustom.isNotEmpty) pdfTextBox(emoCustom),
               ],
             )));
           }
 
-          // Notes
+          // ── Notes ──
           final notes = data['notes'] as String? ?? '';
           if (notes.isNotEmpty) {
-            sections.add(pdfCard(tr('cycle_q_notes'),
-              pw.Text(notes, style: pw.TextStyle(font: regularFont, fontSize: 11, color: textDark)),
+            sections.add(sectionCard(tr('cycle_q_notes'),
+              pw.Text(notes, style: pw.TextStyle(font: regularFont, fontSize: 12, color: textDark)),
             ));
           }
         }
