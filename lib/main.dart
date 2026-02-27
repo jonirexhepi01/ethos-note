@@ -44,6 +44,9 @@ import 'package:flutter_contacts/flutter_contacts.dart' as contacts_pkg;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 /// Returns true when the Ethos (Bordeaux) theme is active.
 bool _isEthosTheme(BuildContext context) {
@@ -2531,6 +2534,16 @@ class StoredImage extends StatelessWidget {
   }
 }
 
+class Analytics {
+  static final _a = FirebaseAnalytics.instance;
+  static void log(String name, [Map<String, Object>? params]) =>
+      _a.logEvent(name: name, parameters: params);
+  static void screenView(String name) =>
+      _a.logScreenView(screenName: name);
+  static void setUserProperty(String name, String value) =>
+      _a.setUserProperty(name: name, value: value);
+}
+
 Future<void> _logError(Object error, StackTrace? stack) async {
   if (kDebugMode) {
     debugPrint('ERROR: $error');
@@ -2553,14 +2566,17 @@ Future<void> _logError(Object error, StackTrace? stack) async {
 void main() {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    await Firebase.initializeApp();
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
       _logError(details.exception, details.stack);
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
     };
 
     ui.PlatformDispatcher.instance.onError = (error, stack) {
       _logError(error, stack);
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
       return true;
     };
 
@@ -2594,6 +2610,7 @@ void main() {
     runApp(const EthosNoteApp());
   }, (error, stack) {
     _logError(error, stack);
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
   });
 }
 
@@ -2807,6 +2824,8 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
       prefs.setString('theme_mode', mode);
     });
     _syncThemeToWidget(mode);
+    Analytics.log('theme_changed', {'theme': mode});
+    Analytics.setUserProperty('theme', mode);
   }
 
   void setLocale(String locale) {
@@ -2814,6 +2833,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
     SharedPreferences.getInstance().then((prefs) {
       prefs.setString('app_locale', locale);
     });
+    Analytics.log('language_changed', {'locale': locale});
   }
 
   // ── Original theme (Indigo) ──
@@ -5558,6 +5578,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       value: 1.0, // starts on calendar tab (index 1)
     );
     _loadUserProfile();
+    _setNoteCountProperty();
     _checkCycleDiaryBadge();
     _checkSharedFile();
     _checkDeepLink();
@@ -5722,6 +5743,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         audioPath: destPath,
       );
       await DatabaseHelper().insertFlashNote(note);
+      Analytics.log('note_created', {'type': 'flash'});
       if (!mounted) return;
       // Switch to Flash Notes tab and refresh
       setState(() { _selectedIndex = 2; _refreshKey++; });
@@ -5744,6 +5766,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         _userProfile = profile;
       });
     }
+  }
+
+  Future<void> _setNoteCountProperty() async {
+    final db = DatabaseHelper();
+    final pro = await db.getAllProNotes();
+    final flash = await db.getAllFlashNotes();
+    final total = pro.length + flash.length;
+    final range = total == 0 ? '0' : total <= 10 ? '1-10' : total <= 50 ? '10-50' : '50+';
+    Analytics.setUserProperty('note_count_range', range);
   }
 
   Future<void> _saveUserProfile() async {
@@ -5988,6 +6019,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _openSettings() {
+    Analytics.screenView('settings');
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -6221,6 +6253,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           setState(() {
             _selectedIndex = index;
           });
+          Analytics.screenView(const ['deep_note', 'calendar', 'flash_notes'][index]);
           if (index == 1) {
             _calIconController.forward();
           } else {
@@ -6857,6 +6890,7 @@ class _CalendarPageState extends State<CalendarPage> {
       createdAt: DateTime.now(),
     );
     await DatabaseHelper().insertProNote(note);
+    Analytics.log('note_created', {'type': 'deep'});
   }
 
   /// Build plain-text summary from cycle diary data (for PDF/content field).
@@ -7213,6 +7247,7 @@ class _CalendarPageState extends State<CalendarPage> {
       // Remember signature so matching Google duplicate stays hidden
       final sig = '${event.title}|${event.startTime.millisecondsSinceEpoch}';
       _deletedEventSignatures.add(sig);
+      Analytics.log('event_deleted');
       if (!mounted) return;
       setState(() {
         _events[key]?.removeAt(index);
@@ -10618,6 +10653,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               contentPadding: EdgeInsets.zero,
               onChanged: (v) {
                 _updateSettings(_settings.copyWith(showWeather: v));
+                Analytics.log('weather_toggled', {'enabled': v.toString()});
               },
             ),
             if (_settings.showWeather) ...[
@@ -10809,6 +10845,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   activeColor: Colors.red,
                   onChanged: (v) {
                     _updateSettings(_settings.copyWith(showCycleTracking: v));
+                    Analytics.log('cycle_tracking_toggled', {'enabled': v.toString()});
                     if (v) _loadCyclePrediction();
                   },
                 ),
@@ -12381,6 +12418,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
       );
       // Pass single event — CalendarPage handles recurrence expansion
       widget.onSave(baseEvent);
+      Analytics.log('event_created');
 
       Navigator.pop(context);
     }
@@ -13480,6 +13518,7 @@ class _SettingsPageState extends State<SettingsPage> {
               title: Text(tr('general_settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
+                Analytics.screenView('general_settings');
                 Navigator.push(context, MaterialPageRoute(
                   builder: (_) => GeneralSettingsPage(
                     profile: _profile,
@@ -13581,6 +13620,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   onTap: () async {
                     final currentSettings = await NoteProSettings.load();
                     if (!context.mounted) return;
+                    Analytics.screenView('note_settings');
                     Navigator.push(context, MaterialPageRoute(
                       builder: (context) => NoteProSettingsPage(settings: currentSettings, onSave: (s) => s.save()),
                     ));
@@ -13600,6 +13640,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   onTap: () async {
                     final currentSettings = await CalendarSettings.load();
                     if (!context.mounted) return;
+                    Analytics.screenView('calendar_settings');
                     Navigator.push(context, MaterialPageRoute(
                       builder: (context) => CalendarSettingsPage(settings: currentSettings, onSave: (s) => s.save()),
                     ));
@@ -13619,6 +13660,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   onTap: () async {
                     final currentSettings = await FlashNotesSettings.load();
                     if (!context.mounted) return;
+                    Analytics.screenView('flash_notes_settings');
                     Navigator.push(context, MaterialPageRoute(
                       builder: (context) => FlashNotesSettingsPage(settings: currentSettings, onSave: (s) => s.save()),
                     ));
@@ -13888,6 +13930,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
 
       if (!mounted) return;
       if (result != null) {
+        Analytics.log('backup_created');
         // Save last backup date
         final nowIso = DateTime.now().toIso8601String();
         await DatabaseHelper().saveSetting('last_backup_date', nowIso);
@@ -13967,6 +14010,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         await pickedFile.copy(targetPath);
       }
 
+      Analytics.log('backup_restored');
       if (!mounted) return;
       await showDialog(
         context: context,
@@ -14713,6 +14757,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                     value: _profile.lockDeepNote,
                     onChanged: (value) {
                       _toggleLock(value, () => _profile.lockDeepNote, (v) => setState(() => _profile.lockDeepNote = v));
+                      Analytics.log('biometric_toggled', {'target': 'deep_note', 'enabled': value.toString()});
                     },
                   ),
                   const Divider(height: 1),
@@ -14724,6 +14769,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                     value: _profile.lockFlashNotes,
                     onChanged: (value) {
                       _toggleLock(value, () => _profile.lockFlashNotes, (v) => setState(() => _profile.lockFlashNotes = v));
+                      Analytics.log('biometric_toggled', {'target': 'flash_notes', 'enabled': value.toString()});
                     },
                   ),
                 ],
@@ -15871,6 +15917,7 @@ $fieldSpecs''';
           gemini.TextPart(prompt),
         ]),
       ]).timeout(const Duration(seconds: 60));
+      Analytics.log('gemini_used', {'type': 'image'});
 
       final text = response.text ?? '';
       String jsonStr = text.trim();
@@ -17882,6 +17929,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     if (trashed.id != null) {
       await db.deleteTrashedNote(trashed.id!);
     }
+    Analytics.log('note_restored', {'type': trashed.type});
     if (!mounted) return;
     setState(() => _trashedNotes.removeAt(index));
     if (mounted) {
@@ -18353,6 +18401,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
         final imgHelper = ImageStorageHelper();
         final fileName = imgHelper.generateFileName('flash');
         final filePath = await imgHelper.saveBytesToFile(bytes, fileName);
+        Analytics.log('photo_added');
         if (!mounted) return;
         setState(() {
           _attachedImagePath = filePath;
@@ -19434,6 +19483,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         final caption = captionCtrl.text.isNotEmpty ? captionCtrl.text : '📷 ${tr('photo')}';
         final note = FlashNote(content: caption, imagePath: filePath);
         final flashNoteId = await DatabaseHelper().insertFlashNote(note);
+        Analytics.log('note_created', {'type': 'flash'});
+        Analytics.log('photo_added');
         if (mounted) await _loadNotes();
         // Run photo recognition in background if enabled
         if (mounted) _runPhotoRecognition(filePath, flashNoteId: flashNoteId);
@@ -20038,6 +20089,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (note.id != null) {
       await db.deleteFlashNote(note.id!);
     }
+    Analytics.log('note_deleted', {'type': 'flash'});
     await _loadNotes();
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -20440,6 +20492,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
       final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
       final response = await model.generateContent([gemini.Content.text(prompt)]).timeout(const Duration(seconds: 60));
+      Analytics.log('gemini_used', {'type': 'text'});
       final result = response.text ?? tr('no_results');
 
       if (!mounted) return;
@@ -20588,6 +20641,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
             ]),
           ]).timeout(const Duration(seconds: 60));
           result = response.text ?? '';
+          Analytics.log('gemini_used', {'type': 'audio'});
           break;
         } catch (e) {
           if (e.toString().contains('503') && attempt < 2) {
@@ -20951,6 +21005,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                 gemini.TextPart('Trascrivi questo audio in italiano. Restituisci solo il testo trascritto, senza commenti.'),
                               ]),
                             ]).timeout(const Duration(seconds: 60));
+                            Analytics.log('gemini_used', {'type': 'audio'});
                             setSheetState(() {
                               transcription = response.text ?? '';
                               isTranscribing = false;
@@ -21954,6 +22009,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       builder: (_) => FlashNoteEditorPage(
         onSave: (note) async {
           await DatabaseHelper().insertFlashNote(note);
+          Analytics.log('note_created', {'type': 'flash'});
           if (mounted) await _loadNotes();
         },
       ),
@@ -22119,6 +22175,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                             recorderStateSub?.cancel();
                             final path = await recorder.stop();
                             recordedPath = path;
+                            Analytics.log('audio_recorded');
                             setSheetState(() => isRecording = false);
                           } else {
                             String path = '';
@@ -23186,6 +23243,7 @@ class _NotesProPageState extends State<NotesProPage> {
           defaultFolder: defaultFolder,
           onSave: (note) async {
             await DatabaseHelper().insertProNote(note);
+            Analytics.log('note_created', {'type': 'deep'});
             if (mounted) await _loadNotes();
           },
         ),
@@ -24519,6 +24577,7 @@ class _NotesProPageState extends State<NotesProPage> {
                     );
                   });
                   _saveCustomFolders();
+                  Analytics.log('folder_created');
                   Navigator.pop(ctx);
                 }
               },
@@ -25523,6 +25582,7 @@ class _NotesProPageState extends State<NotesProPage> {
     final idx = _proNotes.indexWhere((n) => n.id == noteId);
     if (idx == -1) return;
     final note = _proNotes[idx];
+    Analytics.log('pdf_exported');
 
     // Cycle diary notes use their own formatted PDF builder
     if (_isCycleDiaryNote(note)) {
@@ -25684,6 +25744,7 @@ class _NotesProPageState extends State<NotesProPage> {
       await ImageStorageHelper().deleteImageFile(note.imagePath);
     }
     await db.deleteProNote(noteId);
+    Analytics.log('note_deleted', {'type': 'deep'});
     await _loadNotes();
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -26341,6 +26402,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
 
       final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
       final response = await model.generateContent([gemini.Content.text(prompt)]).timeout(const Duration(seconds: 60));
+      Analytics.log('gemini_used', {'type': 'text'});
       final result = response.text ?? tr('no_results');
 
       if (!mounted) return;
@@ -26831,6 +26893,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   @override
   void initState() {
     super.initState();
+    Analytics.screenView('note_editor');
     _titleController = TextEditingController();
     _headerController = TextEditingController();
     _footerController = TextEditingController();
@@ -26994,6 +27057,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
       final model = gemini.GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
       final response = await model.generateContent([gemini.Content.text(prompt)]).timeout(const Duration(seconds: 60));
+      Analytics.log('gemini_used', {'type': 'text'});
       final result = response.text ?? tr('no_results');
 
       if (!mounted) return;
