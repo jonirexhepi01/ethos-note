@@ -11026,6 +11026,16 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     'Dolce', 'Salato', 'Cioccolato', 'Verdure', 'Carne', 'Carboidrati', 'Frutta',
   ];
 
+  static const _symptomEmoji = {
+    'Crampi addominali': '💫', 'Mal di testa': '🤕', 'Mal di schiena': '🔙',
+    'Gonfiore': '🫧', 'Stanchezza': '😴', 'Nausea': '🤢',
+    'Acne': '✨', 'Dolore al seno': '💗', 'Sbalzi d\'umore': '🎭', 'Vertigini': '💫',
+  };
+  static const _cravingEmoji = {
+    'Dolce': '🍬', 'Salato': '🧂', 'Cioccolato': '🍫',
+    'Verdure': '🥗', 'Carne': '🥩', 'Carboidrati': '🍝', 'Frutta': '🍎',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -11087,8 +11097,13 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
   static Future<Uint8List> _buildCycleDiaryPdf(Map<String, dynamic> data) async {
     final isMissing = data['type'] == 'cycle_missing';
     final pdf = pw.Document();
+    const red = PdfColor.fromInt(0xFFE53935);
+    const redLight = PdfColor.fromInt(0xFFFCE4EC);
+    const redSoft = PdfColor.fromInt(0xFFFFF5F5);
+    const textDark = PdfColor.fromInt(0xFF263238);
+    const textMedium = PdfColor.fromInt(0xFF546E7A);
 
-    // Load Nunito font + emoji fallback
+    // Load fonts
     pw.Font regularFont;
     pw.Font boldFont;
     try {
@@ -11102,7 +11117,6 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     try { emojiFont = await PdfGoogleFonts.notoColorEmojiRegular(); } catch (_) {}
     final fontFallback = <pw.Font>[if (emojiFont != null) emojiFont];
 
-    // Always load logo for header; check pdfShowLogo for footer
     pw.MemoryImage? logoImage;
     try {
       final logoData = await rootBundle.load('assets/logo.png');
@@ -11114,72 +11128,86 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
       showFooterLogo = noteSettings.pdfShowLogo;
     } catch (_) {}
 
-    // Helper: numbered section card — light rose background, modern Material style
-    pw.Widget pdfSection(String number, String title, pw.Widget content) {
+    final month = data['month'] as String? ?? '';
+    final periodStart = data['periodStart'] as String? ?? '';
+    final periodEnd = data['periodEnd'] as String? ?? '';
+
+    // ── Helpers ──
+
+    pw.Widget pdfCard(String title, pw.Widget content) {
       return pw.Container(
-        margin: const pw.EdgeInsets.only(bottom: 14),
+        margin: const pw.EdgeInsets.only(bottom: 12),
         padding: const pw.EdgeInsets.all(16),
         decoration: pw.BoxDecoration(
-          color: const PdfColor.fromInt(0xFFFFF5F5),
+          color: redSoft,
           borderRadius: pw.BorderRadius.circular(12),
+          border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
         ),
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Row(children: [
-              pw.Container(
-                width: 26, height: 26,
-                decoration: const pw.BoxDecoration(
-                  color: PdfColor.fromInt(0xFFE53935),
-                  shape: pw.BoxShape.circle,
-                ),
-                child: pw.Center(child: pw.Text(number, style: pw.TextStyle(font: boldFont, fontSize: 12, color: PdfColors.white))),
-              ),
-              pw.SizedBox(width: 10),
-              pw.Expanded(child: pw.Text(title, style: pw.TextStyle(font: boldFont, fontSize: 13, color: const PdfColor.fromInt(0xFF37474F)))),
-            ]),
-            pw.SizedBox(height: 12),
+            pw.Text(title, style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
+            pw.SizedBox(height: 10),
             content,
           ],
         ),
       );
     }
 
-    // Helper: compact chip row — only renders selected items
-    pw.Widget pdfSelectedChips(List<String> items) {
-      if (items.isEmpty) return pw.SizedBox();
-      return pw.Wrap(
-        spacing: 8,
-        runSpacing: 7,
-        children: items.map((item) => pw.Container(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: pw.BoxDecoration(
-            color: const PdfColor.fromInt(0xFFE53935),
-            borderRadius: pw.BorderRadius.circular(16),
-          ),
-          child: pw.Text(item, style: pw.TextStyle(font: boldFont, fontSize: 10, color: PdfColors.white)),
-        )).toList(),
+    pw.Widget pdfChip(String label, {bool filled = true}) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: pw.BoxDecoration(
+          color: filled ? red : const PdfColor.fromInt(0xFFFFEBEE),
+          borderRadius: pw.BorderRadius.circular(14),
+        ),
+        child: pw.Text(label, style: pw.TextStyle(
+          font: boldFont, fontSize: 9.5,
+          color: filled ? PdfColors.white : red,
+          fontFallback: fontFallback,
+        )),
       );
     }
 
-    // Helper: text note box — clean white card
+    pw.Widget pdfChipWrap(List<String> items) {
+      if (items.isEmpty) return pw.SizedBox();
+      return pw.Wrap(
+        spacing: 6, runSpacing: 6,
+        children: items.map((item) => pdfChip(item)).toList(),
+      );
+    }
+
     pw.Widget pdfTextBox(String text) {
       if (text.isEmpty) return pw.SizedBox();
       return pw.Container(
         margin: const pw.EdgeInsets.only(top: 8),
-        padding: const pw.EdgeInsets.all(12),
+        padding: const pw.EdgeInsets.all(10),
         width: double.infinity,
         decoration: pw.BoxDecoration(
           color: PdfColors.white,
-          borderRadius: pw.BorderRadius.circular(10),
+          borderRadius: pw.BorderRadius.circular(8),
         ),
-        child: pw.Text(text, style: pw.TextStyle(font: regularFont, fontSize: 11, color: const PdfColor.fromInt(0xFF455A64))),
+        child: pw.Text(text, style: pw.TextStyle(font: regularFont, fontSize: 10.5, color: textMedium)),
       );
     }
 
-    final pageTitle = isMissing
-        ? '${tr('cycle_missing')} ${data['month'] ?? ''}'
-        : '${tr('cycle_report')} ${data['month'] ?? ''}';
+    // Flow dots: ● filled, ○ empty
+    pw.Widget pdfFlowDots(int level) {
+      return pw.Row(
+        mainAxisSize: pw.MainAxisSize.min,
+        children: [
+          ...List.generate(4, (i) => pw.Padding(
+            padding: const pw.EdgeInsets.only(right: 6),
+            child: pw.Text(
+              i < level ? '●' : '○',
+              style: pw.TextStyle(font: boldFont, fontSize: 18, color: i < level ? red : const PdfColor.fromInt(0xFFE0E0E0)),
+            ),
+          )),
+        ],
+      );
+    }
+
+    // ── Page ──
 
     final generatedDate = '${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}';
     final footerStyle = pw.TextStyle(font: regularFont, fontSize: 9, color: PdfColors.grey500);
@@ -11187,111 +11215,178 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     pdf.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(36),
-      header: (_) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(pageTitle, style: pw.TextStyle(font: boldFont, fontSize: 20, color: PdfColors.red, fontFallback: fontFallback)),
-          pw.SizedBox(height: 8),
-        ],
-      ),
+      header: (_) => pw.SizedBox(),
       footer: (ctx) => pw.Row(
         children: [
-          pw.Expanded(
-            child: pw.Text(generatedDate, style: footerStyle),
-          ),
-          pw.Expanded(
-            child: pw.Center(
-              child: pw.Text('Pagina ${ctx.pageNumber} di ${ctx.pagesCount}', style: footerStyle),
-            ),
-          ),
-          pw.Expanded(
-            child: pw.Align(
-              alignment: pw.Alignment.centerRight,
-              child: showFooterLogo && logoImage != null
-                  ? pw.Image(logoImage, width: 20, height: 20)
-                  : pw.SizedBox(),
-            ),
-          ),
+          pw.Expanded(child: pw.Text(generatedDate, style: footerStyle)),
+          pw.Expanded(child: pw.Center(child: pw.Text('Pagina ${ctx.pageNumber} di ${ctx.pagesCount}', style: footerStyle))),
+          pw.Expanded(child: pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: showFooterLogo && logoImage != null ? pw.Image(logoImage, width: 20, height: 20) : pw.SizedBox(),
+          )),
         ],
       ),
       build: (ctx) {
         final sections = <pw.Widget>[];
-        int sectionNum = 0;
+
+        // Hero header card
+        sections.add(pw.Container(
+          margin: const pw.EdgeInsets.only(bottom: 16),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          decoration: pw.BoxDecoration(
+            color: redLight,
+            borderRadius: pw.BorderRadius.circular(16),
+            border: pw.Border.all(color: const PdfColor.fromInt(0xFFEF9A9A), width: 0.5),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Text(isMissing ? tr('cycle_missing') : tr('cycle_report'),
+                style: pw.TextStyle(font: boldFont, fontSize: 12, color: red, fontFallback: fontFallback)),
+              pw.SizedBox(height: 4),
+              pw.Text(month, style: pw.TextStyle(font: boldFont, fontSize: 26, color: textDark)),
+              if (periodStart.isNotEmpty || periodEnd.isNotEmpty) ...[
+                pw.SizedBox(height: 6),
+                pw.Text('$periodStart  →  $periodEnd',
+                  style: pw.TextStyle(font: regularFont, fontSize: 11, color: textMedium)),
+              ],
+            ],
+          ),
+        ));
 
         if (isMissing) {
           final reason = data['missingReason'] as String? ?? '';
           final reasonCustom = data['missingReasonCustom'] as String? ?? '';
           if (reason.isNotEmpty || reasonCustom.isNotEmpty) {
-            sectionNum++;
-            sections.add(pdfSection('$sectionNum', tr('cycle_missing_why'), pw.Column(
+            sections.add(pdfCard(tr('cycle_missing_why'), pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                if (reason.isNotEmpty) pdfSelectedChips([reason]),
+                if (reason.isNotEmpty) pdfChipWrap([reason]),
                 if (reasonCustom.isNotEmpty) pdfTextBox(reasonCustom),
               ],
             )));
           }
         } else {
-          // Timing
+          // Timing + Flow side by side
           final timing = data['timing'] as String? ?? '';
-          if (timing.isNotEmpty) {
-            sectionNum++;
-            sections.add(pdfSection('$sectionNum', tr('cycle_q_timing'),
-              pdfSelectedChips([timing]),
-            ));
-          }
-
-          // Flow
           final flow = data['flow'] as String? ?? '';
-          if (flow.isNotEmpty) {
-            sectionNum++;
-            sections.add(pdfSection('$sectionNum', tr('cycle_q_flow'),
-              pdfSelectedChips([flow]),
+          final flowLabels = [tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')];
+          final flowIdx = flowLabels.indexOf(flow) + 1;
+
+          if (timing.isNotEmpty || flow.isNotEmpty) {
+            sections.add(pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (timing.isNotEmpty)
+                  pw.Expanded(child: pw.Container(
+                    margin: pw.EdgeInsets.only(bottom: 12, right: flow.isNotEmpty ? 6 : 0),
+                    padding: const pw.EdgeInsets.all(16),
+                    decoration: pw.BoxDecoration(
+                      color: redSoft,
+                      borderRadius: pw.BorderRadius.circular(12),
+                      border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(tr('cycle_q_timing'), style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
+                        pw.SizedBox(height: 10),
+                        pdfChip(timing),
+                      ],
+                    ),
+                  )),
+                if (flow.isNotEmpty)
+                  pw.Expanded(child: pw.Container(
+                    margin: pw.EdgeInsets.only(bottom: 12, left: timing.isNotEmpty ? 6 : 0),
+                    padding: const pw.EdgeInsets.all(16),
+                    decoration: pw.BoxDecoration(
+                      color: redSoft,
+                      borderRadius: pw.BorderRadius.circular(12),
+                      border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(tr('cycle_q_flow'), style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
+                        pw.SizedBox(height: 10),
+                        pw.Row(children: [
+                          pdfFlowDots(flowIdx),
+                          pw.SizedBox(width: 8),
+                          pw.Text(flow, style: pw.TextStyle(font: regularFont, fontSize: 10, color: textMedium)),
+                        ]),
+                      ],
+                    ),
+                  )),
+              ],
             ));
           }
 
-          // Symptoms
+          // Symptoms with emoji
           final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
           if (symptoms.isNotEmpty) {
-            sectionNum++;
-            sections.add(pdfSection('$sectionNum', tr('cycle_q_symptoms'),
-              pdfSelectedChips(symptoms),
+            sections.add(pdfCard(tr('cycle_q_symptoms'),
+              pdfChipWrap(symptoms.map((s) => '${_symptomEmoji[s] ?? ''} $s').toList()),
             ));
           }
 
-          // Energy
+          // Energy + Sleep side by side
           final energy = data['energy'] as String? ?? '';
-          if (energy.isNotEmpty) {
-            sectionNum++;
-            sections.add(pdfSection('$sectionNum', tr('cycle_q_energy'),
-              pdfSelectedChips([energy]),
+          final sleep = data['sleep'] as String? ?? '';
+          final sleepCustom = data['sleepCustom'] as String? ?? '';
+          if (energy.isNotEmpty || sleep.isNotEmpty) {
+            sections.add(pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (energy.isNotEmpty)
+                  pw.Expanded(child: pw.Container(
+                    margin: pw.EdgeInsets.only(bottom: 12, right: sleep.isNotEmpty ? 6 : 0),
+                    padding: const pw.EdgeInsets.all(16),
+                    decoration: pw.BoxDecoration(
+                      color: redSoft,
+                      borderRadius: pw.BorderRadius.circular(12),
+                      border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(tr('cycle_q_energy'), style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
+                        pw.SizedBox(height: 10),
+                        pdfChip(energy),
+                      ],
+                    ),
+                  )),
+                if (sleep.isNotEmpty)
+                  pw.Expanded(child: pw.Container(
+                    margin: pw.EdgeInsets.only(bottom: 12, left: energy.isNotEmpty ? 6 : 0),
+                    padding: const pw.EdgeInsets.all(16),
+                    decoration: pw.BoxDecoration(
+                      color: redSoft,
+                      borderRadius: pw.BorderRadius.circular(12),
+                      border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2), width: 0.5),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(tr('cycle_q_sleep'), style: pw.TextStyle(font: boldFont, fontSize: 12, color: red)),
+                        pw.SizedBox(height: 10),
+                        pdfChip(sleep),
+                        if (sleepCustom.isNotEmpty) pdfTextBox(sleepCustom),
+                      ],
+                    ),
+                  )),
+              ],
             ));
           }
 
-          // Cravings
+          // Cravings with emoji
           final cravings = (data['cravings'] as List?)?.cast<String>() ?? [];
           final cravCustom = data['cravingsCustom'] as String? ?? '';
           if (cravings.isNotEmpty || cravCustom.isNotEmpty) {
-            sectionNum++;
-            sections.add(pdfSection('$sectionNum', tr('cycle_q_cravings'), pw.Column(
+            sections.add(pdfCard(tr('cycle_q_cravings'), pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                if (cravings.isNotEmpty) pdfSelectedChips(cravings),
+                if (cravings.isNotEmpty) pdfChipWrap(cravings.map((c) => '${_cravingEmoji[c] ?? ''} $c').toList()),
                 if (cravCustom.isNotEmpty) pdfTextBox(cravCustom),
-              ],
-            )));
-          }
-
-          // Sleep
-          final sleep = data['sleep'] as String? ?? '';
-          final sleepCustom = data['sleepCustom'] as String? ?? '';
-          if (sleep.isNotEmpty || sleepCustom.isNotEmpty) {
-            sectionNum++;
-            sections.add(pdfSection('$sectionNum', tr('cycle_q_sleep'), pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                if (sleep.isNotEmpty) pdfSelectedChips([sleep]),
-                if (sleepCustom.isNotEmpty) pdfTextBox(sleepCustom),
               ],
             )));
           }
@@ -11300,11 +11395,10 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
           final emotions = (data['emotions'] as List?)?.cast<String>() ?? [];
           final emoCustom = data['emotionsCustom'] as String? ?? '';
           if (emotions.isNotEmpty || emoCustom.isNotEmpty) {
-            sectionNum++;
-            sections.add(pdfSection('$sectionNum', tr('cycle_q_emotions'), pw.Column(
+            sections.add(pdfCard(tr('cycle_q_emotions'), pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                if (emotions.isNotEmpty) pdfSelectedChips(emotions),
+                if (emotions.isNotEmpty) pdfChipWrap(emotions),
                 if (emoCustom.isNotEmpty) pdfTextBox(emoCustom),
               ],
             )));
@@ -11313,9 +11407,8 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
           // Notes
           final notes = data['notes'] as String? ?? '';
           if (notes.isNotEmpty) {
-            sectionNum++;
-            sections.add(pdfSection('$sectionNum', tr('cycle_q_notes'),
-              pdfTextBox(notes),
+            sections.add(pdfCard(tr('cycle_q_notes'),
+              pw.Text(notes, style: pw.TextStyle(font: regularFont, fontSize: 11, color: textDark)),
             ));
           }
         }
@@ -11344,10 +11437,16 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final month = widget.data['month'] as String? ?? '';
+    final periodStart = widget.data['periodStart'] as String? ?? '';
+    final periodEnd = widget.data['periodEnd'] as String? ?? '';
+    const cycleRed = Color(0xFFE53935);
 
     final appBarTitle = _isMissingType
         ? '${tr('cycle_missing')} $month'
         : '${tr('cycle_report')} $month';
+
+    final flowLabels = [tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')];
+    final flowIndex = _flow != null ? flowLabels.indexOf(_flow!) : -1;
 
     return PopScope(
       onPopInvokedWithResult: (didPop, _) {
@@ -11364,11 +11463,10 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
             onPressed: _exportPdf,
             icon: const Icon(Icons.picture_as_pdf_outlined),
             tooltip: tr('pdf'),
-            color: Colors.red,
+            color: cycleRed,
           ),
           TextButton.icon(
             onPressed: () async {
-              // Handle "Sono incinta" option
               if (_isMissingType && _missingReason == tr('cycle_missing_pregnant')) {
                 await _handlePregnant();
               }
@@ -11377,27 +11475,67 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
             },
             icon: const Icon(Icons.check, size: 18),
             label: Text(tr('save')),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: cycleRed),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         children: [
+          // A. Hero Card
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  colors: [cycleRed.withValues(alpha: 0.12), cycleRed.withValues(alpha: 0.04)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Icon(_isMissingType ? Icons.event_busy : Icons.water_drop, size: 40, color: cycleRed),
+                  const SizedBox(height: 8),
+                  Text(_isMissingType ? tr('cycle_missing') : tr('cycle_report'),
+                    style: const TextStyle(fontSize: 14, color: cycleRed, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text(month, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  if (!_isMissingType && (periodStart.isNotEmpty || periodEnd.isNotEmpty)) ...[
+                    const SizedBox(height: 6),
+                    Text('$periodStart → $periodEnd',
+                      style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           if (_isMissingType) ...[
-            _buildSectionCard(
-              number: '1',
+            // Missing reason card
+            _buildCycleCard(
+              icon: Icons.help_outline,
               title: tr('cycle_missing_why'),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSingleChoice(
-                    options: [tr('cycle_missing_arrived'), tr('cycle_missing_not_yet'), tr('cycle_missing_pregnant'), tr('cycle_missing_other')],
-                    selected: _missingReason,
-                    onChanged: (v) => setState(() => _missingReason = v),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildEmojiChip('📅', tr('cycle_missing_arrived'), _missingReason == tr('cycle_missing_arrived'), () => setState(() => _missingReason = tr('cycle_missing_arrived'))),
+                      _buildEmojiChip('⏳', tr('cycle_missing_not_yet'), _missingReason == tr('cycle_missing_not_yet'), () => setState(() => _missingReason = tr('cycle_missing_not_yet'))),
+                      _buildEmojiChip('🤰', tr('cycle_missing_pregnant'), _missingReason == tr('cycle_missing_pregnant'), () => setState(() => _missingReason = tr('cycle_missing_pregnant'))),
+                      _buildEmojiChip('📝', tr('cycle_missing_other'), _missingReason == tr('cycle_missing_other'), () => setState(() => _missingReason = tr('cycle_missing_other'))),
+                    ],
                   ),
                   if (_missingReason == tr('cycle_missing_other')) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _missingReasonCustomCtrl,
                       decoration: InputDecoration(
@@ -11418,15 +11556,12 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () {
-                              // Go back to calendar to mark days
-                              Navigator.pop(context);
-                            },
+                            onPressed: () => Navigator.pop(context),
                             icon: const Icon(Icons.calendar_month, size: 16),
                             label: Text(tr('cycle_mark_days'), style: const TextStyle(fontSize: 12)),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.red,
-                              side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
+                              foregroundColor: cycleRed,
+                              side: BorderSide(color: cycleRed.withValues(alpha: 0.3)),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
@@ -11438,184 +11573,201 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
               ),
             ),
           ] else ...[
-          // 1. Timing
-          _buildSectionCard(
-            number: '1',
-            title: tr('cycle_q_timing'),
-            child: _buildSingleChoice(
-              options: [tr('cycle_q_timing_early'), tr('cycle_q_timing_ontime'), tr('cycle_q_timing_late')],
-              selected: _timing,
-              onChanged: (v) => setState(() => _timing = v),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 2. Flow
-          _buildSectionCard(
-            number: '2',
-            title: tr('cycle_q_flow'),
-            child: _buildSingleChoice(
-              options: [tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')],
-              selected: _flow,
-              onChanged: (v) => setState(() => _flow = v),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 3. Symptoms
-          _buildSectionCard(
-            number: '3',
-            title: tr('cycle_q_symptoms'),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: _symptomOptions.map((s) => FilterChip(
-                label: Text(s, style: const TextStyle(fontSize: 13)),
-                selected: _symptoms.contains(s),
-                selectedColor: Colors.red.withValues(alpha: 0.15),
-                checkmarkColor: Colors.red,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                onSelected: (v) => setState(() => v ? _symptoms.add(s) : _symptoms.remove(s)),
-              )).toList(),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 4. Energy
-          _buildSectionCard(
-            number: '4',
-            title: tr('cycle_q_energy'),
-            child: _buildSingleChoice(
-              options: [tr('cycle_q_energy_low'), tr('cycle_q_energy_normal'), tr('cycle_q_energy_high')],
-              selected: _energy,
-              onChanged: (v) => setState(() => _energy = v),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 5. Cravings
-          _buildSectionCard(
-            number: '5',
-            title: tr('cycle_q_cravings'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: _cravingOptions.map((c) => FilterChip(
-                    label: Text(c, style: const TextStyle(fontSize: 13)),
-                    selected: _cravings.contains(c),
-                    selectedColor: Colors.red.withValues(alpha: 0.15),
-                    checkmarkColor: Colors.red,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    onSelected: (v) => setState(() => v ? _cravings.add(c) : _cravings.remove(c)),
-                  )).toList(),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _cravingsCustomCtrl,
-                  decoration: InputDecoration(
-                    hintText: tr('cycle_q_cravings_other'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
-                    fillColor: colorScheme.surfaceContainerLowest,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 6. Sleep
-          _buildSectionCard(
-            number: '6',
-            title: tr('cycle_q_sleep'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSingleChoice(
-                  options: [tr('cycle_q_sleep_normal'), tr('cycle_q_sleep_deep'), tr('cycle_q_sleep_restless'), tr('cycle_q_sleep_insomnia')],
-                  selected: _sleep,
-                  onChanged: (v) => setState(() => _sleep = v),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _sleepCustomCtrl,
-                  decoration: InputDecoration(
-                    hintText: tr('cycle_q_cravings_other'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
-                    fillColor: colorScheme.surfaceContainerLowest,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 7. Emotions
-          _buildSectionCard(
-            number: '7',
-            title: tr('cycle_q_emotions'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    tr('cycle_q_emotions_calm'),
-                    tr('cycle_q_emotions_irritable'),
-                    tr('cycle_q_emotions_sensitive'),
-                    tr('cycle_q_emotions_sad'),
-                  ].map((e) => FilterChip(
-                    label: Text(e, style: const TextStyle(fontSize: 13)),
-                    selected: _emotions.contains(e),
-                    selectedColor: Colors.red.withValues(alpha: 0.15),
-                    checkmarkColor: Colors.red,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    onSelected: (v) => setState(() => v ? _emotions.add(e) : _emotions.remove(e)),
-                  )).toList(),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _emotionsCustomCtrl,
-                  decoration: InputDecoration(
-                    hintText: tr('cycle_q_cravings_other'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
-                    fillColor: colorScheme.surfaceContainerLowest,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 8. Notes
-          _buildSectionCard(
-            number: '8',
-            title: tr('cycle_q_notes'),
-            child: TextField(
-              controller: _notesCtrl,
-              maxLines: 5,
-              decoration: InputDecoration(
-                hintText: tr('cycle_q_notes_hint'),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerLowest,
-                contentPadding: const EdgeInsets.all(14),
+            // B. Timing
+            _buildCycleCard(
+              icon: Icons.schedule,
+              title: tr('cycle_q_timing'),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildEmojiChip('⏰', tr('cycle_q_timing_early'), _timing == tr('cycle_q_timing_early'), () => setState(() => _timing = tr('cycle_q_timing_early'))),
+                  _buildEmojiChip('✅', tr('cycle_q_timing_ontime'), _timing == tr('cycle_q_timing_ontime'), () => setState(() => _timing = tr('cycle_q_timing_ontime'))),
+                  _buildEmojiChip('⏳', tr('cycle_q_timing_late'), _timing == tr('cycle_q_timing_late'), () => setState(() => _timing = tr('cycle_q_timing_late'))),
+                ],
               ),
-              style: const TextStyle(fontSize: 14),
             ),
-          ),
+            const SizedBox(height: 12),
+
+            // C. Flow — water drop selector
+            _buildCycleCard(
+              icon: Icons.water_drop,
+              title: tr('cycle_q_flow'),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(4, (i) => GestureDetector(
+                      onTap: () => setState(() => _flow = flowLabels[i]),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Icon(
+                          Icons.water_drop,
+                          size: 36,
+                          color: i <= flowIndex ? cycleRed : colorScheme.outlineVariant,
+                        ),
+                      ),
+                    )),
+                  ),
+                  if (_flow != null) ...[
+                    const SizedBox(height: 8),
+                    Text(_flow!, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // D. Symptoms
+            _buildCycleCard(
+              icon: Icons.healing,
+              title: tr('cycle_q_symptoms'),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _symptomOptions.map((s) {
+                  final emoji = _symptomEmoji[s] ?? '';
+                  final selected = _symptoms.contains(s);
+                  return _buildEmojiChip(emoji, s, selected, () => setState(() => selected ? _symptoms.remove(s) : _symptoms.add(s)));
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // E. Energy
+            _buildCycleCard(
+              icon: Icons.bolt,
+              title: tr('cycle_q_energy'),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildEmojiChip('🔋', tr('cycle_q_energy_low'), _energy == tr('cycle_q_energy_low'), () => setState(() => _energy = tr('cycle_q_energy_low')), chipColor: Colors.red),
+                  _buildEmojiChip('🔋', tr('cycle_q_energy_normal'), _energy == tr('cycle_q_energy_normal'), () => setState(() => _energy = tr('cycle_q_energy_normal')), chipColor: Colors.amber),
+                  _buildEmojiChip('🔋', tr('cycle_q_energy_high'), _energy == tr('cycle_q_energy_high'), () => setState(() => _energy = tr('cycle_q_energy_high')), chipColor: Colors.green),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // F. Cravings
+            _buildCycleCard(
+              icon: Icons.restaurant,
+              title: tr('cycle_q_cravings'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _cravingOptions.map((c) {
+                      final emoji = _cravingEmoji[c] ?? '';
+                      final selected = _cravings.contains(c);
+                      return _buildEmojiChip(emoji, c, selected, () => setState(() => selected ? _cravings.remove(c) : _cravings.add(c)));
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _cravingsCustomCtrl,
+                    decoration: InputDecoration(
+                      hintText: tr('cycle_q_cravings_other'),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: colorScheme.surfaceContainerLowest,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // G. Sleep
+            _buildCycleCard(
+              icon: Icons.bedtime,
+              title: tr('cycle_q_sleep'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildEmojiChip('😴', tr('cycle_q_sleep_normal'), _sleep == tr('cycle_q_sleep_normal'), () => setState(() => _sleep = tr('cycle_q_sleep_normal'))),
+                      _buildEmojiChip('💤', tr('cycle_q_sleep_deep'), _sleep == tr('cycle_q_sleep_deep'), () => setState(() => _sleep = tr('cycle_q_sleep_deep'))),
+                      _buildEmojiChip('🔄', tr('cycle_q_sleep_restless'), _sleep == tr('cycle_q_sleep_restless'), () => setState(() => _sleep = tr('cycle_q_sleep_restless'))),
+                      _buildEmojiChip('😵', tr('cycle_q_sleep_insomnia'), _sleep == tr('cycle_q_sleep_insomnia'), () => setState(() => _sleep = tr('cycle_q_sleep_insomnia'))),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _sleepCustomCtrl,
+                    decoration: InputDecoration(
+                      hintText: tr('cycle_q_cravings_other'),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: colorScheme.surfaceContainerLowest,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // H. Emotions
+            _buildCycleCard(
+              icon: Icons.mood,
+              title: tr('cycle_q_emotions'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildEmojiChip('😌', tr('cycle_q_emotions_calm'), _emotions.contains(tr('cycle_q_emotions_calm')), () => setState(() { final e = tr('cycle_q_emotions_calm'); _emotions.contains(e) ? _emotions.remove(e) : _emotions.add(e); })),
+                      _buildEmojiChip('😤', tr('cycle_q_emotions_irritable'), _emotions.contains(tr('cycle_q_emotions_irritable')), () => setState(() { final e = tr('cycle_q_emotions_irritable'); _emotions.contains(e) ? _emotions.remove(e) : _emotions.add(e); })),
+                      _buildEmojiChip('🥺', tr('cycle_q_emotions_sensitive'), _emotions.contains(tr('cycle_q_emotions_sensitive')), () => setState(() { final e = tr('cycle_q_emotions_sensitive'); _emotions.contains(e) ? _emotions.remove(e) : _emotions.add(e); })),
+                      _buildEmojiChip('😢', tr('cycle_q_emotions_sad'), _emotions.contains(tr('cycle_q_emotions_sad')), () => setState(() { final e = tr('cycle_q_emotions_sad'); _emotions.contains(e) ? _emotions.remove(e) : _emotions.add(e); })),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _emotionsCustomCtrl,
+                    decoration: InputDecoration(
+                      hintText: tr('cycle_q_cravings_other'),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: colorScheme.surfaceContainerLowest,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // I. Notes
+            _buildCycleCard(
+              icon: Icons.notes,
+              title: tr('cycle_q_notes'),
+              child: TextField(
+                controller: _notesCtrl,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: tr('cycle_q_notes_hint'),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: colorScheme.surfaceContainerLowest,
+                  contentPadding: const EdgeInsets.all(14),
+                ),
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
           ],
         ],
       ),
@@ -11627,7 +11779,7 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
           await widget.onComplete(_collectData());
           if (mounted) Navigator.pop(context);
         },
-        backgroundColor: Colors.red,
+        backgroundColor: cycleRed,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.check),
         label: Text(tr('save')),
@@ -11636,8 +11788,9 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     );
   }
 
-  Widget _buildSectionCard({required String number, required String title, required Widget child}) {
+  Widget _buildCycleCard({required IconData icon, required String title, required Widget child}) {
     final colorScheme = Theme.of(context).colorScheme;
+    const cycleRed = Color(0xFFE53935);
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -11649,14 +11802,7 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
           children: [
             Row(
               children: [
-                Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(child: Text(number, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red))),
-                ),
+                Icon(icon, size: 20, color: cycleRed),
                 const SizedBox(width: 10),
                 Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15))),
               ],
@@ -11669,21 +11815,376 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     );
   }
 
-  Widget _buildSingleChoice({required List<String> options, required String? selected, required ValueChanged<String> onChanged}) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 6,
-      children: options.map((opt) {
-        final isSelected = selected == opt;
-        return FilterChip(
-          label: Text(opt, style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
-          selected: isSelected,
-          selectedColor: Colors.red.withValues(alpha: 0.15),
-          checkmarkColor: Colors.red,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          onSelected: (_) => onChanged(opt),
-        );
-      }).toList(),
+  Widget _buildEmojiChip(String emoji, String label, bool selected, VoidCallback onTap, {Color? chipColor}) {
+    const cycleRed = Color(0xFFE53935);
+    final colorScheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? (chipColor ?? cycleRed).withValues(alpha: 0.12) : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? (chipColor ?? cycleRed) : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 16)),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              color: selected ? (chipColor ?? cycleRed) : colorScheme.onSurface,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Cycle Note Read Page ──
+
+class CycleNoteReadPage extends StatefulWidget {
+  final ProNote note;
+  final Function(ProNote) onSave;
+
+  const CycleNoteReadPage({super.key, required this.note, required this.onSave});
+
+  @override
+  State<CycleNoteReadPage> createState() => _CycleNoteReadPageState();
+}
+
+class _CycleNoteReadPageState extends State<CycleNoteReadPage> {
+  late ProNote _currentNote;
+  late Map<String, dynamic> _data;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentNote = widget.note;
+    _data = _currentNote.contentDelta != null
+        ? (json.decode(_currentNote.contentDelta!) as Map<String, dynamic>)
+        : {};
+  }
+
+  void _openEditor() {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => CycleDiaryPage(
+        data: Map<String, dynamic>.from(_data),
+        noteId: _currentNote.id,
+        onSave: (updatedData) async {
+          if (_currentNote.id != null) {
+            final updated = ProNote(
+              title: _currentNote.title,
+              content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
+              contentDelta: json.encode(updatedData),
+              folder: 'Diario del Ciclo',
+              createdAt: _currentNote.createdAt,
+              updatedAt: DateTime.now(),
+            );
+            await DatabaseHelper().updateProNote(_currentNote.id!, updated);
+            widget.onSave(updated);
+            if (mounted) {
+              setState(() {
+                _currentNote = updated;
+                _data = updatedData;
+              });
+            }
+          }
+        },
+        onComplete: (updatedData) async {
+          if (_currentNote.id != null) {
+            final updated = ProNote(
+              title: _currentNote.title,
+              content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
+              contentDelta: json.encode(updatedData),
+              folder: 'Diario del Ciclo',
+              createdAt: _currentNote.createdAt,
+              updatedAt: DateTime.now(),
+            );
+            await DatabaseHelper().updateProNote(_currentNote.id!, updated);
+            await DatabaseHelper().deleteCache('cycle_diary_active');
+            widget.onSave(updated);
+            if (mounted) {
+              setState(() {
+                _currentNote = updated;
+                _data = updatedData;
+              });
+            }
+          }
+        },
+      ),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const cycleRed = Color(0xFFE53935);
+    final isMissing = _data['type'] == 'cycle_missing';
+    final month = _data['month'] as String? ?? '';
+    final periodStart = _data['periodStart'] as String? ?? '';
+    final periodEnd = _data['periodEnd'] as String? ?? '';
+    final timing = _data['timing'] as String? ?? '';
+    final flow = _data['flow'] as String? ?? '';
+    final symptoms = (_data['symptoms'] as List?)?.cast<String>() ?? [];
+    final energy = _data['energy'] as String? ?? '';
+    final cravings = (_data['cravings'] as List?)?.cast<String>() ?? [];
+    final cravCustom = _data['cravingsCustom'] as String? ?? '';
+    final sleep = _data['sleep'] as String? ?? '';
+    final sleepCustom = _data['sleepCustom'] as String? ?? '';
+    final emotions = (_data['emotions'] as List?)?.cast<String>() ?? [];
+    final emoCustom = _data['emotionsCustom'] as String? ?? '';
+    final notes = _data['notes'] as String? ?? '';
+
+    final flowLabels = [tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')];
+    final flowIdx = flowLabels.indexOf(flow);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(isMissing ? '${tr('cycle_missing')} $month' : '${tr('cycle_report')} $month',
+          style: const TextStyle(fontWeight: FontWeight.bold)),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit, color: cycleRed),
+            onPressed: _openEditor,
+          ),
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined, color: cycleRed),
+            onPressed: () async {
+              final pdfBytes = await _CycleDiaryPageState._buildCycleDiaryPdf(_data);
+              if (!mounted) return;
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: '${_currentNote.title}.pdf'),
+              ));
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () {
+              SharePlus.instance.share(ShareParams(text: _currentNote.content, subject: _currentNote.title));
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Hero/Identity Card
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    colors: [cycleRed.withValues(alpha: 0.12), cycleRed.withValues(alpha: 0.04)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Icon(isMissing ? Icons.event_busy : Icons.water_drop, size: 40, color: cycleRed),
+                    const SizedBox(height: 8),
+                    Text(month, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    if (periodStart.isNotEmpty || periodEnd.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text('$periodStart → $periodEnd',
+                        style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                    ],
+                    if (timing.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: cycleRed.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(timing, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: cycleRed)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            if (isMissing) ...[
+              if ((_data['missingReason'] as String?)?.isNotEmpty == true) ...[
+                const SizedBox(height: 12),
+                _readCard(Icons.help_outline, tr('cycle_missing_why'),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    _readChip(_data['missingReason'] as String),
+                    if ((_data['missingReasonCustom'] as String?)?.isNotEmpty == true)
+                      _readChip(_data['missingReasonCustom'] as String),
+                  ]),
+                ),
+              ],
+            ] else ...[
+              // Flow Card
+              if (flow.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _readCard(Icons.water_drop, tr('cycle_q_flow'),
+                  Row(
+                    children: [
+                      ...List.generate(4, (i) => Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: Icon(Icons.water_drop, size: 28,
+                          color: i <= flowIdx ? cycleRed : colorScheme.outlineVariant),
+                      )),
+                      const SizedBox(width: 8),
+                      Text(flow, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              ],
+
+              // Symptoms Card
+              if (symptoms.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _readCard(Icons.healing, tr('cycle_q_symptoms'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: symptoms.map((s) {
+                      final emoji = _CycleDiaryPageState._symptomEmoji[s] ?? '';
+                      return _readChip('$emoji $s');
+                    }).toList(),
+                  ),
+                ),
+              ],
+
+              // Energy + Sleep row
+              if (energy.isNotEmpty || sleep.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (energy.isNotEmpty)
+                      Expanded(child: _readCard(Icons.bolt, tr('cycle_q_energy'),
+                        Text(energy, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                      )),
+                    if (energy.isNotEmpty && sleep.isNotEmpty) const SizedBox(width: 8),
+                    if (sleep.isNotEmpty)
+                      Expanded(child: _readCard(Icons.bedtime, tr('cycle_q_sleep'),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(sleep, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                            if (sleepCustom.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(sleepCustom, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                            ],
+                          ],
+                        ),
+                      )),
+                  ],
+                ),
+              ],
+
+              // Cravings
+              if (cravings.isNotEmpty || cravCustom.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _readCard(Icons.restaurant, tr('cycle_q_cravings'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...cravings.map((c) {
+                        final emoji = _CycleDiaryPageState._cravingEmoji[c] ?? '';
+                        return _readChip('$emoji $c');
+                      }),
+                      if (cravCustom.isNotEmpty) _readChip(cravCustom),
+                    ],
+                  ),
+                ),
+              ],
+
+              // Emotions
+              if (emotions.isNotEmpty || emoCustom.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _readCard(Icons.mood, tr('cycle_q_emotions'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...emotions.map((e) => _readChip(e)),
+                      if (emoCustom.isNotEmpty) _readChip(emoCustom),
+                    ],
+                  ),
+                ),
+              ],
+
+              // Notes
+              if (notes.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _readCard(Icons.notes, tr('cycle_q_notes'),
+                  Text(notes, style: TextStyle(fontSize: 14, color: colorScheme.onSurface)),
+                ),
+              ],
+            ],
+
+            // Footer
+            const SizedBox(height: 24),
+            Center(
+              child: Text(
+                '${tr('created_on')} ${_currentNote.createdAt.day.toString().padLeft(2, '0')}/${_currentNote.createdAt.month.toString().padLeft(2, '0')}/${_currentNote.createdAt.year}',
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _readCard(IconData icon, String title, Widget child) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const cycleRed = Color(0xFFE53935);
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(icon, size: 18, color: cycleRed),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            ]),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _readChip(String label) {
+    const cycleRed = Color(0xFFE53935);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: cycleRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
     );
   }
 }
@@ -22569,9 +23070,14 @@ class _NotesProPageState extends State<NotesProPage> {
 
   void _editNote(int index) {
     final note = _proNotes[index];
-    // Cycle diary notes open in interactive questionnaire
+    // Cycle diary notes open in read page
     if (_isCycleDiaryNote(note)) {
-      _editCycleDiaryNote(note);
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => CycleNoteReadPage(
+          note: note,
+          onSave: (_) async { if (mounted) await _loadNotes(); },
+        ),
+      ));
       return;
     }
     // Wine notes open in dedicated reader
@@ -22738,43 +23244,118 @@ class _NotesProPageState extends State<NotesProPage> {
     );
   }
 
-  void _editCycleDiaryNote(ProNote note) {
-    final data = json.decode(note.contentDelta!) as Map<String, dynamic>;
-    Navigator.push(context, MaterialPageRoute(
-      builder: (_) => CycleDiaryPage(
-        data: data,
-        noteId: note.id,
-        onSave: (updatedData) async {
-          if (note.id != null) {
-            final updated = ProNote(
-              title: note.title,
-              content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
-              contentDelta: json.encode(updatedData),
-              folder: 'Diario del Ciclo',
-              createdAt: note.createdAt,
-              updatedAt: DateTime.now(),
-            );
-            await DatabaseHelper().updateProNote(note.id!, updated);
-            await _loadNotes();
-          }
-        },
-        onComplete: (updatedData) async {
-          if (note.id != null) {
-            final updated = ProNote(
-              title: note.title,
-              content: _CalendarPageState.buildCycleDiaryPlainText(updatedData),
-              contentDelta: json.encode(updatedData),
-              folder: 'Diario del Ciclo',
-              createdAt: note.createdAt,
-              updatedAt: DateTime.now(),
-            );
-            await DatabaseHelper().updateProNote(note.id!, updated);
-            await DatabaseHelper().deleteCache('cycle_diary_active');
-            await _loadNotes();
-          }
-        },
+  Widget _buildCycleGridCard(ProNote note, ColorScheme colorScheme) {
+    const cycleRed = Color(0xFFE53935);
+    Map<String, dynamic> data = {};
+    try { data = json.decode(note.contentDelta!) as Map<String, dynamic>; } catch (_) {}
+    final month = data['month'] as String? ?? '';
+    final flow = data['flow'] as String? ?? '';
+    final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
+    final isMissing = data['type'] == 'cycle_missing';
+    final flowLabels = [tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')];
+    final flowIdx = flowLabels.indexOf(flow);
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: cycleRed.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(isMissing ? Icons.event_busy : Icons.water_drop, color: cycleRed, size: 28),
+                  const SizedBox(height: 4),
+                  Text(month, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  if (!isMissing && flow.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(4, (i) => Icon(
+                        Icons.water_drop, size: 10,
+                        color: i <= flowIdx ? cycleRed : colorScheme.outlineVariant,
+                      )),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.water_drop, size: 13, color: cycleRed),
+              const SizedBox(width: 4),
+              Expanded(child: Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+            ],
+          ),
+          if (symptoms.isNotEmpty)
+            Text(symptoms.take(2).map((s) => '${_CycleDiaryPageState._symptomEmoji[s] ?? ''} $s').join(', '),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
+        ],
       ),
-    ));
+    );
+  }
+
+  Widget _buildCycleListCard(ProNote note, ColorScheme colorScheme) {
+    const cycleRed = Color(0xFFE53935);
+    Map<String, dynamic> data = {};
+    try { data = json.decode(note.contentDelta!) as Map<String, dynamic>; } catch (_) {}
+    final flow = data['flow'] as String? ?? '';
+    final symptoms = (data['symptoms'] as List?)?.cast<String>() ?? [];
+    final isMissing = data['type'] == 'cycle_missing';
+    final flowLabels = [tr('cycle_q_flow_light'), tr('cycle_q_flow_medium'), tr('cycle_q_flow_heavy'), tr('cycle_q_flow_very_heavy')];
+    final flowIdx = flowLabels.indexOf(flow);
+    return Row(
+      children: [
+        Container(
+          width: 48, height: 48,
+          decoration: BoxDecoration(
+            color: cycleRed.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(isMissing ? Icons.event_busy : Icons.water_drop, color: cycleRed, size: 24),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+              if (!isMissing && flow.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    ...List.generate(4, (i) => Icon(Icons.water_drop, size: 12,
+                      color: i <= flowIdx ? cycleRed : colorScheme.outlineVariant)),
+                    const SizedBox(width: 8),
+                    Text(flow, style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+              ],
+              if (symptoms.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(symptoms.take(2).map((s) => '${_CycleDiaryPageState._symptomEmoji[s] ?? ''} $s').join(' · '),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+              ],
+              const SizedBox(height: 4),
+              Text('${note.createdAt.day.toString().padLeft(2, '0')}/${note.createdAt.month.toString().padLeft(2, '0')}/${note.createdAt.year}',
+                style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5))),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   List<ProNote> get _filteredNotes {
@@ -23904,7 +24485,75 @@ class _NotesProPageState extends State<NotesProPage> {
                                       ),
                                     ),
                                     child: note.isWineNote
-                                      ? _buildWineGridCard(note, folderColor, colorScheme, accentColor)
+                                      ? Stack(
+                                          children: [
+                                            _buildWineGridCard(note, folderColor, colorScheme, accentColor),
+                                            if (!_selectionMode && note.id != null)
+                                              Positioned(
+                                                top: 0, right: 0,
+                                                child: SizedBox(
+                                                  width: 24, height: 24,
+                                                  child: PopupMenuButton<String>(
+                                                    icon: Icon(Icons.more_vert, size: 16, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                                                    padding: EdgeInsets.zero,
+                                                    iconSize: 16,
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                    onSelected: (value) {
+                                                      switch (value) {
+                                                        case 'share':
+                                                          SharePlus.instance.share(ShareParams(text: '${note.title}\n\n${note.content}', subject: note.title));
+                                                          break;
+                                                        case 'delete':
+                                                          _deleteNoteById(note.id!);
+                                                          break;
+                                                      }
+                                                    },
+                                                    itemBuilder: (_) => [
+                                                      PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 18, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+                                                      PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        )
+                                      : _isCycleDiaryNote(note)
+                                      ? Stack(
+                                          children: [
+                                            _buildCycleGridCard(note, colorScheme),
+                                            if (!_selectionMode && note.id != null)
+                                              Positioned(
+                                                top: 0, right: 0,
+                                                child: SizedBox(
+                                                  width: 24, height: 24,
+                                                  child: PopupMenuButton<String>(
+                                                    icon: Icon(Icons.more_vert, size: 16, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                                                    padding: EdgeInsets.zero,
+                                                    iconSize: 16,
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                    onSelected: (value) {
+                                                      switch (value) {
+                                                        case 'share':
+                                                          SharePlus.instance.share(ShareParams(text: '${note.title}\n\n${note.content}', subject: note.title));
+                                                          break;
+                                                        case 'pdf':
+                                                          _exportNotePdfById(note.id!);
+                                                          break;
+                                                        case 'delete':
+                                                          _deleteNoteById(note.id!);
+                                                          break;
+                                                      }
+                                                    },
+                                                    itemBuilder: (_) => [
+                                                      PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 18, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+                                                      PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 18, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('create_pdf'))])),
+                                                      PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        )
                                       : Padding(
                                       padding: const EdgeInsets.all(10),
                                       child: Column(
@@ -24055,7 +24704,61 @@ class _NotesProPageState extends State<NotesProPage> {
                                           ),
                                         ),
                                         child: note.isWineNote
-                                          ? _buildWineListCard(note, colorScheme)
+                                          ? Row(
+                                              children: [
+                                                Expanded(child: _buildWineListCard(note, colorScheme)),
+                                                if (!_selectionMode && note.id != null)
+                                                  PopupMenuButton<String>(
+                                                    icon: Icon(Icons.more_vert, size: 20, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                                                    padding: EdgeInsets.zero,
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                    onSelected: (value) {
+                                                      switch (value) {
+                                                        case 'share':
+                                                          SharePlus.instance.share(ShareParams(text: '${note.title}\n\n${note.content}', subject: note.title));
+                                                          break;
+                                                        case 'delete':
+                                                          _deleteNoteById(note.id!);
+                                                          break;
+                                                      }
+                                                    },
+                                                    itemBuilder: (_) => [
+                                                      PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 18, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+                                                      PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                                    ],
+                                                  ),
+                                              ],
+                                            )
+                                          : _isCycleDiaryNote(note)
+                                          ? Row(
+                                              children: [
+                                                Expanded(child: _buildCycleListCard(note, colorScheme)),
+                                                if (!_selectionMode && note.id != null)
+                                                  PopupMenuButton<String>(
+                                                    icon: Icon(Icons.more_vert, size: 20, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                                                    padding: EdgeInsets.zero,
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                    onSelected: (value) {
+                                                      switch (value) {
+                                                        case 'share':
+                                                          SharePlus.instance.share(ShareParams(text: '${note.title}\n\n${note.content}', subject: note.title));
+                                                          break;
+                                                        case 'pdf':
+                                                          _exportNotePdfById(note.id!);
+                                                          break;
+                                                        case 'delete':
+                                                          _deleteNoteById(note.id!);
+                                                          break;
+                                                      }
+                                                    },
+                                                    itemBuilder: (_) => [
+                                                      PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 18, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+                                                      PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 18, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('create_pdf'))])),
+                                                      PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                                    ],
+                                                  ),
+                                              ],
+                                            )
                                           : Row(
                                           children: [
                                             CircleAvatar(
@@ -24525,6 +25228,32 @@ class _NotesProPageState extends State<NotesProPage> {
     final idx = _proNotes.indexWhere((n) => n.id == noteId);
     if (idx == -1) return;
     final note = _proNotes[idx];
+
+    // Cycle diary notes use their own formatted PDF builder
+    if (_isCycleDiaryNote(note)) {
+      final data = json.decode(note.contentDelta!) as Map<String, dynamic>;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      try {
+        final pdfBytes = await _CycleDiaryPageState._buildCycleDiaryPdf(data);
+        if (!mounted) return;
+        Navigator.pop(context);
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => _PdfViewerPage(pdfBytes: pdfBytes, title: note.title),
+        ));
+      } catch (e) {
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore PDF: $e'), behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        );
+      }
+      return;
+    }
 
     final (hasImages, hasText) = _analyzeContentDelta(note.contentDelta);
     bool photosFullPage = false;
@@ -27668,7 +28397,7 @@ class _PdfViewerPage extends StatelessWidget {
         canDebug: false,
         allowPrinting: false,
         allowSharing: true,
-        pdfFileName: title,
+        pdfFileName: title.endsWith('.pdf') ? title : '$title.pdf',
       ),
     );
   }
