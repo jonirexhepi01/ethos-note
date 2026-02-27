@@ -533,6 +533,9 @@ const _translations = <String, Map<String, String>>{
   'last_backup': {'it': 'Ultimo backup', 'en': 'Last backup', 'fr': 'Dernière sauvegarde', 'es': 'Último backup'},
   'connect_google_drive': {'it': 'Collega Google Drive', 'en': 'Connect Google Drive', 'fr': 'Connecter Google Drive', 'es': 'Conectar Google Drive'},
   'backup_auto_completed': {'it': 'Backup automatico completato', 'en': 'Auto backup completed', 'fr': 'Sauvegarde automatique terminée', 'es': 'Backup automático completado'},
+  'backup_now': {'it': 'Esegui Backup Ora', 'en': 'Backup Now', 'fr': 'Sauvegarder maintenant', 'es': 'Hacer Backup Ahora'},
+  'backup_now_running': {'it': 'Backup in corso...', 'en': 'Backup in progress...', 'fr': 'Sauvegarde en cours...', 'es': 'Backup en curso...'},
+  'backup_now_completed': {'it': 'Backup completato con successo', 'en': 'Backup completed successfully', 'fr': 'Sauvegarde terminée avec succès', 'es': 'Backup completado con éxito'},
   'backup_dest_confirm_title': {'it': 'Cambiare destinazione?', 'en': 'Change destination?', 'fr': 'Changer la destination ?', 'es': '¿Cambiar destino?'},
   'backup_dest_confirm_body': {'it': 'I prossimi backup verranno salvati su {dest}. I backup precedenti non verranno spostati.', 'en': 'Future backups will be saved to {dest}. Previous backups will not be moved.', 'fr': 'Les prochaines sauvegardes seront enregistrées sur {dest}. Les sauvegardes précédentes ne seront pas déplacées.', 'es': 'Los próximos backups se guardarán en {dest}. Los backups anteriores no se moverán.'},
   'backup_dest_info': {'it': 'I prossimi backup verranno salvati su {dest}', 'en': 'Future backups will be saved to {dest}', 'fr': 'Les prochaines sauvegardes seront enregistrées sur {dest}', 'es': 'Los próximos backups se guardarán en {dest}'},
@@ -854,6 +857,15 @@ const _translations = <String, Map<String, String>>{
   'goblets': {'it': 'calici', 'en': 'goblets', 'fr': 'calices', 'es': 'copas'},
   'denomination': {'it': 'Denominazione', 'en': 'Denomination', 'fr': 'Appellation', 'es': 'Denominación'},
   'bottle_size': {'it': 'Formato', 'en': 'Bottle Size', 'fr': 'Format', 'es': 'Formato'},
+  'doc_research': {'it': 'Doc Research', 'en': 'Doc Research', 'fr': 'Doc Research', 'es': 'Doc Research'},
+  'flash_note_foto_ai': {'it': 'Flash Note Foto AI', 'en': 'Flash Note Photo AI', 'fr': 'Flash Note Photo IA', 'es': 'Flash Note Foto IA'},
+  'flash_note_foto_ai_desc': {'it': 'Biglietti da visita, ricevute, documenti, appunti scritti a mano', 'en': 'Business cards, receipts, documents, handwritten notes', 'fr': 'Cartes de visite, reçus, documents, notes manuscrites', 'es': 'Tarjetas de visita, recibos, documentos, notas manuscritas'},
+  'doc_type_business_card': {'it': 'Biglietti da Visita', 'en': 'Business Cards', 'fr': 'Cartes de visite', 'es': 'Tarjetas de visita'},
+  'doc_type_receipts': {'it': 'Ricevute', 'en': 'Receipts', 'fr': 'Reçus', 'es': 'Recibos'},
+  'doc_type_documents': {'it': 'Documenti', 'en': 'Documents', 'fr': 'Documents', 'es': 'Documentos'},
+  'doc_type_handwritten': {'it': 'Appunti Scritti a Mano', 'en': 'Handwritten Notes', 'fr': 'Notes manuscrites', 'es': 'Notas manuscritas'},
+  'wine_research_toggle': {'it': 'Wine Research', 'en': 'Wine Research', 'fr': 'Wine Research', 'es': 'Wine Research'},
+  'wine_research_toggle_desc': {'it': 'Riconosci etichette di vino e crea schede in Cantina Vini', 'en': 'Recognize wine labels and create cards in Wine Cellar', 'fr': 'Reconnaître les étiquettes de vin et créer des fiches', 'es': 'Reconocer etiquetas de vino y crear fichas en bodega'},
   'contact_form_title': {'it': 'Nuovo Contatto', 'en': 'New Contact', 'fr': 'Nouveau contact', 'es': 'Nuevo contacto'},
   'company': {'it': 'Azienda', 'en': 'Company', 'fr': 'Entreprise', 'es': 'Empresa'},
   'role_title': {'it': 'Ruolo', 'en': 'Role', 'fr': 'Rôle', 'es': 'Cargo'},
@@ -1243,7 +1255,7 @@ const _translations = <String, Map<String, String>>{
   'chinese_zodiac': {'it': 'Zodiaco Cinese', 'en': 'Chinese Zodiac', 'fr': 'Zodiaque Chinois', 'es': 'Zodíaco Chino'},
   'show_chinese_zodiac': {'it': 'Mostra zodiaco cinese', 'en': 'Show Chinese zodiac', 'fr': 'Afficher le zodiaque chinois', 'es': 'Mostrar zodíaco chino'},
   'ethos_aura': {'it': 'Ethos Aura', 'en': 'Ethos Aura', 'fr': 'Ethos Aura', 'es': 'Ethos Aura'},
-  'ethos_aura_desc': {'it': 'Funzionalità premium per la tua esperienza', 'en': 'Premium features for your experience', 'fr': 'Fonctionnalités premium pour votre expérience', 'es': 'Funciones premium para tu experiencia'},
+  'ethos_aura_desc': {'it': 'Lo shop di Ethos Note — personalizza la tua app', 'en': 'The Ethos Note shop — customize your app', 'fr': 'La boutique Ethos Note — personnalisez votre app', 'es': 'La tienda de Ethos Note — personaliza tu app'},
   'unlock': {'it': 'Sblocca', 'en': 'Unlock', 'fr': 'Débloquer', 'es': 'Desbloquear'},
   'purchased': {'it': 'Acquistato', 'en': 'Purchased', 'fr': 'Acheté', 'es': 'Comprado'},
   'unlock_horoscope': {'it': 'Sblocca Oroscopo', 'en': 'Unlock Horoscope', 'fr': 'Débloquer Horoscope', 'es': 'Desbloquear Horóscopo'},
@@ -1254,7 +1266,7 @@ const _translations = <String, Map<String, String>>{
   'unlock_ephemera_theme': {'it': 'Tema Ephemera', 'en': 'Ephemera Theme', 'fr': 'Thème Ephemera', 'es': 'Tema Ephemera'},
   'ephemera_theme_desc': {'it': 'L\'anima del diario: palette crema e seppia', 'en': 'The soul of a diary: cream and sepia palette', 'fr': 'L\'âme du journal: palette crème et sépia', 'es': 'El alma del diario: paleta crema y sepia'},
   'theme_locked': {'it': 'Tema bloccato', 'en': 'Theme locked', 'fr': 'Thème verrouillé', 'es': 'Tema bloqueado'},
-  'theme_catalog': {'it': 'Catalogo Temi', 'en': 'Theme Catalog', 'fr': 'Catalogue de thèmes', 'es': 'Catálogo de temas'},
+  'theme_catalog': {'it': 'Shop Temi', 'en': 'Theme Shop', 'fr': 'Boutique Thèmes', 'es': 'Tienda de Temas'},
   'theme_catalog_desc': {'it': 'Temi premium per personalizzare l\'app', 'en': 'Premium themes to customize the app', 'fr': 'Thèmes premium pour personnaliser l\'app', 'es': 'Temas premium para personalizar la app'},
   'no_themes_purchased': {'it': 'Nessun tema acquistato', 'en': 'No themes purchased', 'fr': 'Aucun thème acheté', 'es': 'Ningún tema comprado'},
   'browse_themes': {'it': 'Sfoglia i temi disponibili su Ethos Aura', 'en': 'Browse available themes on Ethos Aura', 'fr': 'Parcourir les thèmes disponibles sur Ethos Aura', 'es': 'Explorar temas disponibles en Ethos Aura'},
@@ -8857,6 +8869,7 @@ class GoogleCalendarService {
     scopes: [
       gcal.CalendarApi.calendarScope,
       gdrive.DriveApi.driveFileScope,
+      gdrive.DriveApi.driveAppdataScope,
     ],
   );
 
@@ -13909,6 +13922,72 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     return Uint8List.fromList(archive.ZipEncoder().encode(zip));
   }
 
+  Future<void> _backupNow() async {
+    setState(() => _isBackingUp = true);
+    try {
+      if (_backupDestination == 'drive') {
+        final signedIn = await _ensureGoogleDriveSignIn();
+        if (!signedIn) {
+          if (mounted) setState(() => _isBackingUp = false);
+          return;
+        }
+
+        final driveApi = await GoogleCalendarService.getDriveApi();
+        if (driveApi == null) throw Exception('Drive API unavailable');
+
+        final zipBytes = await _buildBackupZipBytes();
+        final now = DateTime.now();
+        final fileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.zip';
+
+        final driveFile = gdrive.File()
+          ..name = fileName
+          ..parents = ['appDataFolder'];
+
+        await driveApi.files.create(
+          driveFile,
+          uploadMedia: gdrive.Media(Stream.value(zipBytes), zipBytes.length),
+        );
+
+        await _cleanupOldDriveBackups(driveApi);
+      } else {
+        final zipBytes = await _buildBackupZipBytes();
+        final now = DateTime.now();
+        final fileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.zip';
+
+        final downloadDir = Directory('/storage/emulated/0/Download/EthosNote');
+        if (!await downloadDir.exists()) await downloadDir.create(recursive: true);
+        await File(p.join(downloadDir.path, fileName)).writeAsBytes(zipBytes);
+      }
+
+      final nowIso = DateTime.now().toIso8601String();
+      await DatabaseHelper().saveSetting('last_backup_date', nowIso);
+      Analytics.log('backup_now');
+
+      if (!mounted) return;
+      setState(() {
+        _isBackingUp = false;
+        _lastBackupDate = nowIso;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('backup_now_completed')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isBackingUp = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('backup_error')}: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
   Future<void> _exportBackup() async {
     try {
       final dbPath = await getDatabasesPath();
@@ -14597,9 +14676,29 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                     ),
                   ),
 
+                // Backup Now button
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _isBackingUp ? null : _backupNow,
+                      icon: _isBackingUp
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.backup, size: 18),
+                      label: Text(_isBackingUp ? tr('backup_now_running') : tr('backup_now'), style: const TextStyle(fontSize: 14)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+
                 // Export / Import buttons
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: Row(
                     children: [
                       Expanded(
@@ -15731,6 +15830,7 @@ class FlashNotesSettings {
   final String groupingMode; // 'daily', 'weekly', 'monthly', 'yearly'
   final int maxAudioDurationSeconds;
   final bool photoRecognitionEnabled;
+  final bool wineResearchEnabled;
   final String noteStyle; // 'modern', 'paper'
 
   const FlashNotesSettings({
@@ -15744,6 +15844,7 @@ class FlashNotesSettings {
     this.groupingMode = 'weekly',
     this.maxAudioDurationSeconds = 120,
     this.photoRecognitionEnabled = true,
+    this.wineResearchEnabled = true,
     this.noteStyle = 'modern',
   });
 
@@ -15758,6 +15859,7 @@ class FlashNotesSettings {
     String? groupingMode,
     int? maxAudioDurationSeconds,
     bool? photoRecognitionEnabled,
+    bool? wineResearchEnabled,
     String? noteStyle,
   }) {
     return FlashNotesSettings(
@@ -15771,6 +15873,7 @@ class FlashNotesSettings {
       groupingMode: groupingMode ?? this.groupingMode,
       maxAudioDurationSeconds: maxAudioDurationSeconds ?? this.maxAudioDurationSeconds,
       photoRecognitionEnabled: photoRecognitionEnabled ?? this.photoRecognitionEnabled,
+      wineResearchEnabled: wineResearchEnabled ?? this.wineResearchEnabled,
       noteStyle: noteStyle ?? this.noteStyle,
     );
   }
@@ -15786,6 +15889,7 @@ class FlashNotesSettings {
     'groupingMode': groupingMode,
     'maxAudioDurationSeconds': maxAudioDurationSeconds,
     'photoRecognitionEnabled': photoRecognitionEnabled,
+    'wineResearchEnabled': wineResearchEnabled,
     'noteStyle': noteStyle,
   };
 
@@ -15801,6 +15905,7 @@ class FlashNotesSettings {
         groupingMode: json['groupingMode'] ?? 'weekly',
         maxAudioDurationSeconds: json['maxAudioDurationSeconds'] ?? 120,
         photoRecognitionEnabled: json['photoRecognitionEnabled'] ?? true,
+        wineResearchEnabled: json['wineResearchEnabled'] ?? true,
         noteStyle: json['noteStyle'] ?? 'modern',
       );
 
@@ -16428,20 +16533,20 @@ class FlashNotesSettingsPage extends StatefulWidget {
 class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
   late FlashNotesSettings _settings;
   late TextEditingController _apiKeyController;
-  EthosAuraSettings _auraSettings = const EthosAuraSettings();
+  bool _unlimitedVoice = false;
 
   @override
   void initState() {
     super.initState();
     _settings = widget.settings;
     _apiKeyController = TextEditingController(text: _settings.geminiApiKey);
-    _loadAuraSettings();
+    _loadVoiceStatus();
   }
 
-  Future<void> _loadAuraSettings() async {
-    final s = await EthosAuraSettings.load();
+  Future<void> _loadVoiceStatus() async {
+    final aura = await EthosAuraSettings.load();
     if (!mounted) return;
-    setState(() => _auraSettings = s);
+    setState(() => _unlimitedVoice = aura.unlimitedVoicePurchased);
   }
 
   @override
@@ -16485,29 +16590,49 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // SEZIONE: Riconoscimento Foto AI con toggle on/off
-          _buildSectionHeader(tr('photo_recognition'), Icons.image_search, sectionColor),
+          // SEZIONE: Flash Note Foto AI
+          _buildSectionHeader(tr('flash_note_foto_ai'), Icons.image_search, sectionColor),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             color: colorScheme.surfaceContainerLowest,
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: Icon(Icons.image_search, color: sectionColor),
+                  title: Text(tr('doc_research'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                    tr('flash_note_foto_ai_desc'),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                  ),
+                  value: _settings.photoRecognitionEnabled,
+                  onChanged: (val) {
+                    _updateSettings(_settings.copyWith(photoRecognitionEnabled: val));
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // SEZIONE: Wine Research
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            color: colorScheme.surfaceContainerLowest,
             child: SwitchListTile(
-              secondary: Icon(
-                Icons.image_search,
-                color: _auraSettings.photoRecognitionPurchased ? sectionColor : colorScheme.onSurfaceVariant,
-              ),
-              title: Text(tr('photo_recognition'), style: const TextStyle(fontWeight: FontWeight.w600)),
+              secondary: Icon(Icons.wine_bar, color: sectionColor),
+              title: Text(tr('wine_research_toggle'), style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text(
-                _auraSettings.photoRecognitionPurchased
-                    ? (_settings.photoRecognitionEnabled ? tr('enabled') : tr('disabled'))
-                    : tr('ethos_aura'),
-                style: TextStyle(fontSize: 12, color: _auraSettings.photoRecognitionPurchased ? (_settings.photoRecognitionEnabled ? Colors.green : colorScheme.onSurfaceVariant) : colorScheme.onSurfaceVariant),
+                tr('wine_research_toggle_desc'),
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
               ),
-              value: _settings.photoRecognitionEnabled,
-              onChanged: _auraSettings.photoRecognitionPurchased ? (val) {
-                _updateSettings(_settings.copyWith(photoRecognitionEnabled: val));
-              } : null,
+              value: _settings.wineResearchEnabled,
+              onChanged: (val) {
+                _updateSettings(_settings.copyWith(wineResearchEnabled: val));
+              },
             ),
           ),
 
@@ -16553,7 +16678,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
             color: colorScheme.surfaceContainerLowest,
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: _auraSettings.unlimitedVoicePurchased
+              child: _unlimitedVoice
                   ? Row(
                       children: [
                         const Icon(Icons.check_circle, color: Colors.green),
@@ -17279,26 +17404,6 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
                   price: '€1,00',
                   purchased: _auraSettings.unlimitedVoicePurchased,
                   onTap: () => _simulatePurchase('voice'),
-                  colorScheme: colorScheme,
-                ),
-
-                // Photo Recognition AI
-                _buildPurchaseTile(
-                  icon: Icons.image_search,
-                  title: tr('unlock_photo_recognition'),
-                  price: '€0,99',
-                  purchased: _auraSettings.photoRecognitionPurchased,
-                  onTap: () => _simulatePurchase('photo_recognition'),
-                  colorScheme: colorScheme,
-                ),
-
-                // Wine Research
-                _buildPurchaseTile(
-                  icon: Icons.wine_bar,
-                  title: tr('unlock_wine_research'),
-                  price: '€2,99',
-                  purchased: _auraSettings.wineResearchPurchased,
-                  onTap: () => _simulatePurchase('wine_research'),
                   colorScheme: colorScheme,
                 ),
 
@@ -18413,11 +18518,10 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   }
 
   Future<void> _tryPhotoRecognition(String imagePath) async {
-    final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    final hasPhotoRec = auraSettings.photoRecognitionPurchased && settings.photoRecognitionEnabled;
-    final hasWineRes = auraSettings.wineResearchPurchased;
-    if (!hasPhotoRec && !hasWineRes) return; // nessun acquisto o disattivato — silenzioso
+    final hasPhotoRec = settings.photoRecognitionEnabled;
+    final hasWineRes = settings.wineResearchEnabled;
+    if (!hasPhotoRec && !hasWineRes) return;
     if (!settings.geminiEnabled || settings.geminiApiKey.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -19507,10 +19611,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   }
 
   Future<void> _runPhotoRecognition(String imagePath, {int? flashNoteId}) async {
-    final auraSettings = await EthosAuraSettings.load();
     final settings = await FlashNotesSettings.load();
-    final hasPhotoRec = auraSettings.photoRecognitionPurchased && settings.photoRecognitionEnabled;
-    final hasWineRes = auraSettings.wineResearchPurchased;
+    final hasPhotoRec = settings.photoRecognitionEnabled;
+    final hasWineRes = settings.wineResearchEnabled;
     if (!hasPhotoRec && !hasWineRes) return;
     if (!settings.geminiEnabled || settings.geminiApiKey.isEmpty) {
       if (!mounted) return;
