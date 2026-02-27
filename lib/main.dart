@@ -739,6 +739,14 @@ const _translations = <String, Map<String, String>>{
   'export_pdf': {'it': 'Esporta PDF', 'en': 'Export PDF', 'fr': 'Exporter en PDF', 'es': 'Exportar PDF'},
   'pdf_show_logo': {'it': 'Logo Deep Note nel PDF', 'en': 'Deep Note logo in PDF', 'fr': 'Logo Deep Note dans le PDF', 'es': 'Logo Deep Note en PDF'},
   'pdf_show_logo_desc': {'it': 'Mostra il logo in basso a destra di ogni pagina', 'en': 'Show logo at the bottom right of each page', 'fr': 'Afficher le logo en bas à droite de chaque page', 'es': 'Mostrar el logo en la parte inferior derecha de cada página'},
+  'default_view': {'it': 'Vista predefinita', 'en': 'Default view', 'fr': 'Vue par défaut', 'es': 'Vista predeterminada'},
+  'week_start': {'it': 'Inizio settimana', 'en': 'Week start', 'fr': 'Début de semaine', 'es': 'Inicio de semana'},
+  'week_start_desc': {'it': 'Primo giorno della settimana nel calendario', 'en': 'First day of the week in the calendar', 'fr': 'Premier jour de la semaine dans le calendrier', 'es': 'Primer día de la semana en el calendario'},
+  'page_format': {'it': 'Formato pagina', 'en': 'Page format', 'fr': 'Format de page', 'es': 'Formato de página'},
+  'page_format_desc': {'it': 'Dimensione della pagina per i PDF esportati', 'en': 'Page size for exported PDFs', 'fr': 'Taille de page pour les PDF exportés', 'es': 'Tamaño de página para los PDF exportados'},
+  'mobile_format': {'it': 'Mobile', 'en': 'Mobile', 'fr': 'Mobile', 'es': 'Móvil'},
+  'page_numbering': {'it': 'Numerazione pagine', 'en': 'Page numbering', 'fr': 'Numérotation des pages', 'es': 'Numeración de páginas'},
+  'page_numbering_desc': {'it': 'Mostra il numero di pagina nel piè di pagina', 'en': 'Show page number in the footer', 'fr': 'Afficher le numéro de page dans le pied de page', 'es': 'Mostrar el número de página en el pie de página'},
   'print': {'it': 'Stampa', 'en': 'Print', 'fr': 'Imprimer', 'es': 'Imprimir'},
   'pin_security': {'it': 'PIN di sicurezza', 'en': 'Security PIN', 'fr': 'PIN de sécurité', 'es': 'PIN de seguridad'},
   'enter_pin': {'it': 'Inserisci PIN', 'en': 'Enter PIN', 'fr': 'Entrez le PIN', 'es': 'Introduce el PIN'},
@@ -7466,7 +7474,7 @@ class _CalendarPageState extends State<CalendarPage> {
       lastDay: DateTime.utc(2100, 12, 31),
       focusedDay: _focusedDay,
       locale: _appLocale,
-      startingDayOfWeek: StartingDayOfWeek.monday,
+      startingDayOfWeek: _calSettings.startingDay == 'sunday' ? StartingDayOfWeek.sunday : StartingDayOfWeek.monday,
       calendarFormat: format,
       rowHeight: rowHeight ?? 52,
       sixWeekMonthsEnforced: _calSettings.showNextMonthPreview,
@@ -8461,13 +8469,25 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // Custom week view: 3 rows of 3 cells (7 days + 2 preview from next week)
   Widget _buildCustomWeekView(ColorScheme colorScheme) {
-    // Get start of current week (Monday)
+    // Get start of current week based on startingDay setting
     final now = _focusedDay;
-    final monday = now.subtract(Duration(days: now.weekday - 1));
+    final DateTime weekStart;
+    if (_calSettings.startingDay == 'sunday') {
+      weekStart = now.subtract(Duration(days: now.weekday % 7));
+    } else {
+      weekStart = now.subtract(Duration(days: now.weekday - 1));
+    }
     // 7 days of this week + 2 preview days of next week
-    final days = List.generate(9, (i) => monday.add(Duration(days: i)));
+    final days = List.generate(9, (i) => weekStart.add(Duration(days: i)));
 
-    final weekDaysShort = [...localizedWeekdaysShort(), tr('mon'), tr('tue')];
+    final allDays = localizedWeekdaysShort(); // Mon-Sun
+    final List<String> weekDaysShort;
+    if (_calSettings.startingDay == 'sunday') {
+      // Sun, Mon, Tue, Wed, Thu, Fri, Sat + Sun, Mon (preview)
+      weekDaysShort = [allDays[6], ...allDays.sublist(0, 6), allDays[6], allDays[0]];
+    } else {
+      weekDaysShort = [...allDays, allDays[0], allDays[1]];
+    }
     final monthsShort = localizedMonthsShort();
 
     Widget buildWeekDayCell(DateTime day, String label, {bool isPreview = false}) {
@@ -9857,6 +9877,7 @@ class CalendarSettings {
   // Layout
   final String calendarLayout; // 'split' or 'fullScreen'
   final String calendarViewMode; // 'month' or 'week'
+  final String startingDay; // 'monday' or 'sunday'
 
   // Cycle tracking (private)
   final bool showCycleTracking;
@@ -9890,6 +9911,7 @@ class CalendarSettings {
     this.weatherLon,
     this.calendarLayout = 'split',
     this.calendarViewMode = 'month',
+    this.startingDay = 'monday',
     this.showCycleTracking = false,
     this.cyclePeriodDays = 28,
     this.cycleDurationDays = 5,
@@ -9925,6 +9947,7 @@ class CalendarSettings {
     double? weatherLon,
     String? calendarLayout,
     String? calendarViewMode,
+    String? startingDay,
     bool? showCycleTracking,
     int? cyclePeriodDays,
     int? cycleDurationDays,
@@ -9955,6 +9978,7 @@ class CalendarSettings {
       weatherLon: weatherLon ?? this.weatherLon,
       calendarLayout: calendarLayout ?? this.calendarLayout,
       calendarViewMode: calendarViewMode ?? this.calendarViewMode,
+      startingDay: startingDay ?? this.startingDay,
       showCycleTracking: showCycleTracking ?? this.showCycleTracking,
       cyclePeriodDays: cyclePeriodDays ?? this.cyclePeriodDays,
       cycleDurationDays: cycleDurationDays ?? this.cycleDurationDays,
@@ -9986,6 +10010,7 @@ class CalendarSettings {
     'weatherLon': weatherLon,
     'calendarLayout': calendarLayout,
     'calendarViewMode': calendarViewMode,
+    'startingDay': startingDay,
     'showCycleTracking': showCycleTracking,
     'cyclePeriodDays': cyclePeriodDays,
     'cycleDurationDays': cycleDurationDays,
@@ -10022,6 +10047,7 @@ class CalendarSettings {
         weatherLon: (json['weatherLon'] as num?)?.toDouble(),
         calendarLayout: json['calendarLayout'] ?? 'split',
         calendarViewMode: json['calendarViewMode'] ?? 'month',
+        startingDay: json['startingDay'] ?? 'monday',
         showCycleTracking: json['showCycleTracking'] ?? false,
         cyclePeriodDays: json['cyclePeriodDays'] ?? 28,
         cycleDurationDays: json['cycleDurationDays'] ?? 5,
@@ -10216,6 +10242,67 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // ── SECTION: Vista Predefinita ──
+            _buildSectionHeader(tr('default_view'), Icons.calendar_view_month),
+            const SizedBox(height: 8),
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: colorScheme.surfaceContainerLowest,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  style: ButtonStyle(visualDensity: VisualDensity.compact, textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12))),
+                  segments: [
+                    ButtonSegment(value: 'month', label: Text(tr('month'))),
+                    ButtonSegment(value: 'week', label: Text(tr('week'))),
+                  ],
+                  selected: {_settings.calendarViewMode},
+                  onSelectionChanged: (value) {
+                    setState(() {
+                      _settings = _settings.copyWith(calendarViewMode: value.first);
+                    });
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ── SECTION: Inizio Settimana ──
+            _buildSectionHeader(tr('week_start'), Icons.today),
+            const SizedBox(height: 8),
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: colorScheme.surfaceContainerLowest,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tr('week_start_desc'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                    const SizedBox(height: 12),
+                    SegmentedButton<String>(
+                      showSelectedIcon: false,
+                      style: ButtonStyle(visualDensity: VisualDensity.compact, textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12))),
+                      segments: [
+                        ButtonSegment(value: 'monday', label: Text(tr('monday'))),
+                        ButtonSegment(value: 'sunday', label: Text(tr('sunday'))),
+                      ],
+                      selected: {_settings.startingDay},
+                      onSelectionChanged: (value) {
+                        setState(() {
+                          _settings = _settings.copyWith(startingDay: value.first);
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
             // ── SECTION: Segno Zodiacale ──
             _buildSectionHeader(tr('show_zodiac'), Icons.auto_awesome),
             const SizedBox(height: 8),
@@ -17556,13 +17643,43 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             color: colorScheme.surfaceContainerLowest,
-            child: SwitchListTile(
-              title: Text(tr('pdf_show_logo')),
-              subtitle: Text(tr('pdf_show_logo_desc')),
-              value: _settings.pdfShowLogo,
-              onChanged: (value) {
-                _updateSettings(_settings.copyWith(pdfShowLogo: value));
-              },
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: Text(tr('pdf_show_logo')),
+                  subtitle: Text(tr('pdf_show_logo_desc')),
+                  value: _settings.pdfShowLogo,
+                  onChanged: (value) {
+                    _updateSettings(_settings.copyWith(pdfShowLogo: value));
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  title: Text(tr('page_format')),
+                  subtitle: Text(tr('page_format_desc')),
+                  trailing: SegmentedButton<String>(
+                    showSelectedIcon: false,
+                    style: ButtonStyle(visualDensity: VisualDensity.compact, textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12))),
+                    segments: [
+                      ButtonSegment(value: 'a4', label: Text('A4')),
+                      ButtonSegment(value: 'mobile', label: Text(tr('mobile_format'))),
+                    ],
+                    selected: {_settings.pdfPageFormat},
+                    onSelectionChanged: (value) {
+                      _updateSettings(_settings.copyWith(pdfPageFormat: value.first));
+                    },
+                  ),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  title: Text(tr('page_numbering')),
+                  subtitle: Text(tr('page_numbering_desc')),
+                  value: _settings.pdfShowPageNumbers,
+                  onChanged: (value) {
+                    _updateSettings(_settings.copyWith(pdfShowPageNumbers: value));
+                  },
+                ),
+              ],
             ),
           ),
 
@@ -22479,6 +22596,8 @@ class NoteProSettings {
   final bool trashEnabled;
   final int trashRetentionDays;
   final bool pdfShowLogo;
+  final String pdfPageFormat; // 'a4' or 'mobile'
+  final bool pdfShowPageNumbers;
 
   const NoteProSettings({
     this.securityPin,
@@ -22490,6 +22609,8 @@ class NoteProSettings {
     this.trashEnabled = true,
     this.trashRetentionDays = 30,
     this.pdfShowLogo = false,
+    this.pdfPageFormat = 'a4',
+    this.pdfShowPageNumbers = true,
   });
 
   NoteProSettings copyWith({
@@ -22503,6 +22624,8 @@ class NoteProSettings {
     bool? trashEnabled,
     int? trashRetentionDays,
     bool? pdfShowLogo,
+    String? pdfPageFormat,
+    bool? pdfShowPageNumbers,
   }) {
     return NoteProSettings(
       securityPin: clearPin == true ? null : (securityPin ?? this.securityPin),
@@ -22514,6 +22637,8 @@ class NoteProSettings {
       trashEnabled: trashEnabled ?? this.trashEnabled,
       trashRetentionDays: trashRetentionDays ?? this.trashRetentionDays,
       pdfShowLogo: pdfShowLogo ?? this.pdfShowLogo,
+      pdfPageFormat: pdfPageFormat ?? this.pdfPageFormat,
+      pdfShowPageNumbers: pdfShowPageNumbers ?? this.pdfShowPageNumbers,
     );
   }
 
@@ -22527,6 +22652,8 @@ class NoteProSettings {
     'trashEnabled': trashEnabled,
     'trashRetentionDays': trashRetentionDays,
     'pdfShowLogo': pdfShowLogo,
+    'pdfPageFormat': pdfPageFormat,
+    'pdfShowPageNumbers': pdfShowPageNumbers,
   };
 
   factory NoteProSettings.fromJson(Map<String, dynamic> json) => NoteProSettings(
@@ -22539,6 +22666,8 @@ class NoteProSettings {
     trashEnabled: json['trashEnabled'] ?? true,
     trashRetentionDays: json['trashRetentionDays'] ?? 30,
     pdfShowLogo: json['pdfShowLogo'] ?? false,
+    pdfPageFormat: json['pdfPageFormat'] ?? 'a4',
+    pdfShowPageNumbers: json['pdfShowPageNumbers'] ?? true,
   );
 
   static Future<NoteProSettings> load() async {
@@ -27001,6 +27130,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     } catch (_) {}
     final noteSettings = await NoteProSettings.load();
     final showFooterLogo = noteSettings.pdfShowLogo;
+    final showPageNumbers = noteSettings.pdfShowPageNumbers;
+    final PdfPageFormat pdfFormat = noteSettings.pdfPageFormat == 'mobile'
+        ? PdfPageFormat(9 * PdfPageFormat.cm, 16 * PdfPageFormat.cm, marginAll: 1.5 * PdfPageFormat.cm)
+        : PdfPageFormat.a4;
 
     pw.Font regularFont;
     pw.Font boldFont;
@@ -27204,7 +27337,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
     doc.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
+        pageFormat: pdfFormat,
         margin: const pw.EdgeInsets.all(40),
         header: (headerText != null && headerText.isNotEmpty)
             ? (_) => pw.Column(
@@ -27225,7 +27358,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               ),
               pw.Expanded(
                 child: pw.Center(
-                  child: pw.Text('Pagina ${ctx.pageNumber} di ${ctx.pagesCount}', style: footerStyle),
+                  child: showPageNumbers
+                      ? pw.Text('Pagina ${ctx.pageNumber} di ${ctx.pagesCount}', style: footerStyle)
+                      : pw.SizedBox(),
                 ),
               ),
               pw.Expanded(
@@ -28281,6 +28416,10 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note, {bool isFlashNote = f
   } catch (_) {}
   final noteSettings = await NoteProSettings.load();
   final showFooterLogo = noteSettings.pdfShowLogo;
+  final showPageNumbers = noteSettings.pdfShowPageNumbers;
+  final PdfPageFormat pdfFormat = noteSettings.pdfPageFormat == 'mobile'
+      ? PdfPageFormat(9 * PdfPageFormat.cm, 16 * PdfPageFormat.cm, marginAll: 1.5 * PdfPageFormat.cm)
+      : PdfPageFormat.a4;
 
   pw.Font regularFont;
   pw.Font boldFont;
@@ -28494,7 +28633,7 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note, {bool isFlashNote = f
   final footerText = note.footerText;
   doc.addPage(
     pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
+      pageFormat: pdfFormat,
       margin: const pw.EdgeInsets.all(40),
       header: (note.headerText != null && note.headerText!.isNotEmpty)
           ? (_) => pw.Column(
@@ -28515,7 +28654,9 @@ Future<Uint8List> generateNotePdfFromProNote(ProNote note, {bool isFlashNote = f
               ),
               pw.Expanded(
                 child: pw.Center(
-                  child: pw.Text('Pagina ${ctx.pageNumber} di ${ctx.pagesCount}', style: footerStyle),
+                  child: showPageNumbers
+                      ? pw.Text('Pagina ${ctx.pageNumber} di ${ctx.pagesCount}', style: footerStyle)
+                      : pw.SizedBox(),
                 ),
               ),
               pw.Expanded(
