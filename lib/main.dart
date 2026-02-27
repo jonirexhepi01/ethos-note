@@ -1266,10 +1266,10 @@ const _translations = <String, Map<String, String>>{
   'unlock_ephemera_theme': {'it': 'Tema Ephemera', 'en': 'Ephemera Theme', 'fr': 'Thème Ephemera', 'es': 'Tema Ephemera'},
   'ephemera_theme_desc': {'it': 'L\'anima del diario: palette crema e seppia', 'en': 'The soul of a diary: cream and sepia palette', 'fr': 'L\'âme du journal: palette crème et sépia', 'es': 'El alma del diario: paleta crema y sepia'},
   'theme_locked': {'it': 'Tema bloccato', 'en': 'Theme locked', 'fr': 'Thème verrouillé', 'es': 'Tema bloqueado'},
-  'theme_catalog': {'it': 'Shop Temi', 'en': 'Theme Shop', 'fr': 'Boutique Thèmes', 'es': 'Tienda de Temas'},
-  'theme_catalog_desc': {'it': 'Temi premium per personalizzare l\'app', 'en': 'Premium themes to customize the app', 'fr': 'Thèmes premium pour personnaliser l\'app', 'es': 'Temas premium para personalizar la app'},
-  'no_themes_purchased': {'it': 'Nessun tema acquistato', 'en': 'No themes purchased', 'fr': 'Aucun thème acheté', 'es': 'Ningún tema comprado'},
-  'browse_themes': {'it': 'Sfoglia i temi disponibili su Ethos Aura', 'en': 'Browse available themes on Ethos Aura', 'fr': 'Parcourir les thèmes disponibles sur Ethos Aura', 'es': 'Explorar temas disponibles en Ethos Aura'},
+  'theme_catalog': {'it': 'Catalogo Temi', 'en': 'Theme Catalog', 'fr': 'Catalogue Thèmes', 'es': 'Catálogo de Temas'},
+  'theme_catalog_desc': {'it': 'Personalizza l\'aspetto dell\'app', 'en': 'Customize the app appearance', 'fr': 'Personnalisez l\'apparence de l\'app', 'es': 'Personaliza la apariencia de la app'},
+  'no_themes_purchased': {'it': 'Nessun tema aggiuntivo', 'en': 'No additional themes', 'fr': 'Aucun thème supplémentaire', 'es': 'Ningún tema adicional'},
+  'browse_themes': {'it': 'Sfoglia i temi disponibili', 'en': 'Browse available themes', 'fr': 'Parcourir les thèmes disponibles', 'es': 'Explorar temas disponibles'},
   'active_theme': {'it': 'Attivo', 'en': 'Active', 'fr': 'Actif', 'es': 'Activo'},
   'nordic_zen_theme': {'it': 'Nordic Zen', 'en': 'Nordic Zen', 'fr': 'Nordic Zen', 'es': 'Nordic Zen'},
   'unlock_nordic_zen': {'it': 'Tema Nordic Zen', 'en': 'Nordic Zen Theme', 'fr': 'Thème Nordic Zen', 'es': 'Tema Nordic Zen'},
@@ -13699,23 +13699,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   leading: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFAB47BC).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.auto_awesome, color: Color(0xFFAB47BC), size: 22),
-                  ),
-                  title: Text(tr('ethos_aura'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(tr('ethos_aura_desc'), style: const TextStyle(fontSize: 12)),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const EthosAuraPage()));
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
                       color: colorScheme.error.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -16780,140 +16763,36 @@ class _ThemeCatalogPage extends StatefulWidget {
 
 class _ThemeCatalogPageState extends State<_ThemeCatalogPage> {
   late String _currentTheme;
-  late EthosAuraSettings _auraSettings;
 
   @override
   void initState() {
     super.initState();
     _currentTheme = widget.currentTheme;
-    _auraSettings = widget.auraSettings;
-  }
-
-  Future<void> _refreshAura() async {
-    final s = await EthosAuraSettings.load();
-    if (!mounted) return;
-    setState(() => _auraSettings = s);
-    widget.onAuraSettingsChanged();
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Build list of purchased themes
-    final purchasedThemes = <_PremiumThemeInfo>[];
-    if (_auraSettings.ephemeraThemePurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
+    // 4 free themes — always available
+    final purchasedThemes = <_PremiumThemeInfo>[
+      _PremiumThemeInfo(
         id: 'ephemera', name: 'Ephemera', description: tr('ephemera_theme_desc'), icon: Icons.menu_book,
         color: const Color(0xFF795548), previewColors: const [Color(0xFFF4EBD0), Color(0xFF795548), Color(0xFF3E2723)],
-      ));
-    }
-    if (_auraSettings.nordicZenPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
+      ),
+      _PremiumThemeInfo(
         id: 'nordic_zen', name: 'Nordic Zen', description: tr('nordic_zen_desc'), icon: Icons.ac_unit,
         color: const Color(0xFF78909C), previewColors: const [Color(0xFFF0F4F8), Color(0xFF78909C), Color(0xFF2D3748)],
-      ));
-    }
-    if (_auraSettings.greenSalviaPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
+      ),
+      _PremiumThemeInfo(
         id: 'green_salvia', name: 'Green Salvia', description: tr('green_salvia_desc'), icon: Icons.eco,
         color: const Color(0xFF6B8F71), previewColors: const [Color(0xFFE2E8E4), Color(0xFF6B8F71), Color(0xFF2A3B32)],
-      ));
-    }
-    if (_auraSettings.sakuraPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
+      ),
+      _PremiumThemeInfo(
         id: 'sakura', name: 'Sakura', description: tr('sakura_desc'), icon: Icons.local_florist,
         color: const Color(0xFFB5838D), previewColors: const [Color(0xFFF7E7E6), Color(0xFFB5838D), Color(0xFF2D3748)],
-      ));
-    }
-    // Oltre l'Oceano
-    if (_auraSettings.spadaccinoPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'spadaccino', name: tr('spadaccino_theme'), description: tr('spadaccino_desc'), icon: Icons.sports_martial_arts,
-        color: const Color(0xFF1B4D3E), previewColors: const [Color(0xFF0D2818), Color(0xFF1B4D3E), Color(0xFF2E7D5B)],
-      ));
-    }
-    if (_auraSettings.sognoRePurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'sogno_re', name: tr('sogno_re_theme'), description: tr('sogno_re_desc'), icon: Icons.wb_sunny,
-        color: const Color(0xFFD32F2F), previewColors: const [Color(0xFFFFF9C4), Color(0xFFD32F2F), Color(0xFF1565C0)],
-      ));
-    }
-    if (_auraSettings.mappaTesoroPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'mappa_tesoro', name: tr('mappa_tesoro_theme'), description: tr('mappa_tesoro_desc'), icon: Icons.explore,
-        color: const Color(0xFFE6A800), previewColors: const [Color(0xFFFFE0B2), Color(0xFFE6A800), Color(0xFF0D47A1)],
-      ));
-    }
-    // Spirito della Foglia
-    if (_auraSettings.fulminePurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'fulmine', name: tr('fulmine_theme'), description: tr('fulmine_desc'), icon: Icons.bolt,
-        color: const Color(0xFF7C4DFF), previewColors: const [Color(0xFF1A1A2E), Color(0xFF7C4DFF), Color(0xFFE8EAF6)],
-      ));
-    }
-    if (_auraSettings.eremitaPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'eremita', name: tr('eremita_theme'), description: tr('eremita_desc'), icon: Icons.local_fire_department,
-        color: const Color(0xFFE65100), previewColors: const [Color(0xFF0A0A0A), Color(0xFFE65100), Color(0xFF00BCD4)],
-      ));
-    }
-    if (_auraSettings.saggioPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'saggio', name: tr('saggio_theme'), description: tr('saggio_desc'), icon: Icons.auto_stories,
-        color: const Color(0xFF691212), previewColors: const [Color(0xFF2A0E0E), Color(0xFF691212), Color(0xFF6B8E23)],
-      ));
-    }
-    // Serie Cult
-    if (_auraSettings.cabinaTempoPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'cabina_tempo', name: tr('cabina_theme'), description: tr('cabina_desc'), icon: Icons.access_time,
-        color: const Color(0xFF003B6F), previewColors: const [Color(0xFF001F3F), Color(0xFF003B6F), Color(0xFF90CAF9)],
-      ));
-    }
-    if (_auraSettings.sottosopraPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'sottosopra', name: tr('sottosopra_theme'), description: tr('sottosopra_desc'), icon: Icons.flip,
-        color: const Color(0xFFB71C1C), previewColors: const [Color(0xFF050510), Color(0xFFB71C1C), Color(0xFFFF1744)],
-      ));
-    }
-    if (_auraSettings.rifugioPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'rifugio', name: tr('rifugio_theme'), description: tr('rifugio_desc'), icon: Icons.shield,
-        color: const Color(0xFF32CD32), previewColors: const [Color(0xFF1A1A1A), Color(0xFF32CD32), Color(0xFF005FB8)],
-      ));
-    }
-    if (_auraSettings.yellowNotePurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'yellow_note', name: tr('yellow_note_theme'), description: tr('yellow_note_desc'), icon: Icons.edit_note,
-        color: const Color(0xFF1E3A8A), previewColors: const [Color(0xFFFEF9C3), Color(0xFF1E3A8A), Color(0xFFEF4444)],
-      ));
-    }
-    if (_auraSettings.blockNotePurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'block_note', name: tr('block_note_theme'), description: tr('block_note_desc'), icon: Icons.sticky_note_2,
-        color: const Color(0xFFE6A100), previewColors: const [Color(0xFFFFF8E1), Color(0xFFFFF176), Color(0xFFE53935)],
-      ));
-    }
-    // Notte Profonda
-    if (_auraSettings.deepAbyssPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'deep_abyss', name: tr('deep_abyss_theme'), description: tr('deep_abyss_desc'), icon: Icons.dark_mode,
-        color: const Color(0xFF1A237E), previewColors: const [Color(0xFF000000), Color(0xFF1A237E), Color(0xFF7C4DFF)],
-      ));
-    }
-    if (_auraSettings.midnightForestPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'midnight_forest', name: tr('midnight_forest_theme'), description: tr('midnight_forest_desc'), icon: Icons.forest,
-        color: const Color(0xFF2E7D32), previewColors: const [Color(0xFF050A05), Color(0xFF2E7D32), Color(0xFF8D6E63)],
-      ));
-    }
-    if (_auraSettings.cyberpunkVoidPurchased) {
-      purchasedThemes.add(_PremiumThemeInfo(
-        id: 'cyberpunk_void', name: tr('cyberpunk_void_theme'), description: tr('cyberpunk_void_desc'), icon: Icons.electric_bolt,
-        color: const Color(0xFF00BCD4), previewColors: const [Color(0xFF0F0F10), Color(0xFF00BCD4), Color(0xFFFF4081)],
-      ));
-    }
+      ),
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -16925,9 +16804,8 @@ class _ThemeCatalogPageState extends State<_ThemeCatalogPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Purchased themes
-          if (purchasedThemes.isNotEmpty) ...[
-            ...purchasedThemes.map((theme) {
+          // Available themes
+          ...purchasedThemes.map((theme) {
               final isActive = _currentTheme == theme.id;
               return Card(
                 elevation: 0,
@@ -16994,35 +16872,6 @@ class _ThemeCatalogPageState extends State<_ThemeCatalogPage> {
                 ),
               );
             }),
-          ],
-
-          // Empty state or browse button
-          if (purchasedThemes.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 48),
-              child: Column(
-                children: [
-                  Icon(Icons.palette_outlined, size: 64, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
-                  const SizedBox(height: 16),
-                  Text(tr('no_themes_purchased'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: colorScheme.onSurfaceVariant)),
-                  const SizedBox(height: 8),
-                  Text(tr('browse_themes'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)), textAlign: TextAlign.center),
-                ],
-              ),
-            ),
-
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const EthosAuraPage())).then((_) => _refreshAura());
-            },
-            icon: const Icon(Icons.auto_awesome, size: 18),
-            label: Text(tr('browse_themes')),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
         ],
       ),
     );
