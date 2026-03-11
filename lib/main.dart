@@ -531,6 +531,14 @@ const _translations = <String, Map<String, String>>{
   'backup_to_drive': {'it': 'Backup su Google Drive', 'en': 'Backup to Google Drive', 'fr': 'Sauvegarde sur Google Drive', 'es': 'Backup en Google Drive'},
   'backup_from_drive': {'it': 'Ripristina da Google Drive', 'en': 'Restore from Google Drive', 'fr': 'Restaurer depuis Google Drive', 'es': 'Restaurar desde Google Drive'},
   'last_backup': {'it': 'Ultimo backup', 'en': 'Last backup', 'fr': 'Dernière sauvegarde', 'es': 'Último backup'},
+  'cloud_sync': {'it': 'Sincronizzazione Cloud', 'en': 'Cloud Sync', 'fr': 'Synchronisation Cloud', 'es': 'Sincronización Cloud'},
+  'cloud_sync_desc': {'it': 'Sincronizza automaticamente i dati tra i tuoi dispositivi', 'en': 'Automatically sync data between your devices', 'fr': 'Synchroniser automatiquement les données entre vos appareils', 'es': 'Sincronizar automáticamente los datos entre tus dispositivos'},
+  'last_sync': {'it': 'Ultima sincronizzazione', 'en': 'Last sync', 'fr': 'Dernière synchronisation', 'es': 'Última sincronización'},
+  'syncing': {'it': 'Sincronizzazione in corso...', 'en': 'Syncing...', 'fr': 'Synchronisation en cours...', 'es': 'Sincronizando...'},
+  'sync_complete': {'it': 'Sincronizzazione completata', 'en': 'Sync complete', 'fr': 'Synchronisation terminée', 'es': 'Sincronización completada'},
+  'sync_error': {'it': 'Errore di sincronizzazione', 'en': 'Sync error', 'fr': 'Erreur de synchronisation', 'es': 'Error de sincronización'},
+  'sync_downloaded': {'it': 'Dati scaricati dal cloud', 'en': 'Data downloaded from cloud', 'fr': 'Données téléchargées du cloud', 'es': 'Datos descargados de la nube'},
+  'sync_requires_google': {'it': 'Collega il tuo account Google per sincronizzare', 'en': 'Connect your Google account to sync', 'fr': 'Connectez votre compte Google pour synchroniser', 'es': 'Conecta tu cuenta Google para sincronizar'},
   'connect_google_drive': {'it': 'Collega Google Drive', 'en': 'Connect Google Drive', 'fr': 'Connecter Google Drive', 'es': 'Conectar Google Drive'},
   'backup_auto_completed': {'it': 'Backup automatico completato', 'en': 'Auto backup completed', 'fr': 'Sauvegarde automatique terminée', 'es': 'Backup automático completado'},
   'backup_now': {'it': 'Esegui Backup Ora', 'en': 'Backup Now', 'fr': 'Sauvegarder maintenant', 'es': 'Hacer Backup Ahora'},
@@ -1966,7 +1974,9 @@ class DatabaseHelper {
   Future<int> insertProNote(ProNote note) async {
     if (_webMode) { final id = _nextId(); _wProNotes.insert(0, ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt)); return id; }
     final db = await database;
-    return await db.insert('pro_notes', note.toDbMap());
+    final id = await db.insert('pro_notes', note.toDbMap());
+    CloudSyncService().notifyDataChanged();
+    return id;
   }
 
   Future<List<ProNote>> getAllProNotes() async {
@@ -2017,13 +2027,17 @@ class DatabaseHelper {
   Future<int> updateProNote(int id, ProNote note) async {
     if (_webMode) { final i = _wProNotes.indexWhere((n) => n.id == id); if (i >= 0) _wProNotes[i] = ProNote(id: id, title: note.title, content: note.content, contentDelta: note.contentDelta, headerText: note.headerText, footerText: note.footerText, templatePreset: note.templatePreset, folder: note.folder, linkedDate: note.linkedDate, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt, isPinned: note.isPinned); return 1; }
     final db = await database;
-    return await db.update('pro_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
+    final result = await db.update('pro_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
+    CloudSyncService().notifyDataChanged();
+    return result;
   }
 
   Future<int> deleteProNote(int id) async {
     if (_webMode) { _wProNotes.removeWhere((n) => n.id == id); return 1; }
     final db = await database;
-    return await db.delete('pro_notes', where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete('pro_notes', where: 'id = ?', whereArgs: [id]);
+    CloudSyncService().notifyDataChanged();
+    return result;
   }
 
   // ── Flash Notes CRUD ──
@@ -2031,7 +2045,9 @@ class DatabaseHelper {
   Future<int> insertFlashNote(FlashNote note) async {
     if (_webMode) { final id = _nextId(); _wFlashNotes.insert(0, FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt)); return id; }
     final db = await database;
-    return await db.insert('flash_notes', note.toDbMap());
+    final id = await db.insert('flash_notes', note.toDbMap());
+    CloudSyncService().notifyDataChanged();
+    return id;
   }
 
   Future<List<FlashNote>> getAllFlashNotes() async {
@@ -2074,13 +2090,17 @@ class DatabaseHelper {
   Future<int> updateFlashNote(int id, FlashNote note) async {
     if (_webMode) { final i = _wFlashNotes.indexWhere((n) => n.id == id); if (i >= 0) _wFlashNotes[i] = FlashNote(id: id, content: note.content, audioPath: note.audioPath, audioDurationMs: note.audioDurationMs, imageBase64: note.imageBase64, imagePath: note.imagePath, createdAt: note.createdAt, isPinned: note.isPinned); return 1; }
     final db = await database;
-    return await db.update('flash_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
+    final result = await db.update('flash_notes', note.toDbMap(), where: 'id = ?', whereArgs: [id]);
+    CloudSyncService().notifyDataChanged();
+    return result;
   }
 
   Future<int> deleteFlashNote(int id) async {
     if (_webMode) { _wFlashNotes.removeWhere((n) => n.id == id); return 1; }
     final db = await database;
-    return await db.delete('flash_notes', where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete('flash_notes', where: 'id = ?', whereArgs: [id]);
+    CloudSyncService().notifyDataChanged();
+    return result;
   }
 
   // ── Calendar Events CRUD ──
@@ -2088,7 +2108,9 @@ class DatabaseHelper {
   Future<int> insertEvent(CalendarEventFull event) async {
     if (_webMode) { final id = _nextId(); final e = CalendarEventFull(id: id, title: event.title, startTime: event.startTime, endTime: event.endTime, calendar: event.calendar, reminder: event.reminder, preset: event.preset, attachmentPath: event.attachmentPath, attachmentBase64: event.attachmentBase64, notes: event.notes, isCompleted: event.isCompleted, googleEventId: event.googleEventId, sharedWith: event.sharedWith); final key = '${event.startTime.year}-${event.startTime.month.toString().padLeft(2,'0')}-${event.startTime.day.toString().padLeft(2,'0')}'; _wEvents.putIfAbsent(key, () => []).add(e); return id; }
     final db = await database;
-    return await db.insert('calendar_events', event.toDbMap());
+    final id = await db.insert('calendar_events', event.toDbMap());
+    CloudSyncService().notifyDataChanged();
+    return id;
   }
 
   Future<Map<String, List<CalendarEventFull>>> getAllEvents() async {
@@ -2107,13 +2129,17 @@ class DatabaseHelper {
   Future<int> updateEvent(int id, CalendarEventFull event) async {
     if (_webMode) { for (final list in _wEvents.values) { final i = list.indexWhere((e) => e.id == id); if (i >= 0) { list[i] = CalendarEventFull(id: id, title: event.title, startTime: event.startTime, endTime: event.endTime, calendar: event.calendar, reminder: event.reminder, preset: event.preset, attachmentPath: event.attachmentPath, attachmentBase64: event.attachmentBase64, notes: event.notes, isCompleted: event.isCompleted, googleEventId: event.googleEventId, sharedWith: event.sharedWith); return 1; } } return 0; }
     final db = await database;
-    return await db.update('calendar_events', event.toDbMap(), where: 'id = ?', whereArgs: [id]);
+    final result = await db.update('calendar_events', event.toDbMap(), where: 'id = ?', whereArgs: [id]);
+    CloudSyncService().notifyDataChanged();
+    return result;
   }
 
   Future<int> deleteEvent(int id) async {
     if (_webMode) { for (final list in _wEvents.values) { list.removeWhere((e) => e.id == id); } _wEvents.removeWhere((k, v) => v.isEmpty); return 1; }
     final db = await database;
-    return await db.delete('calendar_events', where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete('calendar_events', where: 'id = ?', whereArgs: [id]);
+    CloudSyncService().notifyDataChanged();
+    return result;
   }
 
   Future<void> saveAllEvents(Map<String, List<CalendarEventFull>> events) async {
@@ -2129,6 +2155,7 @@ class DatabaseHelper {
       }
       await batch.commit(noResult: true);
     });
+    CloudSyncService().notifyDataChanged();
   }
 
   // ── User Profile ──
@@ -2147,6 +2174,7 @@ class DatabaseHelper {
     final map = profile.toDbMap();
     map['id'] = 1;
     await db.insert('user_profile', map, conflictAlgorithm: ConflictAlgorithm.replace);
+    CloudSyncService().notifyDataChanged();
   }
 
   // ── Trashed Notes ──
@@ -2154,7 +2182,9 @@ class DatabaseHelper {
   Future<int> insertTrashedNote(TrashedNote note) async {
     if (_webMode) { final id = _nextId(); _wTrashed.insert(0, TrashedNote(id: id, type: note.type, noteJson: note.noteJson, deletedAt: note.deletedAt)); return id; }
     final db = await database;
-    return await db.insert('trashed_notes', note.toDbMap());
+    final id = await db.insert('trashed_notes', note.toDbMap());
+    CloudSyncService().notifyDataChanged();
+    return id;
   }
 
   Future<List<TrashedNote>> getAllTrashedNotes() async {
@@ -2167,7 +2197,9 @@ class DatabaseHelper {
   Future<int> deleteTrashedNote(int id) async {
     if (_webMode) { _wTrashed.removeWhere((n) => n.id == id); return 1; }
     final db = await database;
-    return await db.delete('trashed_notes', where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete('trashed_notes', where: 'id = ?', whereArgs: [id]);
+    CloudSyncService().notifyDataChanged();
+    return result;
   }
 
   Future<void> cleanExpiredTrash(int retentionDays) async {
@@ -2202,6 +2234,7 @@ class DatabaseHelper {
       }
       await batch.commit(noResult: true);
     });
+    CloudSyncService().notifyDataChanged();
   }
 
   // ── Custom Folders ──
@@ -2211,6 +2244,7 @@ class DatabaseHelper {
     final db = await database;
     final map = style.toDbMap(name);
     await db.insert('custom_folders', map, conflictAlgorithm: ConflictAlgorithm.replace);
+    CloudSyncService().notifyDataChanged();
   }
 
   Future<Map<String, FolderStyle>> getAllFolders() async {
@@ -2228,6 +2262,7 @@ class DatabaseHelper {
     if (_webMode) { _wFolders.remove(name); return; }
     final db = await database;
     await db.delete('custom_folders', where: 'name = ?', whereArgs: [name]);
+    CloudSyncService().notifyDataChanged();
   }
 
   Future<void> saveAllFolders(Map<String, FolderStyle> folders) async {
@@ -2241,6 +2276,7 @@ class DatabaseHelper {
       }
       await batch.commit(noResult: true);
     });
+    CloudSyncService().notifyDataChanged();
   }
 
   // ── Settings (key-value) ──
@@ -2303,6 +2339,7 @@ class DatabaseHelper {
     if (_webMode) { _wCycleDays.add(dayKey); return; }
     final db = await database;
     await db.insert('cycle_days', {'day_key': dayKey, 'flow_intensity': intensity}, conflictAlgorithm: ConflictAlgorithm.replace);
+    CloudSyncService().notifyDataChanged();
   }
 
   Future<void> updateCycleDayIntensity(String dayKey, String intensity) async {
@@ -2315,6 +2352,7 @@ class DatabaseHelper {
     if (_webMode) { _wCycleDays.remove(dayKey); return; }
     final db = await database;
     await db.delete('cycle_days', where: 'day_key = ?', whereArgs: [dayKey]);
+    CloudSyncService().notifyDataChanged();
   }
 
   Future<void> replaceAllCycleDays(List<Map<String, dynamic>> days) async {
@@ -2328,6 +2366,7 @@ class DatabaseHelper {
       }
       await batch.commit(noResult: true);
     });
+    CloudSyncService().notifyDataChanged();
   }
 
   // ── Utility ──
@@ -2483,6 +2522,253 @@ class ImageStorageHelper {
   }
 }
 
+// ── Cloud Sync Service ──
+class CloudSyncService {
+  static final CloudSyncService _instance = CloudSyncService._internal();
+  factory CloudSyncService() => _instance;
+  CloudSyncService._internal();
+
+  Timer? _uploadDebounce;
+  bool _isSyncing = false;
+  bool didDownloadOnLaunch = false;
+  static const _debounceSeconds = 30;
+  static const _syncFileName = 'ethos_note_sync.zip';
+  static const _syncMetaFileName = 'ethos_note_sync_meta.json';
+
+  final _syncStatusController = StreamController<String>.broadcast();
+  Stream<String> get syncStatus => _syncStatusController.stream;
+
+  Future<bool> _isEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getBool('cloud_sync_enabled') ?? false) && GoogleCalendarService.isSignedIn;
+  }
+
+  /// Called after every DB write operation. Debounces upload by 30 seconds.
+  void notifyDataChanged() {
+    _uploadDebounce?.cancel();
+    _uploadDebounce = Timer(const Duration(seconds: _debounceSeconds), () async {
+      if (!await _isEnabled()) return;
+      try {
+        final connectivity = await Connectivity().checkConnectivity();
+        if (connectivity.contains(ConnectivityResult.none)) return;
+        await _uploadToCloud();
+      } catch (e) {
+        if (kDebugMode) debugPrint('Cloud sync upload error: $e');
+      }
+    });
+  }
+
+  /// Called once on app launch. Downloads cloud data if newer.
+  Future<void> syncOnLaunch() async {
+    didDownloadOnLaunch = false;
+    if (!await _isEnabled()) return;
+    if (!GoogleCalendarService.isSignedIn) {
+      final ok = await GoogleCalendarService.trySilentSignIn();
+      if (!ok) return;
+    }
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity.contains(ConnectivityResult.none)) return;
+
+      final cloudTs = await _getCloudTimestamp();
+      if (cloudTs == null) {
+        // No cloud data yet — upload current data
+        await _uploadToCloud();
+        return;
+      }
+
+      final localTs = await _getLocalSyncTimestamp();
+      if (localTs == null || cloudTs > localTs) {
+        // Cloud is newer — download
+        _syncStatusController.add('downloading');
+        final ok = await _downloadFromCloud();
+        if (ok) {
+          await _setLocalSyncTimestamp(cloudTs);
+          didDownloadOnLaunch = true;
+        }
+        _syncStatusController.add('idle');
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Cloud sync on launch error: $e');
+      _syncStatusController.add('idle');
+    }
+  }
+
+  Future<void> _uploadToCloud() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
+    _syncStatusController.add('uploading');
+    try {
+      final driveApi = await GoogleCalendarService.getDriveApi();
+      if (driveApi == null) return;
+
+      final zipBytes = await _buildSyncZipBytes();
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+      // Upload/update sync ZIP
+      await _upsertDriveFile(driveApi, _syncFileName, zipBytes);
+
+      // Upload/update metadata
+      final metaJson = json.encode({'lastModified': nowMs});
+      final metaBytes = Uint8List.fromList(utf8.encode(metaJson));
+      await _upsertDriveFile(driveApi, _syncMetaFileName, metaBytes);
+
+      await _setLocalSyncTimestamp(nowMs);
+      _syncStatusController.add('idle');
+    } catch (e) {
+      if (kDebugMode) debugPrint('Cloud sync upload error: $e');
+      _syncStatusController.add('error');
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  Future<void> _upsertDriveFile(gdrive.DriveApi driveApi, String name, List<int> bytes) async {
+    final existing = await driveApi.files.list(
+      spaces: 'appDataFolder',
+      q: "name = '$name'",
+      pageSize: 1,
+      $fields: 'files(id)',
+    );
+    final media = gdrive.Media(Stream.value(bytes), bytes.length);
+    if (existing.files != null && existing.files!.isNotEmpty) {
+      await driveApi.files.update(gdrive.File()..name = name, existing.files!.first.id!, uploadMedia: media);
+    } else {
+      await driveApi.files.create(gdrive.File()..name = name..parents = ['appDataFolder'], uploadMedia: media);
+    }
+  }
+
+  Future<bool> _downloadFromCloud() async {
+    final driveApi = await GoogleCalendarService.getDriveApi();
+    if (driveApi == null) return false;
+
+    final fileList = await driveApi.files.list(
+      spaces: 'appDataFolder',
+      q: "name = '$_syncFileName'",
+      pageSize: 1,
+      $fields: 'files(id)',
+    );
+    if (fileList.files == null || fileList.files!.isEmpty) return false;
+
+    final mediaResponse = await driveApi.files.get(
+      fileList.files!.first.id!,
+      downloadOptions: gdrive.DownloadOptions.fullMedia,
+    ) as gdrive.Media;
+
+    final chunks = <int>[];
+    await for (final chunk in mediaResponse.stream) {
+      chunks.addAll(chunk);
+    }
+    final fileBytes = Uint8List.fromList(chunks);
+
+    // Close DB, extract ZIP, reopen
+    await DatabaseHelper().close();
+    final dbPath = await getDatabasesPath();
+    final targetPath = p.join(dbPath, 'ethos_note.db');
+
+    final zip = archive.ZipDecoder().decodeBytes(fileBytes);
+    for (final file in zip) {
+      if (file.isFile) {
+        if (file.name == 'ethos_note.db') {
+          await File(targetPath).writeAsBytes(file.content as List<int>);
+          // Remove WAL/SHM to avoid conflicts
+          for (final suffix in ['-wal', '-shm']) {
+            final f = File('$targetPath$suffix');
+            if (await f.exists()) await f.delete();
+          }
+        } else if (file.name.startsWith('images/')) {
+          final imgDir = await ImageStorageHelper().imagesDir;
+          final imgFile = File(p.join(imgDir.path, p.basename(file.name)));
+          await imgFile.writeAsBytes(file.content as List<int>);
+        }
+      }
+    }
+
+    await ImageStorageHelper.convertPathsToAbsoluteInDb(targetPath);
+    // Reopen DB
+    await DatabaseHelper().database;
+    return true;
+  }
+
+  Future<int?> _getCloudTimestamp() async {
+    final driveApi = await GoogleCalendarService.getDriveApi();
+    if (driveApi == null) return null;
+
+    final fileList = await driveApi.files.list(
+      spaces: 'appDataFolder',
+      q: "name = '$_syncMetaFileName'",
+      pageSize: 1,
+      $fields: 'files(id)',
+    );
+    if (fileList.files == null || fileList.files!.isEmpty) return null;
+
+    final mediaResponse = await driveApi.files.get(
+      fileList.files!.first.id!,
+      downloadOptions: gdrive.DownloadOptions.fullMedia,
+    ) as gdrive.Media;
+
+    final chunks = <int>[];
+    await for (final chunk in mediaResponse.stream) {
+      chunks.addAll(chunk);
+    }
+    final metaStr = utf8.decode(chunks);
+    final metaMap = json.decode(metaStr) as Map<String, dynamic>;
+    return metaMap['lastModified'] as int?;
+  }
+
+  Future<int?> _getLocalSyncTimestamp() async {
+    final val = await DatabaseHelper().getSetting('last_sync_timestamp');
+    return val != null ? int.tryParse(val) : null;
+  }
+
+  Future<void> _setLocalSyncTimestamp(int ms) async {
+    await DatabaseHelper().saveSetting('last_sync_timestamp', ms.toString());
+  }
+
+  Future<Uint8List> _buildSyncZipBytes() async {
+    final dbPath = await getDatabasesPath();
+    final sourcePath = p.join(dbPath, 'ethos_note.db');
+    final sourceFile = File(sourcePath);
+
+    final db = await DatabaseHelper().database;
+    await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+
+    final tempDir = await getTemporaryDirectory();
+    final tempDbPath = p.join(tempDir.path, 'ethos_note_sync_tmp.db');
+    await sourceFile.copy(tempDbPath);
+    for (final suffix in ['-wal', '-shm']) {
+      final f = File('$sourcePath$suffix');
+      if (await f.exists()) await f.copy('$tempDbPath$suffix');
+    }
+    await ImageStorageHelper.convertPathsToRelativeInDb(tempDbPath);
+
+    final zipArchive = archive.Archive();
+    final dbBytes = await File(tempDbPath).readAsBytes();
+    zipArchive.addFile(archive.ArchiveFile('ethos_note.db', dbBytes.length, dbBytes));
+
+    try {
+      await File(tempDbPath).delete();
+      for (final suffix in ['-wal', '-shm']) {
+        final f = File('$tempDbPath$suffix');
+        if (await f.exists()) await f.delete();
+      }
+    } catch (_) {}
+
+    final imgDir = await ImageStorageHelper().imagesDir;
+    if (await imgDir.exists()) {
+      await for (final entity in imgDir.list()) {
+        if (entity is File) {
+          final fileName = p.basename(entity.path);
+          final fileBytes = await entity.readAsBytes();
+          zipArchive.addFile(archive.ArchiveFile('images/$fileName', fileBytes.length, fileBytes));
+        }
+      }
+    }
+
+    return Uint8List.fromList(archive.ZipEncoder().encode(zipArchive));
+  }
+}
+
 class StoredImage extends StatelessWidget {
   final String? imagePath;
   final String? imageBase64;
@@ -2547,13 +2833,18 @@ class StoredImage extends StatelessWidget {
 }
 
 class Analytics {
-  static final _a = FirebaseAnalytics.instance;
-  static void log(String name, [Map<String, Object>? params]) =>
-      _a.logEvent(name: name, parameters: params);
-  static void screenView(String name) =>
-      _a.logScreenView(screenName: name);
-  static void setUserProperty(String name, String value) =>
-      _a.setUserProperty(name: name, value: value);
+  static void log(String name, [Map<String, Object>? params]) {
+    if (!_firebaseInitialized) return;
+    FirebaseAnalytics.instance.logEvent(name: name, parameters: params);
+  }
+  static void screenView(String name) {
+    if (!_firebaseInitialized) return;
+    FirebaseAnalytics.instance.logScreenView(screenName: name);
+  }
+  static void setUserProperty(String name, String value) {
+    if (!_firebaseInitialized) return;
+    FirebaseAnalytics.instance.setUserProperty(name: name, value: value);
+  }
 }
 
 Future<void> _logError(Object error, StackTrace? stack) async {
@@ -2575,20 +2866,31 @@ Future<void> _logError(Object error, StackTrace? stack) async {
   } catch (_) {}
 }
 
+bool _firebaseInitialized = false;
+
 void main() {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
-    await Firebase.initializeApp();
+    try {
+      await Firebase.initializeApp();
+      _firebaseInitialized = true;
+    } catch (e) {
+      debugPrint('Firebase init skipped: $e');
+    }
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
       _logError(details.exception, details.stack);
-      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      if (_firebaseInitialized) {
+        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      }
     };
 
     ui.PlatformDispatcher.instance.onError = (error, stack) {
       _logError(error, stack);
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      if (_firebaseInitialized) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      }
       return true;
     };
 
@@ -2622,7 +2924,9 @@ void main() {
     runApp(const EthosNoteApp());
   }, (error, stack) {
     _logError(error, stack);
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    if (_firebaseInitialized) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    }
   });
 }
 
@@ -4451,7 +4755,7 @@ class _SplashGateState extends State<_SplashGate> with SingleTickerProviderState
           FadeTransition(
             opacity: ReverseAnimation(_fadeOut),
             child: Container(
-              color: const Color(0xFF1A1A1A),
+              color: const Color(0xFFFFFFFF),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -4471,7 +4775,7 @@ class _SplashGateState extends State<_SplashGate> with SingleTickerProviderState
                         fontFamily: 'Georgia',
                         fontSize: 24,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFFB8566B),
+                        color: Color(0xFF5D4037),
                         letterSpacing: 1.2,
                         decoration: TextDecoration.none,
                       ),
@@ -5595,6 +5899,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _checkSharedFile();
     _checkDeepLink();
     _checkAutoBackup();
+    _checkCloudSync();
     _checkBootReschedule();
     _refreshWidgets();
     _syncThemeToWidget(widget.themeMode);
@@ -5863,6 +6168,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
     } catch (e) {
       debugPrint('BootReschedule error: $e');
+    }
+  }
+
+  Future<void> _checkCloudSync() async {
+    try {
+      await CloudSyncService().syncOnLaunch();
+      if (CloudSyncService().didDownloadOnLaunch && mounted) {
+        setState(() => _refreshKey++);
+        _loadUserProfile();
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Cloud sync check error: $e');
     }
   }
 
@@ -8865,6 +9182,7 @@ class CalendarAlertConfig {
 // ── Google Calendar Service ──
 class GoogleCalendarService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: '18187658102-u4fimjecql3tcojngskd1k60sp2kmitp.apps.googleusercontent.com',
     serverClientId: '18187658102-mf0k5htarr8rvajdono1q7grtbbk0m1e.apps.googleusercontent.com',
     scopes: [
       gcal.CalendarApi.calendarScope,
@@ -13821,6 +14139,8 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
   String _autoBackupMode = 'off';
   String? _lastBackupDate;
   bool _isBackingUp = false;
+  bool _cloudSyncEnabled = false;
+  String? _lastSyncDate;
 
   @override
   void initState() {
@@ -13828,6 +14148,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     _profile = widget.profile;
     _loadBiometricPin();
     _loadBackupSettings();
+    _loadSyncSettings();
   }
 
   Future<void> _loadBackupSettings() async {
@@ -13840,6 +14161,20 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         _backupDestination = dest ?? 'device';
         _autoBackupMode = mode ?? 'off';
         _lastBackupDate = lastDate;
+      });
+    }
+  }
+
+  Future<void> _loadSyncSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final syncEnabled = prefs.getBool('cloud_sync_enabled') ?? false;
+    final lastSync = await DatabaseHelper().getSetting('last_sync_timestamp');
+    if (mounted) {
+      setState(() {
+        _cloudSyncEnabled = syncEnabled;
+        _lastSyncDate = lastSync != null
+            ? _formatBackupDate(DateTime.fromMillisecondsSinceEpoch(int.parse(lastSync)).toIso8601String())
+            : null;
       });
     }
   }
@@ -14779,6 +15114,69 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── Sincronizzazione Cloud ──
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Row(
+              children: [
+                Icon(Icons.cloud_sync, color: colorScheme.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(tr('cloud_sync'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.primary)),
+              ],
+            ),
+          ),
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: Text(tr('cloud_sync'), style: const TextStyle(fontWeight: FontWeight.w500)),
+                  subtitle: Text(tr('cloud_sync_desc'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                  value: _cloudSyncEnabled,
+                  onChanged: (val) async {
+                    if (val && !GoogleCalendarService.isSignedIn) {
+                      final ok = await GoogleCalendarService.signIn();
+                      if (!ok) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(tr('sync_requires_google')),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ));
+                        }
+                        return;
+                      }
+                    }
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('cloud_sync_enabled', val);
+                    if (mounted) setState(() => _cloudSyncEnabled = val);
+                    if (val) {
+                      // Trigger initial sync
+                      CloudSyncService().notifyDataChanged();
+                    }
+                  },
+                ),
+                if (_cloudSyncEnabled && _lastSyncDate != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 14, color: colorScheme.onSurfaceVariant),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${tr('last_sync')}: $_lastSyncDate',
+                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
