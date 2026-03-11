@@ -28,6 +28,10 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ethos Note usa il microfono per registrare note vocali</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Ethos Note usa la fotocamera per scattare foto da allegare alle note</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

@@ -22438,9 +22438,25 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     final auraSettings = await EthosAuraSettings.load();
     final maxDuration = auraSettings.unlimitedVoicePurchased ? 0 : flashSettings.maxAudioDurationSeconds;
 
-    if (!await recorder.hasPermission()) {
+    try {
+      if (!await recorder.hasPermission()) {
+        recorder.dispose();
+        _isAudioSheetOpen = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(tr('error')),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
       recorder.dispose();
       _isAudioSheetOpen = false;
+      if (kDebugMode) debugPrint('Audio permission error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -22587,8 +22603,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                           height: isRecording ? 64 : 80,
                           decoration: BoxDecoration(
                             color: isRecording ? Colors.red : accentColor,
-                            shape: isRecording ? BoxShape.rectangle : BoxShape.circle,
-                            borderRadius: isRecording ? BorderRadius.circular(16) : null,
+                            borderRadius: BorderRadius.circular(isRecording ? 16 : 40),
                             boxShadow: [
                               BoxShadow(
                                 color: (isRecording ? Colors.red : accentColor).withValues(alpha: 0.3),
