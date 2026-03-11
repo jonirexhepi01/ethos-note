@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -24,6 +26,33 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Ethos Note usa la fotocamera per scattare foto da allegare alle note</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Ethos Note usa Face ID per proteggere la cartella privata</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Ethos Note legge i dati di salute per mostrare il riepilogo giornaliero</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Ethos Note scrive dati sul ciclo mestruale in Salute</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ethos Note usa la posizione per mostrare il meteo nella tua zona</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ethos Note usa il microfono per registrare note vocali</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Ethos Note accede alla galleria per allegare immagini alle note</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.18187658102-u4fimjecql3tcojngskd1k60sp2kmitp</string>
+			</array>
+		</dict>
+	</array>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -41,23 +70,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Ethos Note usa il microfono per registrare note vocali</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Ethos Note usa la fotocamera per scattare foto da allegare alle note</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Ethos Note accede alla galleria per allegare immagini alle note</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Ethos Note usa la posizione per mostrare il meteo nella tua zona</string>
-	<key>NSHealthShareUsageDescription</key>
-	<string>Ethos Note legge i dati di salute per mostrare il riepilogo giornaliero</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>Ethos Note scrive dati sul ciclo mestruale in Salute</string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Ethos Note usa Face ID per proteggere la cartella privata</string>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
 </dict>
 </plist>
