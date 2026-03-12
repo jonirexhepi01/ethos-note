@@ -39,7 +39,7 @@ import 'dart:io' show Directory, File, FileMode, HttpClient;
 import 'package:archive/archive.dart' as archive;
 import 'package:share_plus/share_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'dart:ui' as ui show PlatformDispatcher, Gradient;
+import 'dart:ui' as ui show PlatformDispatcher, Gradient, Image, instantiateImageCodec, Codec, PictureRecorder, ImageByteFormat;
 import 'package:flutter_contacts/flutter_contacts.dart' as contacts_pkg;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -432,9 +432,13 @@ const _translations = <String, Map<String, String>>{
   'select': {'it': 'Seleziona', 'en': 'Select', 'fr': 'Sélectionner', 'es': 'Seleccionar'},
   'remove': {'it': 'Rimuovi', 'en': 'Remove', 'fr': 'Retirer', 'es': 'Quitar'},
   'done': {'it': 'Fatto', 'en': 'Done', 'fr': 'Terminé', 'es': 'Hecho'},
+  'crop_photo': {'it': 'Ritaglia foto', 'en': 'Crop Photo', 'fr': 'Recadrer la photo', 'es': 'Recortar foto'},
   'back': {'it': 'Indietro', 'en': 'Back', 'fr': 'Retour', 'es': 'Atrás'},
   'all': {'it': 'Tutte', 'en': 'All', 'fr': 'Toutes', 'es': 'Todas'},
   'copy': {'it': 'Copia', 'en': 'Copy', 'fr': 'Copier', 'es': 'Copiar'},
+  'copied': {'it': 'Copiato', 'en': 'Copied', 'fr': 'Copié', 'es': 'Copiado'},
+  'mark_complete': {'it': 'Completa', 'en': 'Mark complete', 'fr': 'Marquer terminé', 'es': 'Marcar completo'},
+  'unmark': {'it': 'Non completato', 'en': 'Unmark', 'fr': 'Non terminé', 'es': 'Desmarcar'},
   'yes': {'it': 'Sì', 'en': 'Yes', 'fr': 'Oui', 'es': 'Sí'},
   'no': {'it': 'No', 'en': 'No', 'fr': 'Non', 'es': 'No'},
   'send': {'it': 'Invia', 'en': 'Send', 'fr': 'Envoyer', 'es': 'Enviar'},
@@ -597,6 +601,11 @@ const _translations = <String, Map<String, String>>{
   'start_time': {'it': 'Ora inizio', 'en': 'Start time', 'fr': 'Heure de début', 'es': 'Hora de inicio'},
   'end_time': {'it': 'Ora fine', 'en': 'End time', 'fr': 'Heure de fin', 'es': 'Hora de fin'},
   'calendar_name': {'it': 'Calendario', 'en': 'Calendar', 'fr': 'Calendrier', 'es': 'Calendario'},
+  'your_calendars': {'it': 'I tuoi calendari', 'en': 'Your Calendars', 'fr': 'Vos calendriers', 'es': 'Tus calendarios'},
+  'add_calendar': {'it': 'Aggiungi calendario', 'en': 'Add Calendar', 'fr': 'Ajouter un calendrier', 'es': 'Añadir calendario'},
+  'edit_calendar': {'it': 'Modifica calendario', 'en': 'Edit Calendar', 'fr': 'Modifier le calendrier', 'es': 'Editar calendario'},
+  'delete_calendar_confirm': {'it': 'Eliminare il calendario', 'en': 'Delete calendar', 'fr': 'Supprimer le calendrier', 'es': 'Eliminar calendario'},
+  'export_ics': {'it': 'Esporta .ics', 'en': 'Export .ics', 'fr': 'Exporter .ics', 'es': 'Exportar .ics'},
   'reminder': {'it': 'Promemoria', 'en': 'Reminder', 'fr': 'Rappel', 'es': 'Recordatorio'},
   'no_reminder': {'it': 'Nessuno', 'en': 'None', 'fr': 'Aucun', 'es': 'Ninguno'},
   '5_min_before': {'it': '5 minuti prima', 'en': '5 minutes before', 'fr': '5 minutes avant', 'es': '5 minutos antes'},
@@ -1849,7 +1858,7 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 11,
+      version: 12,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -1892,7 +1901,27 @@ class DatabaseHelper {
     if (oldVersion < 11) {
       await db.execute('ALTER TABLE custom_folders ADD COLUMN parent_name TEXT');
     }
+    if (oldVersion < 12) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS custom_calendars (
+          name TEXT PRIMARY KEY,
+          color_value INTEGER NOT NULL,
+          is_default INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      // Seed default calendars
+      for (final cal in _defaultCalendars) {
+        await db.insert('custom_calendars', cal, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
   }
+
+  static final List<Map<String, dynamic>> _defaultCalendars = [
+    {'name': 'Personale', 'color_value': 0xFF4CAF50, 'is_default': 1},
+    {'name': 'Lavoro', 'color_value': 0xFF2196F3, 'is_default': 1},
+    {'name': 'Famiglia', 'color_value': 0xFF9C27B0, 'is_default': 1},
+    {'name': 'Compleanno', 'color_value': 0xFFE91E63, 'is_default': 1},
+  ];
 
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
@@ -1967,6 +1996,18 @@ class DatabaseHelper {
     await db.execute('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
     await db.execute('CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)');
     await db.execute('CREATE TABLE cycle_days (day_key TEXT PRIMARY KEY, flow_intensity TEXT DEFAULT \'medium\')');
+
+    await db.execute('''
+      CREATE TABLE custom_calendars (
+        name TEXT PRIMARY KEY,
+        color_value INTEGER NOT NULL,
+        is_default INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    // Seed default calendars
+    for (final cal in _defaultCalendars) {
+      await db.insert('custom_calendars', cal, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
   }
 
   // ── Pro Notes CRUD ──
@@ -2369,6 +2410,42 @@ class DatabaseHelper {
     CloudSyncService().notifyDataChanged();
   }
 
+  // ── Custom Calendars CRUD ──
+
+  Future<List<Map<String, dynamic>>> getCustomCalendars() async {
+    if (_webMode) return _defaultCalendars;
+    final db = await database;
+    return db.query('custom_calendars', orderBy: 'is_default DESC, name ASC');
+  }
+
+  Future<void> saveCustomCalendar(String name, int colorValue, {bool isDefault = false}) async {
+    if (_webMode) return;
+    final db = await database;
+    await db.insert('custom_calendars', {
+      'name': name, 'color_value': colorValue, 'is_default': isDefault ? 1 : 0,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    CloudSyncService().notifyDataChanged();
+  }
+
+  Future<void> deleteCustomCalendar(String name) async {
+    if (_webMode) return;
+    final db = await database;
+    await db.delete('custom_calendars', where: 'name = ?', whereArgs: [name]);
+    CloudSyncService().notifyDataChanged();
+  }
+
+  Future<void> renameCustomCalendar(String oldName, String newName, int colorValue) async {
+    if (_webMode) return;
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('custom_calendars', where: 'name = ?', whereArgs: [oldName]);
+      await txn.insert('custom_calendars', {'name': newName, 'color_value': colorValue, 'is_default': 0});
+      // Update all events that reference the old calendar name
+      await txn.update('calendar_events', {'calendar': newName}, where: 'calendar = ?', whereArgs: [oldName]);
+    });
+    CloudSyncService().notifyDataChanged();
+  }
+
   // ── Utility ──
 
   Future<void> replaceAllFlashNotes(List<FlashNote> notes) async {
@@ -2531,12 +2608,60 @@ class CloudSyncService {
   Timer? _uploadDebounce;
   bool _isSyncing = false;
   bool didDownloadOnLaunch = false;
-  static const _debounceSeconds = 30;
+  String currentStatus = 'idle'; // idle, uploading, downloading, error, done
+  static const _debounceSeconds = 10;
   static const _syncFileName = 'ethos_note_sync.zip';
   static const _syncMetaFileName = 'ethos_note_sync_meta.json';
 
   final _syncStatusController = StreamController<String>.broadcast();
   Stream<String> get syncStatus => _syncStatusController.stream;
+
+  /// Force an immediate sync (manual trigger)
+  Future<void> forceSync() async {
+    _uploadDebounce?.cancel();
+    if (!await _isEnabled()) return;
+    if (!GoogleCalendarService.isSignedIn) {
+      final ok = await GoogleCalendarService.trySilentSignIn();
+      if (!ok) return;
+    }
+    await _uploadToCloud();
+  }
+
+  /// Check cloud and download if newer (for app resume)
+  Future<bool> checkAndDownload() async {
+    if (!await _isEnabled()) return false;
+    if (!GoogleCalendarService.isSignedIn) {
+      final ok = await GoogleCalendarService.trySilentSignIn();
+      if (!ok) return false;
+    }
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity.contains(ConnectivityResult.none)) return false;
+      final cloudTs = await _getCloudTimestamp();
+      if (cloudTs == null) return false;
+      final localTs = await _getLocalSyncTimestamp();
+      if (localTs == null || cloudTs > localTs) {
+        _syncStatusController.add('downloading');
+        currentStatus = 'downloading';
+        final ok = await _downloadFromCloud();
+        if (ok) {
+          await _setLocalSyncTimestamp(cloudTs);
+          _syncStatusController.add('done');
+          currentStatus = 'done';
+          Future.delayed(const Duration(seconds: 3), () {
+            currentStatus = 'idle';
+            _syncStatusController.add('idle');
+          });
+          return true;
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Check and download error: $e');
+    }
+    _syncStatusController.add('idle');
+    currentStatus = 'idle';
+    return false;
+  }
 
   Future<bool> _isEnabled() async {
     final prefs = await SharedPreferences.getInstance();
@@ -2597,6 +2722,7 @@ class CloudSyncService {
   Future<void> _uploadToCloud() async {
     if (_isSyncing) return;
     _isSyncing = true;
+    currentStatus = 'uploading';
     _syncStatusController.add('uploading');
     try {
       final driveApi = await GoogleCalendarService.getDriveApi();
@@ -2614,10 +2740,20 @@ class CloudSyncService {
       await _upsertDriveFile(driveApi, _syncMetaFileName, metaBytes);
 
       await _setLocalSyncTimestamp(nowMs);
-      _syncStatusController.add('idle');
+      currentStatus = 'done';
+      _syncStatusController.add('done');
+      Future.delayed(const Duration(seconds: 3), () {
+        currentStatus = 'idle';
+        _syncStatusController.add('idle');
+      });
     } catch (e) {
       if (kDebugMode) debugPrint('Cloud sync upload error: $e');
+      currentStatus = 'error';
       _syncStatusController.add('error');
+      Future.delayed(const Duration(seconds: 5), () {
+        currentStatus = 'idle';
+        _syncStatusController.add('idle');
+      });
     } finally {
       _isSyncing = false;
     }
@@ -5869,7 +6005,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedIndex = 1;
   int _refreshKey = 0;
   UserProfile _userProfile = UserProfile();
@@ -5881,10 +6017,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late final AnimationController _calIconController;
   List<ConnectivityResult> _connectivityStatus = [];
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  String _syncStatus = 'idle';
+  StreamSubscription<String>? _syncStatusSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _syncStatusSub = CloudSyncService().syncStatus.listen((status) {
+      if (mounted) setState(() => _syncStatus = status);
+    });
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
       if (mounted) setState(() => _connectivityStatus = result);
     });
@@ -5917,11 +6059,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _syncStatusSub?.cancel();
     _connectivitySubscription.cancel();
     _deepLinkChannel.setMethodCallHandler(null);
     _calIconController.dispose();
     NotificationService.onNotificationTap = null;
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Check for cloud updates when app comes back to foreground
+      CloudSyncService().checkAndDownload().then((downloaded) {
+        if (downloaded && mounted) {
+          setState(() => _refreshKey++);
+          _loadUserProfile();
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr('sync_downloaded')),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 3),
+          ));
+        }
+      });
+    }
   }
 
   void _handleNotificationPayload(String payload) {
@@ -6177,10 +6340,69 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (CloudSyncService().didDownloadOnLaunch && mounted) {
         setState(() => _refreshKey++);
         _loadUserProfile();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('sync_downloaded')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ));
       }
     } catch (e) {
       if (kDebugMode) debugPrint('Cloud sync check error: $e');
     }
+  }
+
+  Widget _buildSyncIndicator(ColorScheme colorScheme) {
+    IconData icon;
+    Color color;
+    String tooltip;
+    bool animate = false;
+
+    switch (_syncStatus) {
+      case 'uploading':
+        icon = Icons.cloud_upload;
+        color = colorScheme.primary;
+        tooltip = tr('syncing');
+        animate = true;
+      case 'downloading':
+        icon = Icons.cloud_download;
+        color = colorScheme.primary;
+        tooltip = tr('syncing');
+        animate = true;
+      case 'done':
+        icon = Icons.cloud_done;
+        color = Colors.green;
+        tooltip = tr('sync_complete');
+      case 'error':
+        icon = Icons.cloud_off;
+        color = colorScheme.error;
+        tooltip = tr('sync_error');
+      default:
+        icon = Icons.cloud_done;
+        color = colorScheme.onSurfaceVariant;
+        tooltip = '';
+    }
+
+    final iconWidget = GestureDetector(
+      onTap: () async {
+        await CloudSyncService().forceSync();
+      },
+      child: Tooltip(
+        message: tooltip,
+        child: Icon(icon, size: 20, color: color),
+      ),
+    );
+
+    if (animate) {
+      return TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.5, end: 1.0),
+        duration: const Duration(milliseconds: 800),
+        builder: (context, value, child) => Opacity(opacity: value, child: child),
+        onEnd: () {},
+        child: iconWidget,
+      );
+    }
+    return iconWidget;
   }
 
   Future<void> _checkAutoBackup() async {
@@ -6518,6 +6740,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ],
         ),
         scrolledUnderElevation: 2,
+        actions: [
+          if (_syncStatus != 'idle')
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: _buildSyncIndicator(colorScheme),
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -6662,6 +6891,9 @@ class _CalendarPageState extends State<CalendarPage> {
   // Only reschedule all notifications once per session
   static bool _notificationsInitialized = false;
 
+  // Custom calendars (name → color)
+  Map<String, Color> _calendarColors = {};
+
   // Health
   HealthSnapshot? _healthSnapshot;
 
@@ -6675,6 +6907,7 @@ class _CalendarPageState extends State<CalendarPage> {
     _selectedDay = _focusedDay;
     _holidays = _calSettings.showHolidays ? Holidays.getHolidays(_calSettings.religione) : {};
     _initNotificationsAndEvents();
+    _loadCalendarColors();
     _loadCycleDays();
     _loadCompletedGoogleEventIds();
     _initGoogleCalendar();
@@ -6737,6 +6970,14 @@ class _CalendarPageState extends State<CalendarPage> {
     _eventsScrollController.removeListener(_onEventsScroll);
     _eventsScrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCalendarColors() async {
+    final cals = await DatabaseHelper().getCustomCalendars();
+    if (!mounted) return;
+    setState(() {
+      _calendarColors = {for (final c in cals) c['name'] as String: Color(c['color_value'] as int)};
+    });
   }
 
   Future<void> _loadCycleDays() async {
@@ -7536,6 +7777,48 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  Future<void> _shareEventAsIcs(CalendarEventFull event) async {
+    final start = event.startTime.toUtc();
+    final end = event.endTime.toUtc();
+    String icsDate(DateTime dt) => '${dt.year}${dt.month.toString().padLeft(2, '0')}${dt.day.toString().padLeft(2, '0')}T${dt.hour.toString().padLeft(2, '0')}${dt.minute.toString().padLeft(2, '0')}00Z';
+
+    final ics = StringBuffer();
+    ics.writeln('BEGIN:VCALENDAR');
+    ics.writeln('VERSION:2.0');
+    ics.writeln('PRODID:-//Ethos Note//IT');
+    ics.writeln('CALSCALE:GREGORIAN');
+    ics.writeln('METHOD:PUBLISH');
+    ics.writeln('BEGIN:VEVENT');
+    ics.writeln('DTSTART:${icsDate(start)}');
+    ics.writeln('DTEND:${icsDate(end)}');
+    ics.writeln('SUMMARY:${event.title}');
+    if (event.notes != null && event.notes!.isNotEmpty) {
+      ics.writeln('DESCRIPTION:${event.notes!.replaceAll('\n', '\\n')}');
+    }
+    ics.writeln('LOCATION:${event.calendar}');
+    ics.writeln('STATUS:${event.isCompleted ? 'COMPLETED' : 'CONFIRMED'}');
+    ics.writeln('END:VEVENT');
+    ics.writeln('END:VCALENDAR');
+
+    try {
+      final dir = await getTemporaryDirectory();
+      final safeTitle = event.title.replaceAll(RegExp(r'[^\w\s-]'), '').trim().replaceAll(RegExp(r'\s+'), '_');
+      final file = File('${dir.path}/${safeTitle.isEmpty ? 'evento' : safeTitle}.ics');
+      await file.writeAsString(ics.toString());
+
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'text/calendar')],
+        subject: event.title,
+      ));
+    } catch (e) {
+      // Fallback: share as text
+      SharePlus.instance.share(ShareParams(
+        text: '📅 ${event.title}\n🕐 ${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}\n📁 ${event.calendar}${event.notes != null ? '\n\n${event.notes}' : ''}',
+        subject: event.title,
+      ));
+    }
+  }
+
   Future<void> _deleteEvent(int index) async {
     if (_selectedDay == null) return;
     final key = _dateKey(_selectedDay!);
@@ -7724,14 +8007,10 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Color _getCalendarCategoryColor(String calendar) {
-    final custom = _hasCustomTheme(context);
-    switch (calendar) {
-      case 'Personale': return custom ? _sectionAccent(context, 0) : const Color(0xFF4CAF50);
-      case 'Lavoro': return custom ? _sectionAccent(context, 1) : const Color(0xFF2196F3);
-      case 'Famiglia': return const Color(0xFF9C27B0);
-      case 'Compleanno': return custom ? _sectionAccent(context, 2) : const Color(0xFFE91E63);
-      default: return const Color(0xFF9E9E9E);
+    if (_calendarColors.containsKey(calendar)) {
+      return _calendarColors[calendar]!;
     }
+    return const Color(0xFF9E9E9E);
   }
 
   Widget _buildCategoryDots(List<CalendarEventFull> events, {double dotSize = 5}) {
@@ -8259,6 +8538,39 @@ class _CalendarPageState extends State<CalendarPage> {
                               final event = currentEvents[index];
                               return GestureDetector(
                                 onTap: () => _showEventPreview(ctx, event, day, index, setSheetState),
+                                onSecondaryTapUp: (details) async {
+                                  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+                                  final calColor = _calSettings.calendarColor;
+                                  final result = await showMenu<String>(
+                                    context: context,
+                                    position: RelativeRect.fromRect(
+                                      details.globalPosition & const Size(1, 1),
+                                      Offset.zero & overlay.size,
+                                    ),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    items: [
+                                      PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_outlined, size: 20, color: calColor), const SizedBox(width: 12), Text(tr('edit'))])),
+                                      PopupMenuItem(value: 'complete', child: Row(children: [Icon(event.isCompleted ? Icons.check_box : Icons.check_box_outline_blank, size: 20, color: calColor), const SizedBox(width: 12), Text(event.isCompleted ? tr('unmark') : tr('mark_complete'))])),
+                                      PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share_event'))])),
+                                      const PopupMenuDivider(),
+                                      PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                    ],
+                                  );
+                                  if (result == null) return;
+                                  switch (result) {
+                                    case 'edit':
+                                      if (ctx.mounted) Navigator.pop(ctx);
+                                      _editEvent(day, index);
+                                    case 'complete':
+                                      _toggleEventCompletion(day, index);
+                                      setSheetState(() {});
+                                    case 'share':
+                                      _shareEventAsIcs(event);
+                                    case 'delete':
+                                      if (ctx.mounted) Navigator.pop(ctx);
+                                      _deleteEvent(index);
+                                  }
+                                },
                                 child: Container(
                                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                   padding: const EdgeInsets.all(12),
@@ -8277,10 +8589,10 @@ class _CalendarPageState extends State<CalendarPage> {
                                         child: Container(
                                           width: 28, height: 28,
                                           decoration: BoxDecoration(
-                                            color: event.isCompleted ? _calSettings.calendarColor : Colors.transparent,
+                                            color: event.isCompleted ? _getCalendarCategoryColor(event.calendar) : Colors.transparent,
                                             shape: BoxShape.circle,
                                             border: Border.all(
-                                              color: event.isCompleted ? _calSettings.calendarColor : colorScheme.outlineVariant,
+                                              color: event.isCompleted ? _getCalendarCategoryColor(event.calendar) : _getCalendarCategoryColor(event.calendar).withValues(alpha: 0.5),
                                               width: 2,
                                             ),
                                           ),
@@ -8654,13 +8966,44 @@ class _CalendarPageState extends State<CalendarPage> {
                       itemCount: eventsForSelectedDay.length,
                       itemBuilder: (context, index) {
                         final event = eventsForSelectedDay[index];
-                        return _SlideInItem(index: index, child: Card(
+                        return _SlideInItem(index: index, child: GestureDetector(
+                          onSecondaryTapUp: (details) async {
+                            final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+                            final calColor = _calSettings.calendarColor;
+                            final result = await showMenu<String>(
+                              context: context,
+                              position: RelativeRect.fromRect(
+                                details.globalPosition & const Size(1, 1),
+                                Offset.zero & overlay.size,
+                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              items: [
+                                PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_outlined, size: 20, color: calColor), const SizedBox(width: 12), Text(tr('edit'))])),
+                                PopupMenuItem(value: 'complete', child: Row(children: [Icon(event.isCompleted ? Icons.check_box : Icons.check_box_outline_blank, size: 20, color: calColor), const SizedBox(width: 12), Text(event.isCompleted ? tr('unmark') : tr('mark_complete'))])),
+                                PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share_event'))])),
+                                const PopupMenuDivider(),
+                                PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                              ],
+                            );
+                            if (result == null || !mounted) return;
+                            switch (result) {
+                              case 'edit':
+                                _editEvent(_selectedDay!, index);
+                              case 'complete':
+                                _toggleEventCompletion(_selectedDay!, index);
+                              case 'share':
+                                _shareEventAsIcs(event);
+                              case 'delete':
+                                _deleteEvent(index);
+                            }
+                          },
+                          child: Card(
                           margin: const EdgeInsets.only(bottom: 12),
                           child: ListTile(
                             contentPadding: const EdgeInsets.all(16),
                             leading: Checkbox(
                               value: event.isCompleted,
-                              activeColor: _calSettings.calendarColor,
+                              activeColor: _getCalendarCategoryColor(event.calendar),
                               onChanged: (_) => _toggleEventCompletion(_selectedDay!, index),
                             ),
                             title: Text(
@@ -8683,6 +9026,14 @@ class _CalendarPageState extends State<CalendarPage> {
                                 const SizedBox(height: 2),
                                 Row(
                                   children: [
+                                    Container(
+                                      width: 8, height: 8,
+                                      margin: const EdgeInsets.only(right: 6),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: _getCalendarCategoryColor(event.calendar),
+                                      ),
+                                    ),
                                     if (event.googleEventId != null) ...[
                                       Icon(Icons.cloud, size: 12, color: const Color(0xFF4285F4)),
                                       const SizedBox(width: 4),
@@ -8713,7 +9064,7 @@ class _CalendarPageState extends State<CalendarPage> {
                               ],
                             ),
                           ),
-                        ));
+                        )));
                       },
                     ),
           ),
@@ -10459,6 +10810,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   bool _isSearchingCity = false;
   Timer? _citySearchDebounce;
   DateTime? _nextPredictedCycleStart;
+  List<Map<String, dynamic>> _customCalendars = [];
+  int? _expandedSection;
 
   static final _availableAlertMinutes = <int, String>{
     5: tr('5_min_before'),
@@ -10485,6 +10838,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     _settings = widget.settings;
     _weatherCityController = TextEditingController(text: _settings.weatherCity ?? '');
     _loadCyclePrediction();
+    _loadCustomCalendars();
   }
 
   Future<void> _loadCyclePrediction() async {
@@ -10608,10 +10962,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ── SECTION: Vista Predefinita ──
-            _buildSectionHeader(tr('default_view'), Icons.calendar_view_month),
-            const SizedBox(height: 8),
-            Card(
+            _buildAccordion(0, tr('default_view'), Icons.calendar_view_month, Card(
               elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               color: colorScheme.surfaceContainerLowest,
@@ -10632,13 +10983,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   },
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-
-            // ── SECTION: Inizio Settimana ──
-            _buildSectionHeader(tr('week_start'), Icons.today),
-            const SizedBox(height: 8),
-            Card(
+            )),
+            _buildAccordion(1, tr('week_start'), Icons.today, Card(
               elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               color: colorScheme.surfaceContainerLowest,
@@ -10666,49 +11012,284 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-
-            // ── SECTION: Segno Zodiacale ──
-            _buildSectionHeader(tr('show_zodiac'), Icons.auto_awesome),
-            const SizedBox(height: 8),
-            _buildZodiacAndHoroscopeCard(),
-            const SizedBox(height: 24),
-
-            // ── SECTION: Anteprima Mese Successivo ──
-            _buildSectionHeader(tr('show_next_month'), Icons.calendar_view_week),
-            const SizedBox(height: 8),
-            _buildNextMonthPreviewCard(),
-            const SizedBox(height: 24),
-
-            // ── SECTION: Meteo ──
-            _buildSectionHeader(tr('weather'), Icons.cloud),
-            const SizedBox(height: 8),
-            _buildWeatherSettingsCard(),
-            const SizedBox(height: 24),
-
-            // ── SECTION: Avvisi (merged: type + sound + timing + duration) ──
-            _buildSectionHeader(tr('alerts'), Icons.notifications_active),
-            const SizedBox(height: 8),
-            _buildUnifiedAlertCard(),
-            const SizedBox(height: 24),
-
-            // ── SECTION: Religione ──
-            _buildSectionHeader(tr('holidays'), Icons.church),
-            const SizedBox(height: 8),
-            _buildReligioneCard(),
-            const SizedBox(height: 24),
-
-            // ── SECTION: Ciclo Mestruale ──
-            _buildSectionHeader(tr('cycle_tracking'), Icons.water_drop),
-            const SizedBox(height: 8),
-            _buildCycleTrackingSettingsCard(),
-            const SizedBox(height: 24),
-
+            )),
+            _buildAccordion(2, tr('show_zodiac'), Icons.auto_awesome, _buildZodiacAndHoroscopeCard()),
+            _buildAccordion(3, tr('show_next_month'), Icons.calendar_view_week, _buildNextMonthPreviewCard()),
+            _buildAccordion(4, tr('weather'), Icons.cloud, _buildWeatherSettingsCard()),
+            _buildAccordion(5, tr('alerts'), Icons.notifications_active, _buildUnifiedAlertCard()),
+            _buildAccordion(6, tr('holidays'), Icons.church, _buildReligioneCard()),
+            _buildAccordion(7, tr('your_calendars'), Icons.event_note, _buildCalendarsCard()),
+            _buildAccordion(8, tr('cycle_tracking'), Icons.water_drop, _buildCycleTrackingSettingsCard()),
             const SizedBox(height: 32),
           ],
         ),
     );
+  }
+
+  Widget _buildAccordion(int index, String title, IconData icon, Widget content) {
+    final isExpanded = _expandedSection == index;
+    final accentColor = Color(_settings.calendarColorValue);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () => setState(() => _expandedSection = isExpanded ? null : index),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Icon(icon, color: accentColor, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: accentColor)),
+                    ),
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(Icons.expand_more, color: accentColor),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              child: isExpanded
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                      child: content,
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadCustomCalendars() async {
+    final cals = await DatabaseHelper().getCustomCalendars();
+    if (!mounted) return;
+    setState(() => _customCalendars = cals);
+  }
+
+  Widget _buildCalendarsCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            ..._customCalendars.map((cal) {
+              final name = cal['name'] as String;
+              final colorVal = cal['color_value'] as int;
+              final isDefault = (cal['is_default'] as int) == 1;
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                leading: Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: Color(colorVal)),
+                ),
+                title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.edit, size: 20, color: colorScheme.primary),
+                      onPressed: () => _editCalendar(name, colorVal, isDefault),
+                      tooltip: tr('edit'),
+                    ),
+                    if (!isDefault)
+                      IconButton(
+                        icon: Icon(Icons.delete_outline, size: 20, color: colorScheme.error),
+                        onPressed: () => _deleteCalendar(name),
+                        tooltip: tr('delete'),
+                      ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _addCalendar,
+                icon: const Icon(Icons.add, size: 18),
+                label: Text(tr('add_calendar')),
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static const _calendarColorPalette = [
+    Color(0xFF4CAF50), Color(0xFF2196F3), Color(0xFF9C27B0), Color(0xFFE91E63),
+    Color(0xFFFF9800), Color(0xFF009688), Color(0xFF795548), Color(0xFF607D8B),
+    Color(0xFFF44336), Color(0xFF3F51B5), Color(0xFFFFEB3B), Color(0xFF00BCD4),
+  ];
+
+  Future<void> _addCalendar() async {
+    final nameController = TextEditingController();
+    Color selectedColor = _calendarColorPalette[_customCalendars.length % _calendarColorPalette.length];
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('add_calendar')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: tr('calendar_name'),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.event_note),
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              Text(tr('color'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8, runSpacing: 8,
+                children: _calendarColorPalette.map((c) => GestureDetector(
+                  onTap: () => setDialogState(() => selectedColor = c),
+                  child: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle, color: c,
+                      border: selectedColor == c ? Border.all(color: Colors.white, width: 3) : null,
+                      boxShadow: selectedColor == c ? [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)] : null,
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+            FilledButton(
+              onPressed: () {
+                if (nameController.text.trim().isNotEmpty) Navigator.pop(ctx, true);
+              },
+              child: Text(tr('add')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true) {
+      await DatabaseHelper().saveCustomCalendar(nameController.text.trim(), selectedColor.toARGB32());
+      _loadCustomCalendars();
+    }
+  }
+
+  Future<void> _editCalendar(String oldName, int oldColorValue, bool isDefault) async {
+    final nameController = TextEditingController(text: oldName);
+    Color selectedColor = Color(oldColorValue);
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(tr('edit_calendar')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: tr('calendar_name'),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.event_note),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(tr('color'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8, runSpacing: 8,
+                children: _calendarColorPalette.map((c) => GestureDetector(
+                  onTap: () => setDialogState(() => selectedColor = c),
+                  child: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle, color: c,
+                      border: selectedColor == c ? Border.all(color: Colors.white, width: 3) : null,
+                      boxShadow: selectedColor == c ? [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)] : null,
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+            FilledButton(
+              onPressed: () {
+                if (nameController.text.trim().isNotEmpty) Navigator.pop(ctx, true);
+              },
+              child: Text(tr('save')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true) {
+      final newName = nameController.text.trim();
+      if (newName != oldName) {
+        await DatabaseHelper().renameCustomCalendar(oldName, newName, selectedColor.toARGB32());
+      } else {
+        await DatabaseHelper().saveCustomCalendar(newName, selectedColor.toARGB32(), isDefault: isDefault);
+      }
+      _loadCustomCalendars();
+    }
+  }
+
+  Future<void> _deleteCalendar(String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('delete')),
+        content: Text('${tr('delete_calendar_confirm')} "$name"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            child: Text(tr('delete')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await DatabaseHelper().deleteCustomCalendar(name);
+      _loadCustomCalendars();
+    }
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {
@@ -12648,7 +13229,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
   final TextEditingController _titleController = TextEditingController();
   late DateTime _startTime;
   late DateTime _endTime;
-  String _selectedCalendar = tr('personal');
+  String _selectedCalendar = 'Personale';
   String? _selectedReminder;
   List<String> _sharedWith = [];
   List<String> _availableFriends = [];
@@ -12658,12 +13239,8 @@ class _EventEditorPageState extends State<EventEditorPage> {
   String? _recurrence; // null/daily/weekly/monthly/yearly
   DateTime? _recurrenceEndDate;
 
-  final List<String> _calendars = [
-    tr('personal'),
-    tr('work'),
-    tr('family'),
-    tr('birthday'),
-  ];
+  List<String> _calendars = ['Personale', 'Lavoro', 'Famiglia', 'Compleanno'];
+  Map<String, Color> _calendarColors = {};
   final List<String> _reminders = [
     tr('10_min_before'),
     tr('15_min_before'),
@@ -12708,6 +13285,22 @@ class _EventEditorPageState extends State<EventEditorPage> {
       _endTime = _startTime.add(const Duration(hours: 1));
     }
     _loadFriends();
+    _loadCalendars();
+  }
+
+  Future<void> _loadCalendars() async {
+    final cals = await DatabaseHelper().getCustomCalendars();
+    if (!mounted) return;
+    final names = cals.map((c) => c['name'] as String).toList();
+    final colors = {for (final c in cals) c['name'] as String: Color(c['color_value'] as int)};
+    setState(() {
+      _calendars = names;
+      _calendarColors = colors;
+      // Ensure selected calendar is valid
+      if (!_calendars.contains(_selectedCalendar) && _calendars.isNotEmpty) {
+        _selectedCalendar = _calendars.first;
+      }
+    });
   }
 
   Future<void> _loadFriends() async {
@@ -12977,13 +13570,28 @@ class _EventEditorPageState extends State<EventEditorPage> {
             ),
             const SizedBox(height: 24),
             DropdownButtonFormField<String>(
-              value: _selectedCalendar,
+              value: _calendars.contains(_selectedCalendar) ? _selectedCalendar : (_calendars.isNotEmpty ? _calendars.first : null),
               decoration: InputDecoration(
                 labelText: tr('calendar_name'),
                 prefixIcon: const Icon(Icons.calendar_today, size: 20),
               ),
               items: _calendars
-                  .map((cal) => DropdownMenuItem(value: cal, child: Text(cal)))
+                  .map((cal) => DropdownMenuItem(
+                    value: cal,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12, height: 12,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _calendarColors[cal] ?? const Color(0xFF9E9E9E),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(cal),
+                      ],
+                    ),
+                  ))
                   .toList(),
               onChanged: (value) => setState(() => _selectedCalendar = value!),
             ),
@@ -13394,16 +14002,25 @@ class _SettingsPageState extends State<SettingsPage> {
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 80,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 90,
       );
       if (!mounted) return;
 
       if (image != null) {
-        final bytes = await image.readAsBytes();
+        final rawBytes = await image.readAsBytes();
         if (!mounted) return;
-        final base64String = base64Encode(bytes);
+
+        // Open crop page
+        final croppedBytes = await Navigator.push<Uint8List>(
+          context,
+          MaterialPageRoute(builder: (_) => _ProfilePhotoCropPage(imageBytes: rawBytes)),
+        );
+        if (!mounted) return;
+        if (croppedBytes == null) return;
+
+        final base64String = base64Encode(croppedBytes);
         setState(() {
           // Save old photo to history (max 10)
           if (_profile.photoBase64 != null && _profile.photoBase64!.isNotEmpty) {
@@ -16140,6 +16757,324 @@ class FlashNote {
   );
 }
 
+// ── Link Preview (Open Graph) ──
+
+class LinkPreviewData {
+  final String url;
+  final String? title;
+  final String? description;
+  final String? imageUrl;
+  final String domain;
+
+  const LinkPreviewData({required this.url, this.title, this.description, this.imageUrl, required this.domain});
+
+  Map<String, dynamic> toJson() => {
+    'url': url, 'title': title, 'description': description, 'imageUrl': imageUrl, 'domain': domain,
+  };
+
+  factory LinkPreviewData.fromJson(Map<String, dynamic> j) => LinkPreviewData(
+    url: j['url'] ?? '', title: j['title'], description: j['description'], imageUrl: j['imageUrl'], domain: j['domain'] ?? '',
+  );
+}
+
+final _urlRegexPreview = RegExp(r'https?://[^\s<>\[\](){}\"]+', caseSensitive: false);
+
+Future<LinkPreviewData?> fetchLinkPreview(String url) async {
+  // Check cache first
+  final cacheKey = 'link_preview_$url';
+  final cached = await DatabaseHelper().getCache(cacheKey);
+  if (cached != null) {
+    try {
+      return LinkPreviewData.fromJson(json.decode(cached));
+    } catch (_) {}
+  }
+
+  try {
+    final uri = Uri.parse(url);
+    final response = await http.get(uri, headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; EthosNote/1.0)',
+    }).timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) return null;
+
+    final body = response.body;
+    String? ogTitle = _extractMeta(body, 'og:title') ?? _extractHtmlTitle(body);
+    String? ogDesc = _extractMeta(body, 'og:description') ?? _extractMeta(body, 'description');
+    String? ogImage = _extractMeta(body, 'og:image');
+    final domain = uri.host.replaceFirst(RegExp(r'^www\.'), '');
+
+    if (ogTitle == null && ogDesc == null) return null;
+
+    // Resolve relative image URL
+    if (ogImage != null && !ogImage.startsWith('http')) {
+      ogImage = '${uri.scheme}://${uri.host}$ogImage';
+    }
+
+    final preview = LinkPreviewData(url: url, title: ogTitle, description: ogDesc, imageUrl: ogImage, domain: domain);
+    // Cache for 24h
+    await DatabaseHelper().saveCache(cacheKey, json.encode(preview.toJson()));
+    return preview;
+  } catch (_) {
+    return null;
+  }
+}
+
+String? _extractMeta(String html, String property) {
+  // Try property="og:..." first, then name="..."
+  final patterns = [
+    RegExp('<meta[^>]+property=["\']$property["\'][^>]+content=["\']([^"\']*)["\']', caseSensitive: false),
+    RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]+property=["\']$property["\']', caseSensitive: false),
+    RegExp('<meta[^>]+name=["\']$property["\'][^>]+content=["\']([^"\']*)["\']', caseSensitive: false),
+    RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]+name=["\']$property["\']', caseSensitive: false),
+  ];
+  for (final p in patterns) {
+    final m = p.firstMatch(html);
+    if (m != null && m.group(1)!.isNotEmpty) {
+      return _decodeHtmlEntities(m.group(1)!);
+    }
+  }
+  return null;
+}
+
+String? _extractHtmlTitle(String html) {
+  final m = RegExp(r'<title[^>]*>([^<]+)</title>', caseSensitive: false).firstMatch(html);
+  if (m != null && m.group(1)!.trim().isNotEmpty) return _decodeHtmlEntities(m.group(1)!.trim());
+  return null;
+}
+
+String _decodeHtmlEntities(String s) {
+  return s
+    .replaceAll('&amp;', '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&apos;', "'");
+}
+
+// ── Profile Photo Crop Page (WhatsApp-style circular crop) ──
+
+class _ProfilePhotoCropPage extends StatefulWidget {
+  final Uint8List imageBytes;
+  const _ProfilePhotoCropPage({required this.imageBytes});
+
+  @override
+  State<_ProfilePhotoCropPage> createState() => _ProfilePhotoCropPageState();
+}
+
+class _ProfilePhotoCropPageState extends State<_ProfilePhotoCropPage> {
+  // Transform state
+  double _scale = 1.0;
+  double _prevScale = 1.0;
+  Offset _offset = Offset.zero;
+  Offset _prevOffset = Offset.zero;
+  Offset _focalStart = Offset.zero;
+  Size _imageSize = Size.zero;
+  bool _imageLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImageSize();
+  }
+
+  Future<void> _loadImageSize() async {
+    final codec = await ui.instantiateImageCodec(widget.imageBytes);
+    final frame = await codec.getNextFrame();
+    if (!mounted) return;
+    setState(() {
+      _imageSize = Size(frame.image.width.toDouble(), frame.image.height.toDouble());
+      _imageLoaded = true;
+    });
+    frame.image.dispose();
+    codec.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final screenSize = MediaQuery.of(context).size;
+    final circleSize = screenSize.width * 0.85;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Text(tr('crop_photo'), style: const TextStyle(color: Colors.white)),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => _cropAndReturn(circleSize),
+            child: Text(tr('done'), style: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.w600, fontSize: 16)),
+          ),
+        ],
+      ),
+      body: _imageLoaded
+          ? Stack(
+              children: [
+                // Zoomable/pannable image
+                Center(
+                  child: GestureDetector(
+                    onScaleStart: (details) {
+                      _prevScale = _scale;
+                      _prevOffset = _offset;
+                      _focalStart = details.focalPoint;
+                    },
+                    onScaleUpdate: (details) {
+                      setState(() {
+                        _scale = (_prevScale * details.scale).clamp(0.5, 5.0);
+                        _offset = _prevOffset + (details.focalPoint - _focalStart);
+                      });
+                    },
+                    child: Transform(
+                      transform: Matrix4.identity()
+                        ..translate(_offset.dx, _offset.dy)
+                        ..scale(_scale),
+                      alignment: Alignment.center,
+                      child: Image.memory(
+                        widget.imageBytes,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+                // Dark overlay with circular hole
+                IgnorePointer(
+                  child: CustomPaint(
+                    size: screenSize,
+                    painter: _CircleCropOverlayPainter(circleSize: circleSize),
+                  ),
+                ),
+                // Circle border
+                Center(
+                  child: IgnorePointer(
+                    child: Container(
+                      width: circleSize,
+                      height: circleSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Future<void> _cropAndReturn(double circleSize) async {
+    // Use RepaintBoundary approach: render the transformed image to a canvas and crop
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      // Decode the image
+      final codec = await ui.instantiateImageCodec(widget.imageBytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+
+      final screenSize = MediaQuery.of(context).size;
+      final outputSize = 512.0; // output px
+
+      // Calculate where the image is rendered relative to center
+      final imgW = image.width.toDouble();
+      final imgH = image.height.toDouble();
+
+      // Image.memory with BoxFit.contain: find the displayed size
+      final screenAspect = screenSize.width / screenSize.height;
+      final imgAspect = imgW / imgH;
+      double displayW, displayH;
+      if (imgAspect > screenAspect) {
+        displayW = screenSize.width;
+        displayH = screenSize.width / imgAspect;
+      } else {
+        displayH = screenSize.height;
+        displayW = screenSize.height * imgAspect;
+      }
+
+      // Center of screen
+      final cx = screenSize.width / 2;
+      final cy = screenSize.height / 2;
+
+      // The crop circle in screen coords
+      final circleLeft = cx - circleSize / 2;
+      final circleTop = cy - circleSize / 2;
+
+      // Image top-left in screen coords (before transform)
+      final imgLeft = cx - displayW / 2;
+      final imgTop = cy - displayH / 2;
+
+      // Transform: translate by _offset, scale by _scale around center
+      // Point in image coords = (screenPoint - center - offset) / scale + center_of_image
+      // Crop rect corners in untransformed image display coords
+      double toImgX(double sx) => (sx - cx - _offset.dx) / _scale + cx;
+      double toImgY(double sy) => (sy - cy - _offset.dy) / _scale + cy;
+
+      final cropLeft = toImgX(circleLeft);
+      final cropTop = toImgY(circleTop);
+      final cropRight = toImgX(circleLeft + circleSize);
+      final cropBottom = toImgY(circleTop + circleSize);
+
+      // Convert to source image pixels
+      final scaleX = imgW / displayW;
+      final scaleY = imgH / displayH;
+
+      final srcLeft = ((cropLeft - imgLeft) * scaleX).clamp(0.0, imgW);
+      final srcTop = ((cropTop - imgTop) * scaleY).clamp(0.0, imgH);
+      final srcRight = ((cropRight - imgLeft) * scaleX).clamp(0.0, imgW);
+      final srcBottom = ((cropBottom - imgTop) * scaleY).clamp(0.0, imgH);
+
+      final srcRect = Rect.fromLTRB(srcLeft, srcTop, srcRight, srcBottom);
+      final dstRect = Rect.fromLTWH(0, 0, outputSize, outputSize);
+
+      // Draw with circular clip
+      canvas.clipRRect(RRect.fromRectAndRadius(dstRect, Radius.circular(outputSize / 2)));
+      canvas.drawImageRect(image, srcRect, dstRect, Paint()..filterQuality = FilterQuality.high);
+
+      final picture = recorder.endRecording();
+      final croppedImage = await picture.toImage(outputSize.toInt(), outputSize.toInt());
+      final byteData = await croppedImage.toByteData(format: ui.ImageByteFormat.png);
+
+      image.dispose();
+      codec.dispose();
+      croppedImage.dispose();
+
+      if (byteData != null && mounted) {
+        Navigator.pop(context, byteData.buffer.asUint8List());
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+    }
+  }
+}
+
+class _CircleCropOverlayPainter extends CustomPainter {
+  final double circleSize;
+  _CircleCropOverlayPainter({required this.circleSize});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.black.withValues(alpha: 0.6);
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = circleSize / 2;
+
+    // Draw full rect, then cut out circle
+    canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+    canvas.drawCircle(center, radius, Paint()..blendMode = BlendMode.clear);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _CircleCropOverlayPainter old) => old.circleSize != circleSize;
+}
+
 class PhotoRecognitionResult {
   final String category; // 'business_card', 'receipt', 'document', 'handwritten', 'wine_label', 'normal'
   final String title;
@@ -16915,6 +17850,7 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
   late FlashNotesSettings _settings;
   late TextEditingController _apiKeyController;
   bool _unlimitedVoice = false;
+  int? _expandedSection;
 
   @override
   void initState() {
@@ -16971,118 +17907,127 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // SEZIONE: Flash Note Foto AI
-          _buildSectionHeader(tr('flash_note_foto_ai'), Icons.image_search, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: Column(
-              children: [
-                SwitchListTile(
-                  secondary: Icon(Icons.image_search, color: sectionColor),
-                  title: Text(tr('doc_research'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(
-                    tr('flash_note_foto_ai_desc'),
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+          _buildFlashAccordion(0, tr('flash_note_foto_ai'), Icons.image_search, sectionColor, Column(
+            children: [
+              SwitchListTile(
+                secondary: Icon(Icons.image_search, color: sectionColor),
+                title: Text(tr('doc_research'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(
+                  tr('flash_note_foto_ai_desc'),
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                ),
+                value: _settings.photoRecognitionEnabled,
+                onChanged: (val) {
+                  _updateSettings(_settings.copyWith(photoRecognitionEnabled: val));
+                },
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                secondary: Icon(Icons.wine_bar, color: sectionColor),
+                title: Text(tr('wine_research_toggle'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(
+                  tr('wine_research_toggle_desc'),
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                ),
+                value: _settings.wineResearchEnabled,
+                onChanged: (val) {
+                  _updateSettings(_settings.copyWith(wineResearchEnabled: val));
+                },
+              ),
+            ],
+          )),
+          _buildFlashAccordion(1, tr('grouping_mode'), Icons.flash_on, sectionColor, Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(value: 'daily', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('daily'), style: const TextStyle(fontSize: 11)))),
+                  ButtonSegment(value: 'weekly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('weekly'), style: const TextStyle(fontSize: 11)))),
+                  ButtonSegment(value: 'monthly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('monthly'), style: const TextStyle(fontSize: 11)))),
+                  ButtonSegment(value: 'yearly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('yearly'), style: const TextStyle(fontSize: 11)))),
+                ],
+                selected: {_settings.groupingMode},
+                onSelectionChanged: (sel) {
+                  _updateSettings(_settings.copyWith(groupingMode: sel.first));
+                },
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
+            ),
+          )),
+          _buildFlashAccordion(2, tr('voice_duration'), Icons.mic, sectionColor, Padding(
+            padding: const EdgeInsets.all(16),
+            child: _unlimitedVoice
+                ? Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${tr('max_duration')}: ${tr('unlimited')}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('max_duration'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 12),
+                      _buildAudioDurationSlider(colorScheme),
+                    ],
                   ),
-                  value: _settings.photoRecognitionEnabled,
-                  onChanged: (val) {
-                    _updateSettings(_settings.copyWith(photoRecognitionEnabled: val));
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // SEZIONE: Wine Research
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: SwitchListTile(
-              secondary: Icon(Icons.wine_bar, color: sectionColor),
-              title: Text(tr('wine_research_toggle'), style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(
-                tr('wine_research_toggle_desc'),
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-              ),
-              value: _settings.wineResearchEnabled,
-              onChanged: (val) {
-                _updateSettings(_settings.copyWith(wineResearchEnabled: val));
-              },
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // SEZIONE: Raggruppamento per Data
-          _buildSectionHeader(tr('grouping_mode'), Icons.flash_on, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<String>(
-                  segments: [
-                    ButtonSegment(value: 'daily', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('daily'), style: const TextStyle(fontSize: 11)))),
-                    ButtonSegment(value: 'weekly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('weekly'), style: const TextStyle(fontSize: 11)))),
-                    ButtonSegment(value: 'monthly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('monthly'), style: const TextStyle(fontSize: 11)))),
-                    ButtonSegment(value: 'yearly', label: FittedBox(fit: BoxFit.scaleDown, child: Text(tr('yearly'), style: const TextStyle(fontSize: 11)))),
-                  ],
-                  selected: {_settings.groupingMode},
-                  onSelectionChanged: (sel) {
-                    _updateSettings(_settings.copyWith(groupingMode: sel.first));
-                  },
-                  showSelectedIcon: false,
-                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // SEZIONE C: Durata nota vocale
-          _buildSectionHeader(tr('voice_duration'), Icons.mic, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _unlimitedVoice
-                  ? Row(
-                      children: [
-                        const Icon(Icons.check_circle, color: Colors.green),
-                        const SizedBox(width: 12),
-                        Text(
-                          '${tr('max_duration')}: ${tr('unlimited')}',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(tr('max_duration'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 12),
-                        _buildAudioDurationSlider(colorScheme),
-                      ],
-                    ),
-            ),
-          ),
-
+          )),
           const SizedBox(height: 32),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFlashAccordion(int index, String title, IconData icon, Color accentColor, Widget content) {
+    final isExpanded = _expandedSection == index;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () => setState(() => _expandedSection = isExpanded ? null : index),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Icon(icon, color: accentColor, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: accentColor)),
+                    ),
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(Icons.expand_more, color: accentColor),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              child: isExpanded
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                      child: content,
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -17883,6 +18828,7 @@ class NoteProSettingsPage extends StatefulWidget {
 
 class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
   late NoteProSettings _settings;
+  int? _expandedSection;
 
   @override
   void initState() {
@@ -18035,182 +18981,199 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // SEZIONE: Esportazione PDF
-          _buildSectionHeader(tr('export_pdf'), Icons.picture_as_pdf, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
+          _buildDeepAccordion(0, tr('export_pdf'), Icons.picture_as_pdf, sectionColor, Column(
+            children: [
+              SwitchListTile(
+                title: Text(tr('pdf_show_logo')),
+                subtitle: Text(tr('pdf_show_logo_desc')),
+                value: _settings.pdfShowLogo,
+                onChanged: (value) {
+                  _updateSettings(_settings.copyWith(pdfShowLogo: value));
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: Text(tr('page_format')),
+                subtitle: Text(tr('page_format_desc')),
+                trailing: SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  style: ButtonStyle(visualDensity: VisualDensity.compact, textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12))),
+                  segments: [
+                    ButtonSegment(value: 'a4', label: Text('A4')),
+                    ButtonSegment(value: 'mobile', label: Text(tr('mobile_format'))),
+                  ],
+                  selected: {_settings.pdfPageFormat},
+                  onSelectionChanged: (value) {
+                    _updateSettings(_settings.copyWith(pdfPageFormat: value.first));
+                  },
+                ),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                title: Text(tr('page_numbering')),
+                subtitle: Text(tr('page_numbering_desc')),
+                value: _settings.pdfShowPageNumbers,
+                onChanged: (value) {
+                  _updateSettings(_settings.copyWith(pdfShowPageNumbers: value));
+                },
+              ),
+            ],
+          )),
+          _buildDeepAccordion(1, tr('custom_templates'), Icons.description, sectionColor, Padding(
+            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                SwitchListTile(
-                  title: Text(tr('pdf_show_logo')),
-                  subtitle: Text(tr('pdf_show_logo_desc')),
-                  value: _settings.pdfShowLogo,
-                  onChanged: (value) {
-                    _updateSettings(_settings.copyWith(pdfShowLogo: value));
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  title: Text(tr('page_format')),
-                  subtitle: Text(tr('page_format_desc')),
-                  trailing: SegmentedButton<String>(
-                    showSelectedIcon: false,
-                    style: ButtonStyle(visualDensity: VisualDensity.compact, textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12))),
-                    segments: [
-                      ButtonSegment(value: 'a4', label: Text('A4')),
-                      ButtonSegment(value: 'mobile', label: Text(tr('mobile_format'))),
-                    ],
-                    selected: {_settings.pdfPageFormat},
-                    onSelectionChanged: (value) {
-                      _updateSettings(_settings.copyWith(pdfPageFormat: value.first));
-                    },
-                  ),
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: Text(tr('page_numbering')),
-                  subtitle: Text(tr('page_numbering_desc')),
-                  value: _settings.pdfShowPageNumbers,
-                  onChanged: (value) {
-                    _updateSettings(_settings.copyWith(pdfShowPageNumbers: value));
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // SEZIONE: Template Personalizzati
-          _buildSectionHeader(tr('custom_templates'), Icons.description, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  if (_settings.customTemplates.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        tr('no_custom_templates'),
-                        style: TextStyle(
-                          color: colorScheme.onSurfaceVariant,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    )
-                  else
-                    ..._settings.customTemplates.asMap().entries.map((entry) {
-                      final template = entry.value;
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.article),
-                        title: Text(template['name'] ?? 'Template'),
-                        trailing: IconButton(
-                          icon: Icon(Icons.delete_outline, color: colorScheme.error),
-                          onPressed: () {
-                            final updated = List<Map<String, dynamic>>.from(
-                                _settings.customTemplates)
-                              ..removeAt(entry.key);
-                            _updateSettings(
-                                _settings.copyWith(customTemplates: updated));
-                          },
-                        ),
-                      );
-                    }),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _importTemplate,
-                          icon: const Icon(Icons.file_upload, size: 18),
-                          label: Text(tr('import_template'), style: const TextStyle(fontSize: 12)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _createTemplate,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: Text(tr('create_template'), style: const TextStyle(fontSize: 12)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // SEZIONE: Cestino
-          _buildSectionHeader(tr('trash'), Icons.delete_outline, sectionColor),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: colorScheme.surfaceContainerLowest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr('enable_trash'),
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(tr('keep_notes_for')),
-                    value: _settings.trashEnabled,
-                    onChanged: (value) {
-                      _updateSettings(_settings.copyWith(trashEnabled: value));
-                    },
-                  ),
-                  if (_settings.trashEnabled) ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<int>(
-                        segments: const [
-                          ButtonSegment(value: 7, label: Text('7', style: TextStyle(fontSize: 12))),
-                          ButtonSegment(value: 14, label: Text('14', style: TextStyle(fontSize: 12))),
-                          ButtonSegment(value: 30, label: Text('30', style: TextStyle(fontSize: 12))),
-                          ButtonSegment(value: 60, label: Text('60', style: TextStyle(fontSize: 12))),
-                          ButtonSegment(value: 90, label: Text('90', style: TextStyle(fontSize: 12))),
-                        ],
-                        selected: {_settings.trashRetentionDays},
-                        onSelectionChanged: (sel) {
-                          _updateSettings(_settings.copyWith(trashRetentionDays: sel.first));
-                        },
-                        showSelectedIcon: false,
-                        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                if (_settings.customTemplates.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      tr('no_custom_templates'),
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      tr('trash_auto_delete').replaceAll('{n}', '${_settings.trashRetentionDays}'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                        color: colorScheme.onSurfaceVariant,
+                  )
+                else
+                  ..._settings.customTemplates.asMap().entries.map((entry) {
+                    final template = entry.value;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.article),
+                      title: Text(template['name'] ?? 'Template'),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete_outline, color: colorScheme.error),
+                        onPressed: () {
+                          final updated = List<Map<String, dynamic>>.from(
+                              _settings.customTemplates)
+                            ..removeAt(entry.key);
+                          _updateSettings(
+                              _settings.copyWith(customTemplates: updated));
+                        },
+                      ),
+                    );
+                  }),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _importTemplate,
+                        icon: const Icon(Icons.file_upload, size: 18),
+                        label: Text(tr('import_template'), style: const TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _createTemplate,
+                        icon: const Icon(Icons.add, size: 18),
+                        label: Text(tr('create_template'), style: const TextStyle(fontSize: 12)),
                       ),
                     ),
                   ],
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-
+          )),
+          _buildDeepAccordion(2, tr('trash'), Icons.delete_outline, sectionColor, Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(tr('enable_trash'),
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(tr('keep_notes_for')),
+                  value: _settings.trashEnabled,
+                  onChanged: (value) {
+                    _updateSettings(_settings.copyWith(trashEnabled: value));
+                  },
+                ),
+                if (_settings.trashEnabled) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(value: 7, label: Text('7', style: TextStyle(fontSize: 12))),
+                        ButtonSegment(value: 14, label: Text('14', style: TextStyle(fontSize: 12))),
+                        ButtonSegment(value: 30, label: Text('30', style: TextStyle(fontSize: 12))),
+                        ButtonSegment(value: 60, label: Text('60', style: TextStyle(fontSize: 12))),
+                        ButtonSegment(value: 90, label: Text('90', style: TextStyle(fontSize: 12))),
+                      ],
+                      selected: {_settings.trashRetentionDays},
+                      onSelectionChanged: (sel) {
+                        _updateSettings(_settings.copyWith(trashRetentionDays: sel.first));
+                      },
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    tr('trash_auto_delete').replaceAll('{n}', '${_settings.trashRetentionDays}'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          )),
           const SizedBox(height: 32),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDeepAccordion(int index, String title, IconData icon, Color accentColor, Widget content) {
+    final isExpanded = _expandedSection == index;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () => setState(() => _expandedSection = isExpanded ? null : index),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Icon(icon, color: accentColor, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: accentColor)),
+                    ),
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(Icons.expand_more, color: accentColor),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              child: isExpanded
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                      child: content,
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -18575,6 +19538,8 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
   bool _checkboxJustTapped = false;
   bool _savedToDeepNote = false;
   final List<TapGestureRecognizer> _recognizers = [];
+  LinkPreviewData? _linkPreview;
+  bool _linkPreviewLoading = false;
 
   static final _tokenRegex = RegExp(
     r'https?://[^\s<>\[\](){}\"]+|[☐☑]',
@@ -18594,16 +19559,100 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     _bodyController.addListener(_handleListContinuation);
     // New notes start in edit mode
     _isEditing = widget.existingNote == null;
+    _fetchLinkPreviewIfNeeded(_bodyController.text);
   }
 
   void _onFocusChanged() {
     if (!_bodyFocusNode.hasFocus && _isEditing) {
       setState(() => _isEditing = false);
+      // Check for new URLs when losing focus
+      _fetchLinkPreviewIfNeeded(_bodyController.text);
     }
   }
 
   void _onChanged() {
     if (!_hasChanges) setState(() => _hasChanges = true);
+  }
+
+  void _fetchLinkPreviewIfNeeded(String text) {
+    if (_linkPreview != null || _linkPreviewLoading) return;
+    final match = _urlRegexPreview.firstMatch(text);
+    if (match == null) return;
+    final url = match.group(0)!;
+    _linkPreviewLoading = true;
+    fetchLinkPreview(url).then((preview) {
+      if (!mounted) return;
+      setState(() {
+        _linkPreview = preview;
+        _linkPreviewLoading = false;
+      });
+    });
+  }
+
+  Widget _buildEditorLinkPreview(ColorScheme colorScheme) {
+    final preview = _linkPreview!;
+    return GestureDetector(
+      onTap: () => launchUrl(Uri.parse(preview.url), mode: LaunchMode.externalApplication),
+      child: Container(
+        margin: const EdgeInsets.only(top: 16),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (preview.imageUrl != null)
+              SizedBox(
+                height: 160,
+                width: double.infinity,
+                child: Image.network(
+                  preview.imageUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (preview.title != null)
+                    Text(
+                      preview.title!,
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  if (preview.description != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      preview.description!,
+                      style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.link, size: 14, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                      const SizedBox(width: 4),
+                      Text(
+                        preview.domain,
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -19408,6 +20457,9 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
                           ),
                         ),
                 ),
+                // Link preview card
+                if (_linkPreview != null)
+                  _buildEditorLinkPreview(colorScheme),
               ],
             ),
           ),
@@ -19557,6 +20609,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
   // Note style: 'modern' or 'paper' (gated by Ethos Aura)
   String _noteStyle = 'modern';
   bool _paperStickyPurchased = false;
+  // Link previews cache (noteId → LinkPreviewData)
+  final Map<int, LinkPreviewData?> _linkPreviews = {};
+  final Set<int> _linkPreviewsLoading = {};
 
   @override
   void initState() {
@@ -19693,6 +20748,93 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     setState(() {
       _notes = notes;
     });
+    // Fetch link previews for notes with URLs
+    for (final note in notes) {
+      if (note.id != null && !note.isAudioNote) {
+        _fetchLinkPreviewForNote(note);
+      }
+    }
+  }
+
+  void _fetchLinkPreviewForNote(FlashNote note) {
+    if (note.id == null) return;
+    if (_linkPreviews.containsKey(note.id)) return; // already fetched or in progress
+    final match = _urlRegexPreview.firstMatch(note.content);
+    if (match == null) return;
+    final url = match.group(0)!;
+    _linkPreviewsLoading.add(note.id!);
+    fetchLinkPreview(url).then((preview) {
+      if (!mounted) return;
+      setState(() {
+        _linkPreviews[note.id!] = preview;
+        _linkPreviewsLoading.remove(note.id!);
+      });
+    });
+  }
+
+  Widget _buildLinkPreviewCard(LinkPreviewData preview, ColorScheme colorScheme) {
+    return GestureDetector(
+      onTap: () => launchUrl(Uri.parse(preview.url), mode: LaunchMode.externalApplication),
+      child: Container(
+        margin: const EdgeInsets.only(top: 8),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (preview.imageUrl != null)
+              SizedBox(
+                height: 120,
+                width: double.infinity,
+                child: Image.network(
+                  preview.imageUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (preview.title != null)
+                    Text(
+                      preview.title!,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  if (preview.description != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      preview.description!,
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.link, size: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                      const SizedBox(width: 4),
+                      Text(
+                        preview.domain,
+                        style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _saveNotes() async {
@@ -21975,6 +23117,42 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                   });
                                 }
                               },
+                              onSecondaryTapUp: (details) async {
+                                final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+                                final result = await showMenu<String>(
+                                  context: context,
+                                  position: RelativeRect.fromRect(
+                                    details.globalPosition & const Size(1, 1),
+                                    Offset.zero & overlay.size,
+                                  ),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  items: [
+                                    PopupMenuItem(value: 'open', child: Row(children: [Icon(Icons.open_in_new, size: 20, color: accentColor), const SizedBox(width: 12), Text(tr('open'))])),
+                                    PopupMenuItem(value: 'pin', child: Row(children: [Icon(note.isPinned ? Icons.push_pin : Icons.push_pin_outlined, size: 20, color: accentColor), const SizedBox(width: 12), Text(note.isPinned ? tr('unpin') : tr('pin'))])),
+                                    PopupMenuItem(value: 'copy', child: Row(children: [Icon(Icons.copy, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('copy'))])),
+                                    PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+                                    const PopupMenuDivider(),
+                                    PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                  ],
+                                );
+                                if (result == null || !mounted) return;
+                                switch (result) {
+                                  case 'open':
+                                    _openFlashNote(note, originalIndex);
+                                  case 'pin':
+                                    _toggleFlashNotePin(note);
+                                  case 'copy':
+                                    Clipboard.setData(ClipboardData(text: note.content));
+                                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('copied')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
+                                  case 'share':
+                                    SharePlus.instance.share(ShareParams(text: note.content));
+                                  case 'delete':
+                                    if (note.id != null) {
+                                      setState(() { _selectionMode = true; _selectedNoteIds.add(note.id!); });
+                                      _deleteSelectedNotes();
+                                    }
+                                }
+                              },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -22135,6 +23313,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                               maxLines: 2,
                                               overflow: TextOverflow.ellipsis,
                                             ),
+                                          // Link preview card
+                                          if (note.id != null && _linkPreviews[note.id] != null)
+                                            _buildLinkPreviewCard(_linkPreviews[note.id]!, colorScheme),
                                           const SizedBox(height: 8),
                                           Row(
                                             children: [
@@ -25223,6 +26404,42 @@ class _NotesProPageState extends State<NotesProPage> {
                                         _selectionMode = true;
                                         if (note.id != null) _selectedNoteIds.add(note.id!);
                                       });
+                                    }
+                                  },
+                                  onSecondaryTapUp: (details) async {
+                                    if (note.id == null) return;
+                                    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+                                    final result = await showMenu<String>(
+                                      context: context,
+                                      position: RelativeRect.fromRect(
+                                        details.globalPosition & const Size(1, 1),
+                                        Offset.zero & overlay.size,
+                                      ),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      items: [
+                                        PopupMenuItem(value: 'open', child: Row(children: [Icon(Icons.open_in_new, size: 20, color: accentColor), const SizedBox(width: 12), Text(tr('open'))])),
+                                        PopupMenuItem(value: 'pin', child: Row(children: [Icon(note.isPinned ? Icons.push_pin : Icons.push_pin_outlined, size: 20, color: accentColor), const SizedBox(width: 12), Text(note.isPinned ? tr('unpin') : tr('pin'))])),
+                                        PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+                                        PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('create_pdf'))])),
+                                        PopupMenuItem(value: 'move', child: Row(children: [Icon(Icons.folder_outlined, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('change_folder'))])),
+                                        const PopupMenuDivider(),
+                                        PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                      ],
+                                    );
+                                    if (result == null || !mounted) return;
+                                    switch (result) {
+                                      case 'open':
+                                        _editNote(noteIndex);
+                                      case 'pin':
+                                        _toggleProNotePin(note);
+                                      case 'share':
+                                        SharePlus.instance.share(ShareParams(text: '${note.title}\n\n${note.content}', subject: note.title));
+                                      case 'pdf':
+                                        _exportNotePdfById(note.id!);
+                                      case 'move':
+                                        _moveNoteById(note.id!);
+                                      case 'delete':
+                                        _deleteNoteById(note.id!);
                                     }
                                   },
                                   child: AnimatedContainer(
