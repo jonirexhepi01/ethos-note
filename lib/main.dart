@@ -39,6 +39,7 @@ import 'dart:io' show Directory, File, FileMode, HttpClient;
 import 'package:archive/archive.dart' as archive;
 import 'package:share_plus/share_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'dart:ui' as ui show PlatformDispatcher, Gradient, Image, instantiateImageCodec, Codec, PictureRecorder, ImageByteFormat;
 import 'package:flutter_contacts/flutter_contacts.dart' as contacts_pkg;
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -738,6 +739,8 @@ const _translations = <String, Map<String, String>>{
   'private': {'it': 'Privata', 'en': 'Private', 'fr': 'Privé', 'es': 'Privada'},
   'new_deep_note': {'it': 'Nuova Deep Note', 'en': 'New Deep Note', 'fr': 'Nouvelle Deep Note', 'es': 'Nueva Deep Note'},
   'new_folder': {'it': 'Nuova Cartella', 'en': 'New Folder', 'fr': 'Nouveau dossier', 'es': 'Nueva carpeta'},
+  'import_media': {'it': 'Importa Media', 'en': 'Import Media', 'fr': 'Importer média', 'es': 'Importar medios'},
+  'media_imported': {'it': 'file importati', 'en': 'files imported', 'fr': 'fichiers importés', 'es': 'archivos importados'},
   'parent_folder': {'it': 'Cartella superiore', 'en': 'Parent folder', 'fr': 'Dossier parent', 'es': 'Carpeta superior'},
   'no_parent': {'it': 'Nessuna (livello principale)', 'en': 'None (top level)', 'fr': 'Aucun (niveau principal)', 'es': 'Ninguna (nivel principal)'},
   'subfolders_also_deleted': {'it': 'Anche le sotto-cartelle verranno eliminate.', 'en': 'Sub-folders will also be deleted.', 'fr': 'Les sous-dossiers seront également supprimés.', 'es': 'Las subcarpetas también se eliminarán.'},
@@ -754,6 +757,7 @@ const _translations = <String, Map<String, String>>{
   'notes_deleted': {'it': 'Note eliminate', 'en': 'Notes deleted', 'fr': 'Notes supprimées', 'es': 'Notas eliminadas'},
   'permanently_deleted': {'it': 'Eliminato definitivamente', 'en': 'Permanently deleted', 'fr': 'Supprimé définitivement', 'es': 'Eliminado permanentemente'},
   'note_moved_to_trash': {'it': 'Nota spostata nel cestino', 'en': 'Note moved to trash', 'fr': 'Note déplacée dans la corbeille', 'es': 'Nota movida a la papelera'},
+  'moved_to': {'it': 'Spostata in', 'en': 'Moved to', 'fr': 'Déplacé dans', 'es': 'Movido a'},
   'open_in_deep_note': {'it': 'Apri in Deep Note', 'en': 'Open in Deep Note', 'fr': 'Ouvrir dans Deep Note', 'es': 'Abrir en Deep Note'},
   'create_event': {'it': 'Crea Evento', 'en': 'Create Event', 'fr': 'Créer un événement', 'es': 'Crear evento'},
   'header': {'it': 'Intestazione', 'en': 'Header', 'fr': 'En-tête', 'es': 'Encabezado'},
@@ -1858,10 +1862,18 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 12,
+      version: 14,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _safeAddColumn(Database db, String table, String columnDef) async {
+    try {
+      await db.execute('ALTER TABLE $table ADD COLUMN $columnDef');
+    } catch (e) {
+      debugPrint('Migration skip ($table): $e');
+    }
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -1914,6 +1926,12 @@ class DatabaseHelper {
         await db.insert('custom_calendars', cal, conflictAlgorithm: ConflictAlgorithm.ignore);
       }
     }
+    if (oldVersion < 13) {
+      await _safeAddColumn(db, 'calendar_events', 'color_value INTEGER');
+    }
+    if (oldVersion < 14) {
+      await _safeAddColumn(db, 'pro_notes', 'media_data TEXT');
+    }
   }
 
   static final List<Map<String, dynamic>> _defaultCalendars = [
@@ -1933,7 +1951,8 @@ class DatabaseHelper {
         linked_date INTEGER, created_at INTEGER NOT NULL,
         image_base64 TEXT, updated_at INTEGER, image_path TEXT,
         is_pinned INTEGER NOT NULL DEFAULT 0,
-        wine_data TEXT
+        wine_data TEXT,
+        media_data TEXT
       )
     ''');
     await db.execute('CREATE INDEX idx_pro_notes_folder ON pro_notes(folder)');
@@ -2026,7 +2045,7 @@ class DatabaseHelper {
     // Load without image_base64 first to avoid CursorWindow overflow
     final maps = await db.query('pro_notes',
       columns: ['id', 'title', 'content', 'content_delta', 'header_text', 'footer_text',
-                 'template_preset', 'folder', 'linked_date', 'created_at', 'updated_at', 'image_path', 'is_pinned', 'wine_data'],
+                 'template_preset', 'folder', 'linked_date', 'created_at', 'updated_at', 'image_path', 'is_pinned', 'wine_data', 'media_data'],
       orderBy: 'created_at DESC',
     );
     final notes = <ProNote>[];
@@ -2060,6 +2079,7 @@ class DatabaseHelper {
         imagePath: imgPath,
         isPinned: (m['is_pinned'] as int?) == 1,
         wineData: m['wine_data'] as String?,
+        mediaData: m['media_data'] as String?,
       ));
     }
     return notes;
@@ -2567,6 +2587,21 @@ class ImageStorageHelper {
           }
         }
       }
+      // Convert media_data filePath to relative basenames
+      final mediaRows = await db.rawQuery(
+        "SELECT id, media_data FROM pro_notes WHERE media_data IS NOT NULL AND media_data != ''",
+      );
+      for (final row in mediaRows) {
+        try {
+          final mediaJson = row['media_data'] as String;
+          final data = jsonDecode(mediaJson) as Map<String, dynamic>;
+          final filePath = data['filePath'] as String?;
+          if (filePath != null && filePath.contains('/')) {
+            data['filePath'] = p.basename(filePath);
+            await db.update('pro_notes', {'media_data': jsonEncode(data)}, where: 'id = ?', whereArgs: [row['id']]);
+          }
+        } catch (_) {}
+      }
     } finally {
       await db.close();
     }
@@ -2577,6 +2612,7 @@ class ImageStorageHelper {
   static Future<void> convertPathsToAbsoluteInDb(String dbFilePath) async {
     final imgDir = await ImageStorageHelper().imagesDir;
     final imgDirPath = imgDir.path;
+    final mediaDirPath = (await ImageStorageHelper().mediaDir).path;
     final db = await openDatabase(dbFilePath);
     try {
       for (final table in ['flash_notes', 'pro_notes']) {
@@ -2593,9 +2629,80 @@ class ImageStorageHelper {
           await db.update(table, {'image_path': newPath}, where: 'id = ?', whereArgs: [row['id']]);
         }
       }
+      // Convert media_data filePath basenames back to absolute paths
+      final mediaRows = await db.rawQuery(
+        "SELECT id, media_data FROM pro_notes WHERE media_data IS NOT NULL AND media_data != ''",
+      );
+      for (final row in mediaRows) {
+        try {
+          final mediaJson = row['media_data'] as String;
+          final data = jsonDecode(mediaJson) as Map<String, dynamic>;
+          final filePath = data['filePath'] as String?;
+          if (filePath != null && !filePath.startsWith(mediaDirPath)) {
+            final baseName = p.basename(filePath);
+            data['filePath'] = p.join(mediaDirPath, baseName);
+            await db.update('pro_notes', {'media_data': jsonEncode(data)}, where: 'id = ?', whereArgs: [row['id']]);
+          }
+        } catch (_) {}
+      }
     } finally {
       await db.close();
     }
+  }
+
+  Directory? _mediaDir;
+
+  Future<Directory> get mediaDir async {
+    if (_mediaDir != null) return _mediaDir!;
+    final appDir = await getApplicationDocumentsDirectory();
+    _mediaDir = Directory(p.join(appDir.path, 'media'));
+    if (!await _mediaDir!.exists()) {
+      await _mediaDir!.create(recursive: true);
+    }
+    return _mediaDir!;
+  }
+
+  Future<String> saveMediaFile(Uint8List bytes, String originalFileName) async {
+    final dir = await mediaDir;
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final ext = p.extension(originalFileName);
+    final safeName = '${ts}_${math.Random().nextInt(9999).toString().padLeft(4, '0')}$ext';
+    final filePath = p.join(dir.path, safeName);
+    await File(filePath).writeAsBytes(bytes);
+    return filePath;
+  }
+
+  static String detectMediaType(String fileName) {
+    final ext = p.extension(fileName).toLowerCase();
+    if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif'].contains(ext)) return 'image';
+    if (['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.3gp'].contains(ext)) return 'video';
+    if (['.pdf'].contains(ext)) return 'pdf';
+    return 'document';
+  }
+
+  static IconData mediaTypeIcon(String? mediaType) {
+    switch (mediaType) {
+      case 'image': return Icons.image;
+      case 'video': return Icons.videocam;
+      case 'pdf': return Icons.picture_as_pdf;
+      default: return Icons.insert_drive_file;
+    }
+  }
+
+  static Color mediaTypeColor(String? mediaType) {
+    switch (mediaType) {
+      case 'image': return const Color(0xFF4CAF50);
+      case 'video': return const Color(0xFF2196F3);
+      case 'pdf': return const Color(0xFFE53935);
+      default: return const Color(0xFF9E9E9E);
+    }
+  }
+
+  static String formatFileSize(int? bytes) {
+    if (bytes == null) return '';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 }
 
@@ -2816,6 +2923,10 @@ class CloudSyncService {
           final imgDir = await ImageStorageHelper().imagesDir;
           final imgFile = File(p.join(imgDir.path, p.basename(file.name)));
           await imgFile.writeAsBytes(file.content as List<int>);
+        } else if (file.name.startsWith('media/')) {
+          final mDir = await ImageStorageHelper().mediaDir;
+          final mFile = File(p.join(mDir.path, p.basename(file.name)));
+          await mFile.writeAsBytes(file.content as List<int>);
         }
       }
     }
@@ -2901,6 +3012,18 @@ class CloudSyncService {
       }
     }
 
+    // Include media files in backup
+    final mediaDir = await ImageStorageHelper().mediaDir;
+    if (await mediaDir.exists()) {
+      await for (final entity in mediaDir.list()) {
+        if (entity is File) {
+          final fileName = p.basename(entity.path);
+          final fileBytes = await entity.readAsBytes();
+          zipArchive.addFile(archive.ArchiveFile('media/$fileName', fileBytes.length, fileBytes));
+        }
+      }
+    }
+
     return Uint8List.fromList(archive.ZipEncoder().encode(zipArchive));
   }
 }
@@ -2927,13 +3050,23 @@ class StoredImage extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget image;
     if (imagePath != null && imagePath!.isNotEmpty) {
-      image = Image.file(
-        File(imagePath!),
-        width: width,
-        height: height,
-        fit: fit,
-        errorBuilder: (_, __, ___) => _placeholder(context),
-      );
+      final file = File(imagePath!);
+      if (file.existsSync()) {
+        try {
+          final bytes = file.readAsBytesSync();
+          image = Image.memory(
+            bytes,
+            width: width,
+            height: height,
+            fit: fit,
+            errorBuilder: (_, __, ___) => _placeholder(context),
+          );
+        } catch (_) {
+          image = _placeholder(context);
+        }
+      } else {
+        image = _placeholder(context);
+      }
     } else if (imageBase64 != null && imageBase64!.isNotEmpty) {
       try {
         image = Image.memory(
@@ -3376,6 +3509,8 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        backgroundColor: const Color(0xFF2E7D32),
+        contentTextStyle: const TextStyle(color: Colors.white),
       ),
       dividerTheme: DividerThemeData(
         color: colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -3488,6 +3623,8 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        backgroundColor: const Color(0xFF2E7D32),
+        contentTextStyle: const TextStyle(color: Colors.white),
       ),
       dividerTheme: DividerThemeData(
         color: colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -3618,6 +3755,8 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        backgroundColor: const Color(0xFF2E7D32),
+        contentTextStyle: const TextStyle(color: Colors.white),
       ),
       dividerTheme: DividerThemeData(
         color: _ephBorder.withValues(alpha: 0.5),
@@ -3699,7 +3838,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _nzIce, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _nzBorder.withValues(alpha: 0.4), thickness: 0.5),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0, backgroundColor: _nzAccent, foregroundColor: Colors.white,
@@ -3767,7 +3906,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _gsSalvia, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _gsBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 2, backgroundColor: _gsAccent, foregroundColor: Colors.white,
@@ -3839,7 +3978,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _skBlush, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _skBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 2, backgroundColor: _skAccent, foregroundColor: Colors.white,
@@ -3903,7 +4042,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: const Color(0xFF0D2818), surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _zoBorder.withValues(alpha: 0.3), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 2, backgroundColor: _zoBorder, foregroundColor: _zoText,
@@ -3965,7 +4104,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _luPaglia, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _luBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 3, backgroundColor: _luRosso, foregroundColor: Colors.white,
@@ -4027,7 +4166,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _nmPerla, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _nmBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 2, backgroundColor: _nmOro, foregroundColor: Colors.white,
@@ -4091,7 +4230,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _saNotteScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _saBorder.withValues(alpha: 0.3), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 4, backgroundColor: _saElectric, foregroundColor: Colors.white,
@@ -4153,7 +4292,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _naScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _naBorder.withValues(alpha: 0.3), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 2, backgroundColor: _naTurquoise, foregroundColor: Colors.white,
@@ -4219,7 +4358,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _jrScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _jrBorder.withValues(alpha: 0.3), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 2, backgroundColor: _jrOlive, foregroundColor: _jrParchment,
@@ -4282,7 +4421,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _dwScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _dwBorder.withValues(alpha: 0.3), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 2, backgroundColor: _dwBorder, foregroundColor: _dwText,
@@ -4344,7 +4483,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _stScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _stBorder.withValues(alpha: 0.3), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 4, backgroundColor: _stBlood, foregroundColor: Colors.white,
@@ -4410,7 +4549,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _faScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _faBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0, backgroundColor: _faVault, foregroundColor: Colors.white,
@@ -4476,7 +4615,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _ynYellow, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _ynBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0, backgroundColor: _ynRed, foregroundColor: Colors.white,
@@ -4549,7 +4688,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _bnScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _bnBorder.withValues(alpha: 0.5), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 4, backgroundColor: _bnCard, foregroundColor: _bnText,
@@ -4617,7 +4756,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _daScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: Colors.white.withValues(alpha: 0.06), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0, backgroundColor: _daDarkViolet, foregroundColor: Colors.white,
@@ -4685,7 +4824,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _mfScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _mfBorder.withValues(alpha: 0.3), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0, backgroundColor: _mfGreen, foregroundColor: Colors.white,
@@ -4759,7 +4898,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
         backgroundColor: _cvScaffold, surfaceTintColor: Colors.transparent,
       ),
       dialogTheme: DialogThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), backgroundColor: const Color(0xFF2E7D32), contentTextStyle: const TextStyle(color: Colors.white)),
       dividerTheme: DividerThemeData(color: _cvCyan.withValues(alpha: 0.1), thickness: 1),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0, backgroundColor: _cvCyan, foregroundColor: Colors.black,
@@ -6230,6 +6369,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin, Widg
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text(tr('voice_note_saved')),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -6795,6 +6935,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin, Widg
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
+                      duration: const Duration(seconds: 1),
                       content: Text(tr('auth_failed')),
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -7519,6 +7660,7 @@ class _CalendarPageState extends State<CalendarPage> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
+                  duration: const Duration(seconds: 1),
                   content: Text('${tr('weather_city')}: "$city" ${tr('city_not_found')}'),
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -7749,6 +7891,7 @@ class _CalendarPageState extends State<CalendarPage> {
       // Google Calendar event — read-only
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('edit')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -7869,6 +8012,7 @@ class _CalendarPageState extends State<CalendarPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                   duration: const Duration(seconds: 1),
         content: Text(tr('event_deleted')),
         action: SnackBarAction(
           label: tr('undo'),
@@ -7925,6 +8069,7 @@ class _CalendarPageState extends State<CalendarPage> {
         _saveCompletedGoogleEventIds();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text(tr('event_deleted')),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -11957,6 +12102,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                       if (!mounted) return;
                       setState(() { _nextPredictedCycleStart = null; });
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                                   duration: const Duration(seconds: 1),
                         content: Text(tr('cycle_data_cleared')),
                         behavior: SnackBarBehavior.floating,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -12445,6 +12591,7 @@ class _CycleDiaryPageState extends State<CycleDiaryPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('cycle_predictions_disabled')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -13321,6 +13468,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
       if (!_endTime.isAfter(_startTime)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text(tr('end_before_start_error')),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -13427,6 +13575,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text('${tr('photo_error')}: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -13453,6 +13602,7 @@ class _EventEditorPageState extends State<EventEditorPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text('Errore: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -14035,6 +14185,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text('${tr('photo_error')}: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -14312,6 +14463,7 @@ class _SettingsPageState extends State<SettingsPage> {
     Clipboard.setData(ClipboardData(text: vcard.toString()));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        duration: const Duration(seconds: 1),
         content: Text(tr('copied_to_clipboard')),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -14854,6 +15006,18 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       }
     }
 
+    // Add media directory
+    final mediaDir = await ImageStorageHelper().mediaDir;
+    if (await mediaDir.exists()) {
+      await for (final entity in mediaDir.list()) {
+        if (entity is File) {
+          final fileName = p.basename(entity.path);
+          final fileBytes = await entity.readAsBytes();
+          zip.addFile(archive.ArchiveFile('media/$fileName', fileBytes.length, fileBytes));
+        }
+      }
+    }
+
     return Uint8List.fromList(archive.ZipEncoder().encode(zip));
   }
 
@@ -14905,6 +15069,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('backup_now_completed')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -14915,6 +15080,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       setState(() => _isBackingUp = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('backup_error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -14952,6 +15118,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text(tr('backup_exported')),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -14962,6 +15129,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('backup_error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -15014,6 +15182,10 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
               final imgDir = await ImageStorageHelper().imagesDir;
               final imgFile = File(p.join(imgDir.path, p.basename(file.name)));
               await imgFile.writeAsBytes(file.content as List<int>);
+            } else if (file.name.startsWith('media/')) {
+              final mDir = await ImageStorageHelper().mediaDir;
+              final mFile = File(p.join(mDir.path, p.basename(file.name)));
+              await mFile.writeAsBytes(file.content as List<int>);
             }
           }
         }
@@ -15050,6 +15222,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('backup_error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -15077,6 +15250,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         setState(() => _isBackingUp = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text(tr('backup_error')),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -15088,6 +15262,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('backup_uploading')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -15128,6 +15303,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('backup_exported')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -15150,6 +15326,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('backup_error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -15186,6 +15363,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         setState(() => _isBackingUp = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text(tr('no_backup_found')),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -15219,6 +15397,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('backup_downloading')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -15290,6 +15469,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       setState(() => _isBackingUp = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('backup_error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -15393,7 +15573,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       await _saveBiometricPin(result);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('pin_created')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          SnackBar(duration: const Duration(seconds: 1), content: Text(tr('pin_created')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         );
       }
     }
@@ -15416,7 +15596,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       if (!authenticated) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(tr('auth_required')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            SnackBar(duration: const Duration(seconds: 1), content: Text(tr('auth_required')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
           );
         }
         return;
@@ -15763,6 +15943,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                       if (!ok) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                                       duration: const Duration(seconds: 1),
                             content: Text(tr('sync_requires_google')),
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -16014,6 +16195,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                           setState(() => _isLoadingGoogle = false);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
+                              duration: const Duration(seconds: 1),
                               content: Text(success
                                   ? 'Google ${tr('connected')}'
                                   : tr('error')),
@@ -16275,6 +16457,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
                                   Clipboard.setData(ClipboardData(text: _flashSettings.geminiApiKey));
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
+                                      duration: const Duration(seconds: 1),
                                       content: Text(tr('api_key_copied')),
                                       behavior: SnackBarBehavior.floating,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -17446,6 +17629,7 @@ Future<void> _saveContactToDevice(
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        duration: const Duration(seconds: 1),
         content: Text(tr('contacts_permission_denied')),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -17474,6 +17658,7 @@ Future<void> _saveContactToDevice(
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
+      duration: const Duration(seconds: 1),
       content: Row(
         children: [
           const Icon(Icons.check_circle, color: Colors.white, size: 18),
@@ -17823,6 +18008,7 @@ class _ContactFormSheetContentState extends State<_ContactFormSheetContent> {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -18537,6 +18723,7 @@ class _EthosAuraPageState extends State<EthosAuraPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('purchase_success')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -18846,6 +19033,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        duration: const Duration(seconds: 1),
         content: Text('${tr('deep_note_settings')} - ${tr('save')}'),
         behavior: SnackBarBehavior.floating,
       ),
@@ -18902,7 +19090,7 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          SnackBar(duration: const Duration(seconds: 1), content: Text('Error: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         );
       }
     }
@@ -19250,6 +19438,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(trashed.type == 'event' ? tr('event_restored') : tr('note_restored')),
           behavior: SnackBarBehavior.floating,
         ),
@@ -19279,6 +19468,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     setState(() => _trashedNotes.removeAt(index));
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                 duration: const Duration(seconds: 1),
       content: Text(tr('permanently_deleted')),
       action: SnackBarAction(
         label: tr('undo'),
@@ -19822,6 +20012,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('gemini_not_configured')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -19874,6 +20065,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('photo_normal')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -19980,6 +20172,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
         _savedToDeepNote = true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Row(
               children: [
                 Icon(result.folderIcon, color: Colors.white, size: 18),
@@ -19996,6 +20189,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
+              duration: const Duration(seconds: 1),
               content: Text('${tr('error')}: $e'),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -20043,6 +20237,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
             _savedToDeepNote = true;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
+                duration: const Duration(seconds: 1),
                 content: Row(
                   children: [
                     const Icon(Icons.wine_bar, color: Colors.white, size: 18),
@@ -20058,7 +20253,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating,
+                SnackBar(duration: const Duration(seconds: 1), content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               );
             }
@@ -20990,6 +21185,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text('${tr('error')}: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -21008,6 +21204,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('gemini_not_configured')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -21048,6 +21245,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('photo_normal')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -21275,6 +21473,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Row(
             children: [
               Icon(result.folderIcon, color: Colors.white, size: 18),
@@ -21290,6 +21489,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text('${tr('error')}: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -21341,6 +21541,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Row(
             children: [
               const Icon(Icons.wine_bar, color: Colors.white, size: 18),
@@ -21356,6 +21557,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text('${tr('error')}: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -21528,6 +21730,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           final dateStr = '${startDate.day}/${startDate.month}/${startDate.year}';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
+              duration: const Duration(seconds: 1),
               content: Text('"$eventTitle" ${tr('event_added_on')} $dateStr'),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -21550,6 +21753,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
+              duration: const Duration(seconds: 1),
               content: Text(tr('error')),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -21586,19 +21790,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 1),
       content: Text(tr('note_deleted')),
-      action: SnackBarAction(
-        label: tr('undo'),
-        onPressed: () async {
-          await db.insertFlashNote(note);
-          if (trashedId != null) {
-            await db.deleteTrashedNote(trashedId);
-          }
-          _loadNotes();
-        },
-      ),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
   }
 
@@ -21653,6 +21846,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               if (!mounted) return;
               ScaffoldMessenger.of(context).clearSnackBars();
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                           duration: const Duration(seconds: 1),
                 content: Text('${tr('notes_deleted')} ($deletedCount)'),
                 action: SnackBarAction(
                   label: tr('undo'),
@@ -21757,6 +21951,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        duration: const Duration(seconds: 1),
         content: Text('$count ${tr('notes')} spostate in "$chosen"'),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -21829,6 +22024,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               if (!mounted) return;
               ScaffoldMessenger.of(context).clearSnackBars();
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                           duration: const Duration(seconds: 1),
                 content: Text('${tr('notes_deleted')} ($deletedCount)'),
                 action: SnackBarAction(
                   label: tr('undo'),
@@ -21922,6 +22118,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('api_key')),
           behavior: SnackBarBehavior.floating,
         ),
@@ -22055,6 +22252,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
+                            duration: const Duration(seconds: 1),
                             content: Text(tr('success')),
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -22076,6 +22274,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -22090,7 +22289,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     if (apiKey.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('api_key')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        SnackBar(duration: const Duration(seconds: 1), content: Text(tr('api_key')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       );
       return;
     }
@@ -22116,7 +22315,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(tr('file_too_large')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            SnackBar(duration: const Duration(seconds: 1), content: Text(tr('file_too_large')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
           );
         }
         return;
@@ -22149,7 +22348,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
 
       if (result.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('no_text_recognized')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          SnackBar(duration: const Duration(seconds: 1), content: Text(tr('no_text_recognized')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         );
         return;
       }
@@ -22222,7 +22421,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                         _saveNotes();
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(tr('success')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                          SnackBar(duration: const Duration(seconds: 1), content: Text(tr('success')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                         );
                       },
                       icon: const Icon(Icons.check),
@@ -22479,6 +22678,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                           if (settings.geminiApiKey.isEmpty) {
                             ScaffoldMessenger.of(ctx).showSnackBar(
                               SnackBar(
+                                duration: const Duration(seconds: 1),
                                 content: Text(tr('configure_gemini_first')),
                                 behavior: SnackBarBehavior.floating,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -22506,7 +22706,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                             setSheetState(() => isTranscribing = false);
                             if (ctx.mounted) {
                               ScaffoldMessenger.of(ctx).showSnackBar(
-                                SnackBar(content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                                SnackBar(duration: const Duration(seconds: 1), content: Text('${tr('error')}: $e'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                               );
                             }
                           }
@@ -23143,7 +23343,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
                                     _toggleFlashNotePin(note);
                                   case 'copy':
                                     Clipboard.setData(ClipboardData(text: note.content));
-                                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('copied')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
+                                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(duration: const Duration(seconds: 1), content: Text(tr('copied')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
                                   case 'share':
                                     SharePlus.instance.share(ShareParams(text: note.content));
                                   case 'delete':
@@ -23589,6 +23789,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text(tr('error')),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -23626,6 +23827,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
+              duration: const Duration(seconds: 1),
               content: Text(tr('error')),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -23641,6 +23843,7 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text(tr('error')),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -24049,6 +24252,7 @@ class ProNote {
   final String? imagePath;
   final bool isPinned;
   final String? wineData;
+  final String? mediaData;
 
   ProNote({
     this.id,
@@ -24065,10 +24269,23 @@ class ProNote {
     this.updatedAt,
     this.isPinned = false,
     this.wineData,
+    this.mediaData,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
   bool get isWineNote => wineData != null && wineData!.isNotEmpty;
+  bool get isMediaNote => mediaData != null && mediaData!.isNotEmpty;
+
+  Map<String, dynamic>? get mediaInfo {
+    if (mediaData == null) return null;
+    try { return jsonDecode(mediaData!) as Map<String, dynamic>; }
+    catch (_) { return null; }
+  }
+
+  String? get mediaType => mediaInfo?['mediaType'] as String?;
+  String? get mediaFilePath => mediaInfo?['filePath'] as String?;
+  String? get mediaFileName => mediaInfo?['fileName'] as String?;
+  int? get mediaFileSize => mediaInfo?['fileSize'] as int?;
 
   /// The effective sort date: updatedAt if available, otherwise createdAt.
   DateTime get sortDate => updatedAt ?? createdAt;
@@ -24089,6 +24306,7 @@ class ProNote {
     DateTime? createdAt,
     bool? isPinned,
     String? wineData,
+    String? mediaData,
   }) => ProNote(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -24105,6 +24323,7 @@ class ProNote {
     createdAt: createdAt ?? this.createdAt,
     isPinned: isPinned ?? this.isPinned,
     wineData: wineData ?? this.wineData,
+    mediaData: mediaData ?? this.mediaData,
   );
 
   Map<String, dynamic> toJson() => {
@@ -24122,6 +24341,7 @@ class ProNote {
     if (imagePath != null) 'imagePath': imagePath,
     'isPinned': isPinned,
     if (wineData != null) 'wineData': wineData,
+    if (mediaData != null) 'mediaData': mediaData,
   };
 
   factory ProNote.fromJson(Map<String, dynamic> json) => ProNote(
@@ -24139,6 +24359,7 @@ class ProNote {
     imagePath: json['imagePath'],
     isPinned: json['isPinned'] == true,
     wineData: json['wineData'],
+    mediaData: json['mediaData'],
   );
 
   Map<String, dynamic> toDbMap() => {
@@ -24156,6 +24377,7 @@ class ProNote {
     'image_path': imagePath,
     'is_pinned': isPinned ? 1 : 0,
     'wine_data': wineData,
+    'media_data': mediaData,
   };
 
   factory ProNote.fromDbMap(Map<String, dynamic> m) => ProNote(
@@ -24174,6 +24396,7 @@ class ProNote {
     imagePath: m['image_path'] as String?,
     isPinned: (m['is_pinned'] as int?) == 1,
     wineData: m['wine_data'] as String?,
+    mediaData: m['media_data'] as String?,
   );
 }
 
@@ -24835,6 +25058,22 @@ class _NotesProPageState extends State<NotesProPage> {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     Navigator.pop(ctx);
+                    _importMedia();
+                  },
+                  icon: const Icon(Icons.photo_library),
+                  label: Text(tr('import_media')),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
                     final defaultParent = _selectedFolder != tr('all_items') ? _selectedFolder : null;
                     _showCreateFolderDialog(defaultParent: defaultParent);
                   },
@@ -24851,6 +25090,44 @@ class _NotesProPageState extends State<NotesProPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _importMedia() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      allowMultiple: true,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty || !mounted) return;
+    final folder = _selectedFolder != tr('all_items') ? _selectedFolder : 'Generale';
+    int imported = 0;
+    for (final file in result.files) {
+      if (file.bytes == null || file.bytes!.isEmpty) continue;
+      final savedPath = await ImageStorageHelper().saveMediaFile(file.bytes!, file.name);
+      final mediaType = ImageStorageHelper.detectMediaType(file.name);
+      final mediaJson = jsonEncode({
+        'mediaType': mediaType,
+        'filePath': savedPath,
+        'fileName': file.name,
+        'fileSize': file.size,
+      });
+      final note = ProNote(
+        title: p.basenameWithoutExtension(file.name),
+        content: '',
+        folder: folder,
+        mediaData: mediaJson,
+      );
+      await DatabaseHelper().insertProNote(note);
+      imported++;
+    }
+    if (!mounted) return;
+    await _loadNotes();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 1),
+        content: Text('$imported ${tr('media_imported')}'),
+      ));
+    }
   }
 
   void _createNewCycleDiary() {
@@ -24951,6 +25228,57 @@ class _NotesProPageState extends State<NotesProPage> {
       );
       return;
     }
+    // Photo notes open in full-screen preview
+    if (!note.isWineNote && !note.isMediaNote && note.imagePath != null && note.imagePath!.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PhotoPreviewPage(
+            note: note,
+            folders: _folders,
+            onSave: (updatedNote) async {
+              final withTimestamp = note.copyWith(
+                title: updatedNote.title,
+                content: updatedNote.content,
+                contentDelta: updatedNote.contentDelta,
+                headerText: updatedNote.headerText,
+                footerText: updatedNote.footerText,
+                templatePreset: updatedNote.templatePreset,
+                folder: updatedNote.folder,
+                linkedDate: updatedNote.linkedDate,
+                imageBase64: updatedNote.imageBase64,
+                imagePath: updatedNote.imagePath ?? note.imagePath,
+                updatedAt: DateTime.now(),
+              );
+              if (note.id != null) {
+                await DatabaseHelper().updateProNote(note.id!, withTimestamp);
+              } else {
+                await DatabaseHelper().insertProNote(withTimestamp);
+              }
+              if (mounted) await _loadNotes();
+            },
+            onDelete: () async {
+              if (note.id != null) {
+                final db = DatabaseHelper();
+                final settings = await NoteProSettings.load();
+                if (settings.trashEnabled) {
+                  await db.insertTrashedNote(TrashedNote(
+                    type: 'pro',
+                    noteJson: note.toJson(),
+                    deletedAt: DateTime.now(),
+                  ));
+                } else {
+                  await ImageStorageHelper().deleteImageFile(note.imagePath);
+                }
+                await db.deleteProNote(note.id!);
+                if (mounted) await _loadNotes();
+              }
+            },
+          ),
+        ),
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -24958,7 +25286,7 @@ class _NotesProPageState extends State<NotesProPage> {
           note: note,
           folders: _folders,
           onSave: (updatedNote) async {
-            final withTimestamp = ProNote(
+            final withTimestamp = note.copyWith(
               title: updatedNote.title,
               content: updatedNote.content,
               contentDelta: updatedNote.contentDelta,
@@ -24968,7 +25296,7 @@ class _NotesProPageState extends State<NotesProPage> {
               folder: updatedNote.folder,
               linkedDate: updatedNote.linkedDate,
               imageBase64: updatedNote.imageBase64,
-              createdAt: note.createdAt,
+              imagePath: updatedNote.imagePath ?? note.imagePath,
               updatedAt: DateTime.now(),
             );
             if (note.id != null) {
@@ -24980,6 +25308,157 @@ class _NotesProPageState extends State<NotesProPage> {
           },
         ),
       ),
+    );
+  }
+
+  /// Robust file image loader: reads bytes from disk and uses Image.memory
+  /// Robust file image loader with fallback chain.
+  Widget _buildFileImage(String filePath, {BoxFit fit = BoxFit.cover, double? width, double? height, Widget? errorWidget}) {
+    try {
+      final file = File(filePath);
+      if (!file.existsSync()) {
+        debugPrint('[_buildFileImage] File not found: $filePath');
+        return errorWidget ?? const SizedBox.shrink();
+      }
+      return Image.file(
+        file,
+        key: ValueKey('img_$filePath'),
+        fit: fit,
+        width: width,
+        height: height,
+        gaplessPlayback: true,
+        cacheWidth: width != null ? (width * 2).toInt() : 600,
+        errorBuilder: (_, error, ___) {
+          debugPrint('[_buildFileImage] Image.file error: $error for $filePath');
+          // Fallback to Image.memory
+          try {
+            final bytes = file.readAsBytesSync();
+            if (bytes.isNotEmpty) {
+              return Image.memory(bytes, fit: fit, width: width, height: height,
+                errorBuilder: (_, __, ___) => errorWidget ?? const SizedBox.shrink());
+            }
+          } catch (_) {}
+          return errorWidget ?? const SizedBox.shrink();
+        },
+      );
+    } catch (e) {
+      debugPrint('[_buildFileImage] Exception: $e for $filePath');
+      return errorWidget ?? const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildMediaGridCard(ProNote note, ColorScheme colorScheme, Color accentColor) {
+    final mediaType = note.mediaType;
+    final icon = ImageStorageHelper.mediaTypeIcon(mediaType);
+    final typeColor = ImageStorageHelper.mediaTypeColor(mediaType);
+    final filePath = note.mediaFilePath;
+    final isImage = mediaType == 'image';
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (isImage && filePath != null)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: _buildFileImage(filePath, fit: BoxFit.cover,
+              errorWidget: Center(child: Icon(icon, size: 48, color: typeColor.withValues(alpha: 0.5)))),
+          )
+        else
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 48, color: typeColor.withValues(alpha: 0.7)),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(note.title, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurface)),
+                ),
+                if (note.mediaFileSize != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(ImageStorageHelper.formatFileSize(note.mediaFileSize),
+                      style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
+                  ),
+              ],
+            ),
+          ),
+        if (isImage)
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withValues(alpha: 0.6)]),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)),
+            ),
+          ),
+        Positioned(
+          top: 6, left: 6,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: typeColor.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(8)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 12, color: Colors.white),
+              const SizedBox(width: 4),
+              Text(mediaType?.toUpperCase() ?? '', style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMediaListCard(ProNote note, ColorScheme colorScheme, Color accentColor) {
+    final mediaType = note.mediaType;
+    final icon = ImageStorageHelper.mediaTypeIcon(mediaType);
+    final typeColor = ImageStorageHelper.mediaTypeColor(mediaType);
+    final filePath = note.mediaFilePath;
+    final isImage = mediaType == 'image';
+
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: isImage && filePath != null
+            ? _buildFileImage(filePath, width: 52, height: 52, fit: BoxFit.cover,
+                errorWidget: Container(width: 52, height: 52,
+                  color: typeColor.withValues(alpha: 0.1),
+                  child: Icon(icon, color: typeColor, size: 24)))
+            : Container(width: 52, height: 52,
+                decoration: BoxDecoration(color: typeColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, color: typeColor, size: 24)),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+              const SizedBox(height: 4),
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: typeColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                  child: Text(mediaType?.toUpperCase() ?? '', style: TextStyle(fontSize: 10, color: typeColor, fontWeight: FontWeight.w600)),
+                ),
+                if (note.mediaFileSize != null) ...[
+                  const SizedBox(width: 8),
+                  Text(ImageStorageHelper.formatFileSize(note.mediaFileSize),
+                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                ],
+              ]),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -25000,8 +25479,8 @@ class _NotesProPageState extends State<NotesProPage> {
               flex: 3,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.file(File(note.imagePath!), width: double.infinity, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(color: burgundy.withValues(alpha: 0.08),
+                child: _buildFileImage(note.imagePath!, width: double.infinity, fit: BoxFit.cover,
+                  errorWidget: Container(color: burgundy.withValues(alpha: 0.08),
                     child: const Center(child: Icon(Icons.wine_bar, color: burgundy, size: 28)))),
               ),
             )
@@ -25055,8 +25534,8 @@ class _NotesProPageState extends State<NotesProPage> {
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: note.imagePath != null
-            ? Image.file(File(note.imagePath!), width: 48, height: 48, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(width: 48, height: 48,
+            ? _buildFileImage(note.imagePath!, width: 48, height: 48, fit: BoxFit.cover,
+                errorWidget: Container(width: 48, height: 48,
                   decoration: BoxDecoration(color: burgundy.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
                   child: const Icon(Icons.wine_bar, color: burgundy, size: 22)))
             : Container(width: 48, height: 48,
@@ -25342,6 +25821,7 @@ class _NotesProPageState extends State<NotesProPage> {
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
+                    duration: const Duration(seconds: 1),
                     content: Text(tr('wrong_pin')),
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -25403,6 +25883,7 @@ class _NotesProPageState extends State<NotesProPage> {
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
+                    duration: const Duration(seconds: 1),
                     content: Text(pinController.text.length != 4
                         ? tr('pin_exactly_4')
                         : tr('wrong_pin')),
@@ -26140,7 +26621,41 @@ class _NotesProPageState extends State<NotesProPage> {
     final colorScheme = Theme.of(context).colorScheme;
     final accentColor = _sectionAccent(context, 0);
 
-    return Scaffold(
+    return DropTarget(
+      onDragDone: (details) async {
+        final folder = _selectedFolder != tr('all_items') ? _selectedFolder : 'Generale';
+        int imported = 0;
+        for (final xfile in details.files) {
+          final bytes = await xfile.readAsBytes();
+          if (bytes.isEmpty) continue;
+          final fileName = xfile.name;
+          final savedPath = await ImageStorageHelper().saveMediaFile(bytes, fileName);
+          final mediaType = ImageStorageHelper.detectMediaType(fileName);
+          final mediaJson = jsonEncode({
+            'mediaType': mediaType,
+            'filePath': savedPath,
+            'fileName': fileName,
+            'fileSize': bytes.length,
+          });
+          final note = ProNote(
+            title: p.basenameWithoutExtension(fileName),
+            content: '',
+            folder: folder,
+            mediaData: mediaJson,
+          );
+          await DatabaseHelper().insertProNote(note);
+          imported++;
+        }
+        if (!mounted) return;
+        await _loadNotes();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            duration: const Duration(seconds: 1),
+            content: Text('$imported ${tr('media_imported')}'),
+          ));
+        }
+      },
+      child: Scaffold(
       body: Stack(
         children: [
           // MAIN CONTENT (full width)
@@ -26333,46 +26848,136 @@ class _NotesProPageState extends State<NotesProPage> {
                                   final folderStyle = _folders[folderName]!;
                                   final fc = folderStyle.color;
                                   final count = _countNotesInFolder(folderName);
+                                  final subCount = _getSubFolders(folderName).length;
+                                  final folderInfoParts = <String>[
+                                    if (subCount > 0) '$subCount cartell${subCount == 1 ? 'a' : 'e'}',
+                                    if (count > 0 || subCount == 0) tr('n_notes').replaceAll('{n}', '$count'),
+                                  ];
+                                  final folderInfoText = folderInfoParts.join(', ');
                                   final showBadge = folderName == 'Diario del Ciclo' && _cycleDiaryBadge;
                                   final isLocked = folderStyle.isPrivate || folderName == tr('private_folder') || folderName == 'Diario del Ciclo';
-                                  return GestureDetector(
-                                    onTap: () => _onFolderTap(folderName),
-                                    onLongPress: () => _showFolderOptionsSheet(folderName),
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      margin: const EdgeInsets.all(2),
-                                      decoration: BoxDecoration(
-                                        color: fc.withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                  return Draggable<String>(
+                                    data: folderName,
+                                    feedback: Material(
+                                      elevation: 8,
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Container(
+                                        width: 120, height: 80,
+                                        decoration: BoxDecoration(
+                                          color: fc.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: fc, width: 2),
+                                        ),
+                                        padding: const EdgeInsets.all(8),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            folderStyle.buildIcon(size: 28, iconColor: fc),
+                                            const SizedBox(height: 4),
+                                            Text(folderLabel(folderName), maxLines: 1, overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fc)),
+                                          ],
+                                        ),
                                       ),
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Badge(
-                                            isLabelVisible: showBadge,
-                                            backgroundColor: Colors.red,
-                                            smallSize: 8,
-                                            child: folderStyle.buildIcon(size: 48, iconColor: fc),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                                            child: Text(folderLabel(folderName), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: colorScheme.onSurface)),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              if (isLocked) ...[
-                                                Icon(Icons.lock, size: 12, color: colorScheme.onSurfaceVariant),
-                                                const SizedBox(width: 4),
+                                    ),
+                                    childWhenDragging: Opacity(
+                                      opacity: 0.3,
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        margin: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: fc.withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                        ),
+                                      ),
+                                    ),
+                                    child: DragTarget<Object>(
+                                      onWillAcceptWithDetails: (details) {
+                                        if (details.data is ProNote) return true;
+                                        if (details.data is String && details.data != folderName) return true;
+                                        return false;
+                                      },
+                                      onAcceptWithDetails: (details) async {
+                                        if (details.data is ProNote) {
+                                          final droppedNote = details.data as ProNote;
+                                          if (droppedNote.id == null || droppedNote.folder == folderName) return;
+                                          final updated = droppedNote.copyWith(folder: folderName);
+                                          await DatabaseHelper().updateProNote(droppedNote.id!, updated);
+                                          if (mounted) {
+                                            await _loadNotes();
+                                            ScaffoldMessenger.of(context).clearSnackBars();
+                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                              duration: const Duration(seconds: 1),
+                                              content: Text('${tr('moved_to')} ${folderLabel(folderName)}'),
+                                            ));
+                                          }
+                                        } else if (details.data is String) {
+                                          final sourceFolder = details.data as String;
+                                          if (sourceFolder == folderName) return;
+                                          final notesToMove = _proNotes.where((n) => n.folder == sourceFolder).toList();
+                                          if (notesToMove.isEmpty) return;
+                                          for (final n in notesToMove) {
+                                            if (n.id != null) {
+                                              await DatabaseHelper().updateProNote(n.id!, n.copyWith(folder: folderName));
+                                            }
+                                          }
+                                          if (mounted) {
+                                            await _loadNotes();
+                                            ScaffoldMessenger.of(context).clearSnackBars();
+                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                              duration: const Duration(seconds: 1),
+                                              content: Text('${notesToMove.length} note spostate in ${folderLabel(folderName)}'),
+                                            ));
+                                          }
+                                        }
+                                      },
+                                      builder: (context, candidateData, rejectedData) {
+                                        final isHovering = candidateData.isNotEmpty;
+                                        return GestureDetector(
+                                          onTap: () => _onFolderTap(folderName),
+                                          onLongPress: () => _showFolderOptionsSheet(folderName),
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 200),
+                                            margin: const EdgeInsets.all(2),
+                                            decoration: BoxDecoration(
+                                              color: isHovering ? fc.withValues(alpha: 0.25) : fc.withValues(alpha: 0.08),
+                                              borderRadius: BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: isHovering ? fc : colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                                width: isHovering ? 2.5 : 1,
+                                              ),
+                                            ),
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Badge(
+                                                  isLabelVisible: showBadge,
+                                                  backgroundColor: Colors.red,
+                                                  smallSize: 8,
+                                                  child: folderStyle.buildIcon(size: 48, iconColor: fc),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                  child: Text(folderLabel(folderName), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: colorScheme.onSurface)),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    if (isLocked) ...[
+                                                      Icon(Icons.lock, size: 12, color: colorScheme.onSurfaceVariant),
+                                                      const SizedBox(width: 4),
+                                                    ],
+                                                    Text(folderInfoText, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                                                  ],
+                                                ),
                                               ],
-                                              Text(tr('n_notes').replaceAll('{n}', '$count'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                                            ],
+                                            ),
                                           ),
-                                        ],
-                                      ),
+                                        );
+                                      },
                                     ),
                                   );
                                 }
@@ -26381,7 +26986,43 @@ class _NotesProPageState extends State<NotesProPage> {
                                 final folderColor = _folders[note.folder]?.color ?? Colors.grey;
                                 final noteIndex = _proNotes.indexOf(note);
                                 final isSelected = note.id != null && _selectedNoteIds.contains(note.id);
-                                return GestureDetector(
+                                return Draggable<ProNote>(
+                                  data: note,
+                                  feedback: Material(
+                                    elevation: 8,
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Container(
+                                      width: 120, height: 80,
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.surfaceContainerLowest,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: accentColor, width: 2),
+                                      ),
+                                      padding: const EdgeInsets.all(8),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(note.isMediaNote ? Icons.image : Icons.description, size: 24, color: accentColor),
+                                          const SizedBox(height: 4),
+                                          Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  childWhenDragging: Opacity(
+                                    opacity: 0.3,
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      margin: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.surfaceContainerLowest,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                      ),
+                                    ),
+                                  ),
+                                  child: GestureDetector(
                                   onTap: () {
                                     if (_selectionMode) {
                                       setState(() {
@@ -26396,14 +27037,6 @@ class _NotesProPageState extends State<NotesProPage> {
                                       });
                                     } else {
                                       _editNote(noteIndex);
-                                    }
-                                  },
-                                  onLongPress: () {
-                                    if (!_selectionMode && note.folder != tr('private_folder')) {
-                                      setState(() {
-                                        _selectionMode = true;
-                                        if (note.id != null) _selectedNoteIds.add(note.id!);
-                                      });
                                     }
                                   },
                                   onSecondaryTapUp: (details) async {
@@ -26453,7 +27086,9 @@ class _NotesProPageState extends State<NotesProPage> {
                                         width: isSelected ? 2 : 1,
                                       ),
                                     ),
-                                    child: note.isWineNote
+                                    child: note.isMediaNote
+                                      ? _buildMediaGridCard(note, colorScheme, accentColor)
+                                      : note.isWineNote
                                       ? Stack(
                                           children: [
                                             _buildWineGridCard(note, folderColor, colorScheme, accentColor),
@@ -26517,6 +27152,78 @@ class _NotesProPageState extends State<NotesProPage> {
                                                       PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 18, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
                                                       PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 18, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('create_pdf'))])),
                                                       PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        )
+                                      : (note.imagePath != null && note.imagePath!.isNotEmpty)
+                                      ? Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) ? 2 : 16),
+                                              child: _buildFileImage(note.imagePath!, fit: BoxFit.cover,
+                                                errorWidget: Center(child: Icon(Icons.broken_image, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3)))),
+                                            ),
+                                            Positioned(
+                                              bottom: 0, left: 0, right: 0,
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.vertical(bottom: Radius.circular((_isYellowNoteTheme(context) || _isBlockNoteTheme(context)) ? 2 : 16)),
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.topCenter,
+                                                    end: Alignment.bottomCenter,
+                                                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.7)],
+                                                  ),
+                                                ),
+                                                padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+                                                child: Text(
+                                                  note.title,
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                                ),
+                                              ),
+                                            ),
+                                            if (note.isPinned)
+                                              Positioned(
+                                                top: 6, right: 6,
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(4),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black.withValues(alpha: 0.4),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: const Icon(Icons.push_pin, size: 14, color: Colors.white),
+                                                ),
+                                              ),
+                                            if (!_selectionMode && note.id != null)
+                                              Positioned(
+                                                top: 2, right: note.isPinned ? 30 : 2,
+                                                child: SizedBox(
+                                                  width: 24, height: 24,
+                                                  child: PopupMenuButton<String>(
+                                                    icon: Icon(Icons.more_vert, size: 16, color: Colors.white.withValues(alpha: 0.9)),
+                                                    padding: EdgeInsets.zero,
+                                                    iconSize: 16,
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                    onSelected: (value) {
+                                                      switch (value) {
+                                                        case 'pin': _toggleProNotePin(note); break;
+                                                        case 'share': SharePlus.instance.share(ShareParams(text: '${note.title}\n\n${note.content}', subject: note.title)); break;
+                                                        case 'pdf': _exportNotePdfById(note.id!); break;
+                                                        case 'move': _moveNoteById(note.id!); break;
+                                                        case 'delete': _deleteNoteById(note.id!); break;
+                                                      }
+                                                    },
+                                                    itemBuilder: (ctx) => [
+                                                      PopupMenuItem(value: 'pin', child: Row(children: [Icon(note.isPinned ? Icons.push_pin : Icons.push_pin_outlined, size: 20, color: accentColor), const SizedBox(width: 12), Text(note.isPinned ? tr('unpin') : tr('pin'))])),
+                                                      PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+                                                      PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('create_pdf'))])),
+                                                      PopupMenuItem(value: 'move', child: Row(children: [Icon(Icons.folder_outlined, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('change_folder'))])),
+                                                      PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: colorScheme.error), const SizedBox(width: 12), Text(tr('delete'), style: TextStyle(color: colorScheme.error))])),
                                                     ],
                                                   ),
                                                 ),
@@ -26622,6 +27329,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                       ),
                                     ),
                                   ),
+                                ),
                                 );
                               },
                             )
@@ -26635,52 +27343,141 @@ class _NotesProPageState extends State<NotesProPage> {
                                   final folderStyle = _folders[folderName]!;
                                   final fc = folderStyle.color;
                                   final count = _countNotesInFolder(folderName);
+                                  final subCount = _getSubFolders(folderName).length;
+                                  final folderInfoParts = <String>[
+                                    if (subCount > 0) '$subCount cartell${subCount == 1 ? 'a' : 'e'}',
+                                    if (count > 0 || subCount == 0) tr('n_notes').replaceAll('{n}', '$count'),
+                                  ];
+                                  final folderInfoText = folderInfoParts.join(', ');
                                   final showBadge = folderName == 'Diario del Ciclo' && _cycleDiaryBadge;
                                   final isLocked = folderStyle.isPrivate || folderName == tr('private_folder') || folderName == 'Diario del Ciclo';
                                   return _SlideInItem(
                                     index: index,
-                                    child: GestureDetector(
-                                      onTap: () => _onFolderTap(folderName),
-                                      onLongPress: () => _showFolderOptionsSheet(folderName),
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        margin: const EdgeInsets.only(bottom: 8),
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: fc.withValues(alpha: 0.08),
-                                          borderRadius: BorderRadius.circular(16),
-                                          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                    child: Draggable<String>(
+                                      data: folderName,
+                                      feedback: Material(
+                                        elevation: 8,
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Container(
+                                          width: 200, height: 56,
+                                          decoration: BoxDecoration(
+                                            color: fc.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: fc, width: 2),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          child: Row(
+                                            children: [
+                                              folderStyle.buildIcon(size: 24, iconColor: fc),
+                                              const SizedBox(width: 8),
+                                              Expanded(child: Text(folderLabel(folderName), maxLines: 1, overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fc))),
+                                            ],
+                                          ),
                                         ),
-                                        child: Row(
-                                          children: [
-                                            Badge(
-                                              isLabelVisible: showBadge,
-                                              backgroundColor: Colors.red,
-                                              smallSize: 8,
-                                              child: folderStyle.buildIcon(size: 32, iconColor: fc),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                      ),
+                                      childWhenDragging: Opacity(
+                                        opacity: 0.3,
+                                        child: Container(
+                                          margin: const EdgeInsets.only(bottom: 8),
+                                          height: 72,
+                                          decoration: BoxDecoration(
+                                            color: fc.withValues(alpha: 0.08),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                          ),
+                                        ),
+                                      ),
+                                      child: DragTarget<Object>(
+                                        onWillAcceptWithDetails: (details) {
+                                          if (details.data is ProNote) return true;
+                                          if (details.data is String && details.data != folderName) return true;
+                                          return false;
+                                        },
+                                        onAcceptWithDetails: (details) async {
+                                          if (details.data is ProNote) {
+                                            final droppedNote = details.data as ProNote;
+                                            if (droppedNote.id == null || droppedNote.folder == folderName) return;
+                                            final updated = droppedNote.copyWith(folder: folderName);
+                                            await DatabaseHelper().updateProNote(droppedNote.id!, updated);
+                                            if (mounted) {
+                                              await _loadNotes();
+                                              ScaffoldMessenger.of(context).clearSnackBars();
+                                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                duration: const Duration(seconds: 1),
+                                                content: Text('${tr('moved_to')} ${folderLabel(folderName)}'),
+                                              ));
+                                            }
+                                          } else if (details.data is String) {
+                                            final sourceFolder = details.data as String;
+                                            if (sourceFolder == folderName) return;
+                                            final notesToMove = _proNotes.where((n) => n.folder == sourceFolder).toList();
+                                            if (notesToMove.isEmpty) return;
+                                            for (final n in notesToMove) {
+                                              if (n.id != null) {
+                                                await DatabaseHelper().updateProNote(n.id!, n.copyWith(folder: folderName));
+                                              }
+                                            }
+                                            if (mounted) {
+                                              await _loadNotes();
+                                              ScaffoldMessenger.of(context).clearSnackBars();
+                                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                duration: const Duration(seconds: 1),
+                                                content: Text('${notesToMove.length} note spostate in ${folderLabel(folderName)}'),
+                                              ));
+                                            }
+                                          }
+                                        },
+                                        builder: (context, candidateData, rejectedData) {
+                                          final isHovering = candidateData.isNotEmpty;
+                                          return GestureDetector(
+                                            onTap: () => _onFolderTap(folderName),
+                                            onLongPress: () => _showFolderOptionsSheet(folderName),
+                                            child: AnimatedContainer(
+                                              duration: const Duration(milliseconds: 200),
+                                              margin: const EdgeInsets.only(bottom: 8),
+                                              padding: const EdgeInsets.all(16),
+                                              decoration: BoxDecoration(
+                                                color: isHovering ? fc.withValues(alpha: 0.25) : fc.withValues(alpha: 0.08),
+                                                borderRadius: BorderRadius.circular(16),
+                                                border: Border.all(
+                                                  color: isHovering ? fc : colorScheme.outlineVariant.withValues(alpha: 0.3),
+                                                  width: isHovering ? 2.5 : 1,
+                                                ),
+                                              ),
+                                              child: Row(
                                                 children: [
-                                                  Text(folderLabel(folderName), style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: colorScheme.onSurface)),
-                                                  const SizedBox(height: 2),
-                                                  Row(
-                                                    children: [
-                                                      if (isLocked) ...[
-                                                        Icon(Icons.lock, size: 12, color: colorScheme.onSurfaceVariant),
-                                                        const SizedBox(width: 4),
-                                                      ],
-                                                      Text(tr('n_notes').replaceAll('{n}', '$count'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                                                    ],
+                                                  Badge(
+                                                    isLabelVisible: showBadge,
+                                                    backgroundColor: Colors.red,
+                                                    smallSize: 8,
+                                                    child: folderStyle.buildIcon(size: 32, iconColor: fc),
                                                   ),
+                                                  const SizedBox(width: 16),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(folderLabel(folderName), style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: colorScheme.onSurface)),
+                                                        const SizedBox(height: 2),
+                                                        Row(
+                                                          children: [
+                                                            if (isLocked) ...[
+                                                              Icon(Icons.lock, size: 12, color: colorScheme.onSurfaceVariant),
+                                                              const SizedBox(width: 4),
+                                                            ],
+                                                            Text(folderInfoText, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
                                                 ],
                                               ),
                                             ),
-                                            Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
-                                          ],
-                                        ),
+                                          );
+                                        },
                                       ),
                                     ),
                                   );
@@ -26692,7 +27489,42 @@ class _NotesProPageState extends State<NotesProPage> {
                                 final isSelected = note.id != null && _selectedNoteIds.contains(note.id);
                                 return _SlideInItem(
                                   index: index,
-                                  child: GestureDetector(
+                                  child: Draggable<ProNote>(
+                                    data: note,
+                                    feedback: Material(
+                                      elevation: 8,
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Container(
+                                        width: 200, height: 56,
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.surfaceContainerLowest,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: accentColor, width: 2),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                                        child: Row(
+                                          children: [
+                                            Icon(note.isMediaNote ? Icons.image : Icons.description, size: 20, color: accentColor),
+                                            const SizedBox(width: 8),
+                                            Expanded(child: Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurface))),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    childWhenDragging: Opacity(
+                                      opacity: 0.3,
+                                      child: Container(
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        height: 72,
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.surfaceContainerLowest,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                        ),
+                                      ),
+                                    ),
+                                    child: GestureDetector(
                                     onTap: () {
                                       if (_selectionMode) {
                                         setState(() {
@@ -26709,14 +27541,6 @@ class _NotesProPageState extends State<NotesProPage> {
                                         _editNote(noteIndex);
                                       }
                                     },
-                                    onLongPress: () {
-                                      if (!_selectionMode && note.folder != tr('private_folder')) {
-                                        setState(() {
-                                          _selectionMode = true;
-                                          if (note.id != null) _selectedNoteIds.add(note.id!);
-                                        });
-                                      }
-                                    },
                                     child: AnimatedContainer(
                                         duration: const Duration(milliseconds: 200),
                                         margin: const EdgeInsets.only(bottom: 8),
@@ -26729,7 +27553,9 @@ class _NotesProPageState extends State<NotesProPage> {
                                             width: isSelected ? 2 : 1,
                                           ),
                                         ),
-                                        child: note.isWineNote
+                                        child: note.isMediaNote
+                                          ? _buildMediaListCard(note, colorScheme, accentColor)
+                                          : note.isWineNote
                                           ? Row(
                                               children: [
                                                 Expanded(child: _buildWineListCard(note, colorScheme)),
@@ -26787,7 +27613,19 @@ class _NotesProPageState extends State<NotesProPage> {
                                             )
                                           : Row(
                                           children: [
-                                            CircleAvatar(
+                                            if (note.imagePath != null && note.imagePath!.isNotEmpty)
+                                              ClipRRect(
+                                                borderRadius: BorderRadius.circular(12),
+                                                child: _buildFileImage(note.imagePath!, width: 52, height: 52, fit: BoxFit.cover,
+                                                  errorWidget: CircleAvatar(
+                                                    radius: 22,
+                                                    backgroundColor: folderColor.withValues(alpha: 0.12),
+                                                    child: Icon(Icons.broken_image, color: folderColor, size: 22),
+                                                  ),
+                                                ),
+                                              )
+                                            else
+                                              CircleAvatar(
                                               radius: 22,
                                               backgroundColor: folderColor.withValues(alpha: 0.12),
                                               child: _folders[note.folder]?.buildIcon(size: 22, iconColor: folderColor) ?? Icon(Icons.folder, color: folderColor, size: 22),
@@ -26892,6 +27730,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                         ),
                                       ),
                                   ),
+                                ),
                                 );
                               },
                             );
@@ -26905,6 +27744,7 @@ class _NotesProPageState extends State<NotesProPage> {
         onPressed: _showCreateOptions,
         child: const Icon(Icons.add),
       ),
+    ),
     );
   }
 
@@ -26981,6 +27821,7 @@ class _NotesProPageState extends State<NotesProPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -27047,6 +27888,7 @@ class _NotesProPageState extends State<NotesProPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                 duration: const Duration(seconds: 1),
       content: Text('${tr('notes_deleted')} ($deletedCount)'),
       action: SnackBarAction(
         label: tr('undo'),
@@ -27151,6 +27993,7 @@ class _NotesProPageState extends State<NotesProPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('move_to_folder')}: ${folderLabel(targetFolder)}'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -27185,7 +28028,7 @@ class _NotesProPageState extends State<NotesProPage> {
         if (!mounted) return;
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore PDF: $e'), behavior: SnackBarBehavior.floating,
+          SnackBar(duration: const Duration(seconds: 1), content: Text('Errore PDF: $e'), behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         );
       }
@@ -27234,7 +28077,7 @@ class _NotesProPageState extends State<NotesProPage> {
       if (!mounted) return;
       Navigator.pop(context); // close loading
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore PDF: $e'), behavior: SnackBarBehavior.floating,
+        SnackBar(duration: const Duration(seconds: 1), content: Text('Errore PDF: $e'), behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       );
     }
@@ -27284,6 +28127,7 @@ class _NotesProPageState extends State<NotesProPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('move_to_folder')}: ${folderLabel(targetFolder)}'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -27331,19 +28175,8 @@ class _NotesProPageState extends State<NotesProPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 1),
       content: Text(tr('note_deleted')),
-      action: SnackBarAction(
-        label: tr('undo'),
-        onPressed: () async {
-          await db.insertProNote(note);
-          if (trashedId != null) {
-            await db.deleteTrashedNote(trashedId);
-          }
-          _loadNotes();
-        },
-      ),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
   }
 
@@ -27847,6 +28680,197 @@ class _WineNoteEditorPageState extends State<WineNoteEditorPage> {
   }
 }
 
+// ── Photo Preview Page ──
+
+class PhotoPreviewPage extends StatefulWidget {
+  final ProNote note;
+  final Map<String, FolderStyle> folders;
+  final Function(ProNote) onSave;
+  final Future<void> Function()? onDelete;
+
+  const PhotoPreviewPage({
+    super.key,
+    required this.note,
+    required this.folders,
+    required this.onSave,
+    this.onDelete,
+  });
+
+  @override
+  State<PhotoPreviewPage> createState() => _PhotoPreviewPageState();
+}
+
+class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
+  late ProNote _currentNote;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentNote = widget.note;
+  }
+
+  Widget _buildPreviewImage() {
+    final path = _currentNote.imagePath;
+    if (path != null && path.isNotEmpty) {
+      final file = File(path);
+      if (file.existsSync()) {
+        try {
+          final bytes = file.readAsBytesSync();
+          if (bytes.isNotEmpty) {
+            return Image.memory(bytes, fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54));
+          }
+        } catch (_) {}
+      }
+    }
+    final b64 = _currentNote.imageBase64;
+    if (b64 != null && b64.isNotEmpty) {
+      try {
+        return Image.memory(base64Decode(b64), fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54));
+      } catch (_) {}
+    }
+    return const Icon(Icons.image_not_supported, size: 64, color: Colors.white54);
+  }
+
+  void _openEditor() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NoteReadPage(
+          note: _currentNote,
+          folders: widget.folders,
+          onSave: widget.onSave,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sharePhoto() async {
+    final path = _currentNote.imagePath;
+    if (path != null && path.isNotEmpty && File(path).existsSync()) {
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(path)],
+        subject: _currentNote.title,
+      ));
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(duration: const Duration(seconds: 1), content: Text(tr('error'))),
+        );
+      }
+    }
+  }
+
+  Future<void> _moveToFolder() async {
+    final folderNames = widget.folders.keys.where((f) => f != _currentNote.folder).toList();
+    if (folderNames.isEmpty) return;
+    final colorScheme = Theme.of(context).colorScheme;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Text(tr('move_to_folder'), style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: colorScheme.onSurface)),
+            const SizedBox(height: 8),
+            ...folderNames.map((f) {
+              final style = widget.folders[f];
+              final fc = style?.color ?? Colors.grey;
+              return ListTile(
+                leading: style != null ? style.buildIcon(size: 28, iconColor: fc) : Icon(Icons.folder, color: fc),
+                title: Text(folderLabel(f)),
+                onTap: () => Navigator.pop(ctx, f),
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      final updated = _currentNote.copyWith(folder: selected);
+      widget.onSave(updated);
+      setState(() => _currentNote = updated);
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 1),
+        content: Text('${tr('moved_to')} ${folderLabel(selected)}'),
+      ));
+    }
+  }
+
+  Future<void> _deleteNote() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(tr('delete')),
+        content: Text(tr('confirm_delete')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('delete'))),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      if (widget.onDelete != null) {
+        await widget.onDelete!();
+      }
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Text(_currentNote.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white)),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (value) {
+              switch (value) {
+                case 'edit': _openEditor();
+                case 'share': _sharePhoto();
+                case 'move': _moveToFolder();
+                case 'delete': _deleteNote();
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('edit'))])),
+              PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('share'))])),
+              PopupMenuItem(value: 'move', child: Row(children: [Icon(Icons.drive_file_move_outline, size: 20, color: colorScheme.onSurfaceVariant), const SizedBox(width: 12), Text(tr('move_to_folder'))])),
+              const PopupMenuDivider(),
+              PopupMenuItem(value: 'delete', child: Row(children: [const Icon(Icons.delete, size: 20, color: Colors.red), const SizedBox(width: 12), Text(tr('delete'), style: const TextStyle(color: Colors.red))])),
+            ],
+          ),
+        ],
+      ),
+      body: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Center(
+          child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: _buildPreviewImage(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Note Read Page (Reading View) ──
 
 class NoteReadPage extends StatefulWidget {
@@ -27952,6 +28976,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('api_key')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -28060,6 +29085,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
       setState(() => _isAiLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -28135,6 +29161,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('error')}: $e'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -28608,6 +29635,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text(tr('api_key')),
           behavior: SnackBarBehavior.floating,
         ),
@@ -28733,6 +29761,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       setState(() => _isAiLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 1),
           content: Text('${tr('error')}: $e'),
           behavior: SnackBarBehavior.floating,
         ),
@@ -28744,20 +29773,30 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     final plainText = _quillController.document.toPlainText().trim();
     if (_titleController.text.isNotEmpty && plainText.isNotEmpty) {
       final deltaJson = json.encode(_quillController.document.toDelta().toJson());
-      widget.onSave(
-        ProNote(
-          title: _titleController.text,
-          content: plainText,
-          contentDelta: deltaJson,
-          headerText: _showHeader ? _headerController.text : null,
-          footerText: _showFooter ? _footerController.text : null,
-          templatePreset: _selectedTemplate,
-          folder: _selectedFolder,
-          linkedDate: _linkedDate,
-          imageBase64: widget.existingNote?.imageBase64,
-          imagePath: widget.existingNote?.imagePath,
-        ),
-      );
+      final existing = widget.existingNote;
+      final saved = existing != null
+        ? existing.copyWith(
+            title: _titleController.text,
+            content: plainText,
+            contentDelta: deltaJson,
+            headerText: _showHeader ? _headerController.text : null,
+            footerText: _showFooter ? _footerController.text : null,
+            templatePreset: _selectedTemplate,
+            folder: _selectedFolder,
+            linkedDate: _linkedDate,
+            updatedAt: DateTime.now(),
+          )
+        : ProNote(
+            title: _titleController.text,
+            content: plainText,
+            contentDelta: deltaJson,
+            headerText: _showHeader ? _headerController.text : null,
+            footerText: _showFooter ? _footerController.text : null,
+            templatePreset: _selectedTemplate,
+            folder: _selectedFolder,
+            linkedDate: _linkedDate,
+          );
+      widget.onSave(saved);
       Navigator.pop(context);
     }
   }
@@ -29106,6 +30145,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         Navigator.pop(context); // dismiss loading
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text('${tr('error')}: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -29340,6 +30380,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
+              duration: const Duration(seconds: 1),
               content: Text(tr('image_too_large')),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -29364,6 +30405,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 1),
             content: Text('${tr('error')}: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
