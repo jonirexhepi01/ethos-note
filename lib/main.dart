@@ -25,6 +25,7 @@ import 'package:health/health.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, MethodChannel, SystemNavigator, rootBundle;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:path_provider/path_provider.dart';
@@ -760,6 +761,7 @@ const _translations = <String, Map<String, String>>{
   'moved_to': {'it': 'Spostata in', 'en': 'Moved to', 'fr': 'Déplacé dans', 'es': 'Movido a'},
   'open_in_deep_note': {'it': 'Apri in Deep Note', 'en': 'Open in Deep Note', 'fr': 'Ouvrir dans Deep Note', 'es': 'Abrir en Deep Note'},
   'create_event': {'it': 'Crea Evento', 'en': 'Create Event', 'fr': 'Créer un événement', 'es': 'Crear evento'},
+  'all_day': {'it': 'Tutto il giorno', 'en': 'All day', 'fr': 'Toute la journée', 'es': 'Todo el día'},
   'header': {'it': 'Intestazione', 'en': 'Header', 'fr': 'En-tête', 'es': 'Encabezado'},
   'footer': {'it': 'Piè di pagina', 'en': 'Footer', 'fr': 'Pied de page', 'es': 'Pie de página'},
   'pdf': {'it': 'PDF', 'en': 'PDF', 'fr': 'PDF', 'es': 'PDF'},
@@ -1878,40 +1880,40 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      await db.execute('ALTER TABLE flash_notes ADD COLUMN image_base64 TEXT');
+      await _safeAddColumn(db, 'flash_notes', 'image_base64 TEXT');
     }
     if (oldVersion < 3) {
-      await db.execute('ALTER TABLE custom_folders ADD COLUMN is_private INTEGER DEFAULT 0');
+      await _safeAddColumn(db, 'custom_folders', 'is_private INTEGER DEFAULT 0');
     }
     if (oldVersion < 4) {
-      await db.execute('ALTER TABLE calendar_events ADD COLUMN recurrence TEXT');
-      await db.execute('ALTER TABLE calendar_events ADD COLUMN recurrence_end_date TEXT');
-      await db.execute('ALTER TABLE cycle_days ADD COLUMN flow_intensity TEXT DEFAULT \'medium\'');
-      await db.execute('ALTER TABLE custom_folders ADD COLUMN emoji_icon TEXT');
+      await _safeAddColumn(db, 'calendar_events', 'recurrence TEXT');
+      await _safeAddColumn(db, 'calendar_events', 'recurrence_end_date TEXT');
+      await _safeAddColumn(db, 'cycle_days', 'flow_intensity TEXT DEFAULT \'medium\'');
+      await _safeAddColumn(db, 'custom_folders', 'emoji_icon TEXT');
     }
     if (oldVersion < 5) {
-      await db.execute('ALTER TABLE user_profile ADD COLUMN lock_deep_note INTEGER DEFAULT 0');
-      await db.execute('ALTER TABLE user_profile ADD COLUMN lock_flash_notes INTEGER DEFAULT 0');
+      await _safeAddColumn(db, 'user_profile', 'lock_deep_note INTEGER DEFAULT 0');
+      await _safeAddColumn(db, 'user_profile', 'lock_flash_notes INTEGER DEFAULT 0');
     }
     if (oldVersion < 6) {
-      await db.execute('ALTER TABLE pro_notes ADD COLUMN image_base64 TEXT');
+      await _safeAddColumn(db, 'pro_notes', 'image_base64 TEXT');
     }
     if (oldVersion < 7) {
-      await db.execute('ALTER TABLE pro_notes ADD COLUMN updated_at INTEGER');
+      await _safeAddColumn(db, 'pro_notes', 'updated_at INTEGER');
     }
     if (oldVersion < 8) {
-      await db.execute('ALTER TABLE flash_notes ADD COLUMN image_path TEXT');
-      await db.execute('ALTER TABLE pro_notes ADD COLUMN image_path TEXT');
+      await _safeAddColumn(db, 'flash_notes', 'image_path TEXT');
+      await _safeAddColumn(db, 'pro_notes', 'image_path TEXT');
     }
     if (oldVersion < 9) {
-      await db.execute('ALTER TABLE flash_notes ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE pro_notes ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
+      await _safeAddColumn(db, 'flash_notes', 'is_pinned INTEGER NOT NULL DEFAULT 0');
+      await _safeAddColumn(db, 'pro_notes', 'is_pinned INTEGER NOT NULL DEFAULT 0');
     }
     if (oldVersion < 10) {
-      await db.execute('ALTER TABLE pro_notes ADD COLUMN wine_data TEXT');
+      await _safeAddColumn(db, 'pro_notes', 'wine_data TEXT');
     }
     if (oldVersion < 11) {
-      await db.execute('ALTER TABLE custom_folders ADD COLUMN parent_name TEXT');
+      await _safeAddColumn(db, 'custom_folders', 'parent_name TEXT');
     }
     if (oldVersion < 12) {
       await db.execute('''
@@ -2519,6 +2521,10 @@ class ImageStorageHelper {
   ImageStorageHelper._internal();
 
   Directory? _imagesDir;
+
+  /// Synchronous access (returns null if not yet initialized via async getter)
+  Directory? get imagesDirSync => _imagesDir;
+  Directory? get mediaDirSync => _mediaDir;
 
   Future<Directory> get imagesDir async {
     if (_imagesDir != null) return _imagesDir!;
@@ -6052,6 +6058,46 @@ class _AnimatedCalendarIcon9 extends AnimatedWidget {
   }
 }
 
+/// Uses Draggable on desktop, LongPressDraggable on mobile
+class _PlatformDraggable<T extends Object> extends StatelessWidget {
+  final T data;
+  final Widget feedback;
+  final Widget childWhenDragging;
+  final Widget child;
+
+  const _PlatformDraggable({
+    super.key,
+    required this.data,
+    required this.feedback,
+    required this.childWhenDragging,
+    required this.child,
+  });
+
+  static bool get _isDesktop =>
+    defaultTargetPlatform == TargetPlatform.macOS ||
+    defaultTargetPlatform == TargetPlatform.windows ||
+    defaultTargetPlatform == TargetPlatform.linux;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isDesktop) {
+      return Draggable<T>(
+        data: data,
+        feedback: feedback,
+        childWhenDragging: childWhenDragging,
+        child: child,
+      );
+    }
+    return LongPressDraggable<T>(
+      data: data,
+      delay: const Duration(milliseconds: 400),
+      feedback: feedback,
+      childWhenDragging: childWhenDragging,
+      child: child,
+    );
+  }
+}
+
 class _SlideInItem extends StatelessWidget {
   final int index;
   final Widget child;
@@ -7117,7 +7163,10 @@ class _CalendarPageState extends State<CalendarPage> {
     final cals = await DatabaseHelper().getCustomCalendars();
     if (!mounted) return;
     setState(() {
-      _calendarColors = {for (final c in cals) c['name'] as String: Color(c['color_value'] as int)};
+      _calendarColors = {
+        for (final c in cals) c['name'] as String: Color(c['color_value'] as int),
+        'Festività': const Color(0xFFE53935),
+      };
     });
   }
 
@@ -7793,7 +7842,17 @@ class _CalendarPageState extends State<CalendarPage> {
       }
       return g;
     }).toList();
-    return [...local, ...filtered];
+    // Add holidays as all-day events
+    final holidayKey = '${day.month}-${day.day}';
+    final holidays = _holidays[holidayKey] ?? [];
+    final holidayEvents = holidays.map((h) => CalendarEventFull(
+      title: '${h.emoji} ${h.name}',
+      startTime: DateTime(day.year, day.month, day.day, 0, 0),
+      endTime: DateTime(day.year, day.month, day.day, 23, 59),
+      calendar: 'Festività',
+    )).toList();
+
+    return [...local, ...filtered, ...holidayEvents];
   }
 
   void _createEvent() {
@@ -8080,6 +8139,8 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _toggleEventCompletion(DateTime day, int combinedIndex) {
+    final allEvents = _getEventsForDay(day);
+    if (combinedIndex < allEvents.length && allEvents[combinedIndex].calendar == 'Festività') return;
     final key = _dateKey(day);
     final localEvents = _events[key] ?? [];
     if (combinedIndex < localEvents.length) {
@@ -8681,9 +8742,10 @@ class _CalendarPageState extends State<CalendarPage> {
                             itemCount: currentEvents.length,
                             itemBuilder: (ctx, index) {
                               final event = currentEvents[index];
+                              final isHoliday = event.calendar == 'Festività';
                               return GestureDetector(
-                                onTap: () => _showEventPreview(ctx, event, day, index, setSheetState),
-                                onSecondaryTapUp: (details) async {
+                                onTap: isHoliday ? null : () => _showEventPreview(ctx, event, day, index, setSheetState),
+                                onSecondaryTapUp: isHoliday ? null : (details) async {
                                   final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
                                   final calColor = _calSettings.calendarColor;
                                   final result = await showMenu<String>(
@@ -8726,7 +8788,17 @@ class _CalendarPageState extends State<CalendarPage> {
                                   ),
                                   child: Row(
                                     children: [
-                                      GestureDetector(
+                                      if (isHoliday)
+                                        Container(
+                                          width: 28, height: 28,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE53935).withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: const Center(child: Icon(Icons.celebration, size: 16, color: Color(0xFFE53935))),
+                                        )
+                                      else
+                                        GestureDetector(
                                         onTap: () {
                                           _toggleEventCompletion(day, index);
                                           setSheetState(() {});
@@ -8762,7 +8834,9 @@ class _CalendarPageState extends State<CalendarPage> {
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
-                                              '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}  •  ${event.calendar}',
+                                              isHoliday
+                                                ? '${tr('all_day')}  •  ${event.calendar}'
+                                                : '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}  •  ${event.calendar}',
                                               style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                                             ),
                                             if (event.reminder != null)
@@ -9019,14 +9093,15 @@ class _CalendarPageState extends State<CalendarPage> {
         ? _getEventsForDay(_selectedDay!)
         : <CalendarEventFull>[];
 
-    // Progress data for bottom bar
+    // Progress data for bottom bar (exclude holidays)
     int completed = 0;
     double progress = 0;
-    if (_selectedDay != null && eventsForSelectedDay.isNotEmpty) {
-      for (final e in eventsForSelectedDay) {
+    final realEvents = eventsForSelectedDay.where((e) => e.calendar != 'Festività').toList();
+    if (_selectedDay != null && realEvents.isNotEmpty) {
+      for (final e in realEvents) {
         if (e.isCompleted) completed++;
       }
-      progress = completed / eventsForSelectedDay.length;
+      progress = completed / realEvents.length;
     }
 
     return Column(
@@ -9146,11 +9221,20 @@ class _CalendarPageState extends State<CalendarPage> {
                           margin: const EdgeInsets.only(bottom: 12),
                           child: ListTile(
                             contentPadding: const EdgeInsets.all(16),
-                            leading: Checkbox(
-                              value: event.isCompleted,
-                              activeColor: _getCalendarCategoryColor(event.calendar),
-                              onChanged: (_) => _toggleEventCompletion(_selectedDay!, index),
-                            ),
+                            leading: event.calendar == 'Festività'
+                              ? Container(
+                                  width: 36, height: 36,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE53935).withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Center(child: Icon(Icons.celebration, size: 20, color: Color(0xFFE53935))),
+                                )
+                              : Checkbox(
+                                  value: event.isCompleted,
+                                  activeColor: _getCalendarCategoryColor(event.calendar),
+                                  onChanged: (_) => _toggleEventCompletion(_selectedDay!, index),
+                                ),
                             title: Text(
                               event.title,
                               style: TextStyle(
@@ -9165,7 +9249,9 @@ class _CalendarPageState extends State<CalendarPage> {
                               children: [
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}',
+                                  event.calendar == 'Festività'
+                                    ? tr('all_day')
+                                    : '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')} - ${event.endTime.hour}:${event.endTime.minute.toString().padLeft(2, '0')}',
                                   style: TextStyle(color: colorScheme.onSurfaceVariant),
                                 ),
                                 const SizedBox(height: 2),
@@ -9191,7 +9277,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                 ),
                               ],
                             ),
-                            trailing: Row(
+                            trailing: event.calendar == 'Festività' ? null : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
@@ -24865,6 +24951,9 @@ class _NotesProPageState extends State<NotesProPage> {
     _loadSortMode();
     _loadViewMode();
     _checkCycleDiaryBadge();
+    // Pre-init directories for sync access
+    ImageStorageHelper().imagesDir;
+    ImageStorageHelper().mediaDir;
   }
 
   Future<void> _loadSortMode() async {
@@ -25228,8 +25317,10 @@ class _NotesProPageState extends State<NotesProPage> {
       );
       return;
     }
-    // Photo notes open in full-screen preview
-    if (!note.isWineNote && !note.isMediaNote && note.imagePath != null && note.imagePath!.isNotEmpty) {
+    // Photo/image notes open in full-screen preview
+    final isImageMedia = note.isMediaNote && note.mediaType == 'image';
+    final hasImagePath = note.imagePath != null && note.imagePath!.isNotEmpty;
+    if (!note.isWineNote && (isImageMedia || hasImagePath)) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -25347,11 +25438,31 @@ class _NotesProPageState extends State<NotesProPage> {
     }
   }
 
+  /// Resolve media file path: if stored path doesn't exist, try finding by basename in media dir
+  String? _resolveMediaPath(String? storedPath) {
+    if (storedPath == null || storedPath.isEmpty) return null;
+    if (File(storedPath).existsSync()) return storedPath;
+    // Try finding by basename in the media directory
+    final baseName = p.basename(storedPath);
+    final mediaDir = ImageStorageHelper().mediaDirSync;
+    if (mediaDir != null) {
+      final candidate = p.join(mediaDir.path, baseName);
+      if (File(candidate).existsSync()) return candidate;
+    }
+    // Also try in images directory
+    final imagesDir = ImageStorageHelper().imagesDirSync;
+    if (imagesDir != null) {
+      final candidate = p.join(imagesDir.path, baseName);
+      if (File(candidate).existsSync()) return candidate;
+    }
+    return null;
+  }
+
   Widget _buildMediaGridCard(ProNote note, ColorScheme colorScheme, Color accentColor) {
     final mediaType = note.mediaType;
     final icon = ImageStorageHelper.mediaTypeIcon(mediaType);
     final typeColor = ImageStorageHelper.mediaTypeColor(mediaType);
-    final filePath = note.mediaFilePath;
+    final filePath = _resolveMediaPath(note.mediaFilePath);
     final isImage = mediaType == 'image';
 
     return Stack(
@@ -25418,7 +25529,7 @@ class _NotesProPageState extends State<NotesProPage> {
     final mediaType = note.mediaType;
     final icon = ImageStorageHelper.mediaTypeIcon(mediaType);
     final typeColor = ImageStorageHelper.mediaTypeColor(mediaType);
-    final filePath = note.mediaFilePath;
+    final filePath = _resolveMediaPath(note.mediaFilePath);
     final isImage = mediaType == 'image';
 
     return Row(
@@ -26856,7 +26967,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                   final folderInfoText = folderInfoParts.join(', ');
                                   final showBadge = folderName == 'Diario del Ciclo' && _cycleDiaryBadge;
                                   final isLocked = folderStyle.isPrivate || folderName == tr('private_folder') || folderName == 'Diario del Ciclo';
-                                  return Draggable<String>(
+                                  return _PlatformDraggable<String>(
                                     data: folderName,
                                     feedback: Material(
                                       elevation: 8,
@@ -26986,7 +27097,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                 final folderColor = _folders[note.folder]?.color ?? Colors.grey;
                                 final noteIndex = _proNotes.indexOf(note);
                                 final isSelected = note.id != null && _selectedNoteIds.contains(note.id);
-                                return Draggable<ProNote>(
+                                return _PlatformDraggable<ProNote>(
                                   data: note,
                                   feedback: Material(
                                     elevation: 8,
@@ -27353,7 +27464,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                   final isLocked = folderStyle.isPrivate || folderName == tr('private_folder') || folderName == 'Diario del Ciclo';
                                   return _SlideInItem(
                                     index: index,
-                                    child: Draggable<String>(
+                                    child: _PlatformDraggable<String>(
                                       data: folderName,
                                       feedback: Material(
                                         elevation: 8,
@@ -27489,7 +27600,7 @@ class _NotesProPageState extends State<NotesProPage> {
                                 final isSelected = note.id != null && _selectedNoteIds.contains(note.id);
                                 return _SlideInItem(
                                   index: index,
-                                  child: Draggable<ProNote>(
+                                  child: _PlatformDraggable<ProNote>(
                                     data: note,
                                     feedback: Material(
                                       elevation: 8,
@@ -28709,20 +28820,33 @@ class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
     _currentNote = widget.note;
   }
 
-  Widget _buildPreviewImage() {
-    final path = _currentNote.imagePath;
-    if (path != null && path.isNotEmpty) {
-      final file = File(path);
-      if (file.existsSync()) {
-        try {
-          final bytes = file.readAsBytesSync();
-          if (bytes.isNotEmpty) {
-            return Image.memory(bytes, fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54));
-          }
-        } catch (_) {}
-      }
+  /// Try loading image from a file path
+  Widget? _tryLoadFile(String? path) {
+    if (path == null || path.isEmpty) return null;
+    final file = File(path);
+    if (!file.existsSync()) return null;
+    try {
+      final bytes = file.readAsBytesSync();
+      if (bytes.isEmpty) return null;
+      return Image.memory(bytes, fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 64, color: Colors.white54));
+    } catch (_) {
+      return null;
     }
+  }
+
+  /// Get the effective image file path (imagePath or mediaFilePath)
+  String? get _effectiveImagePath {
+    if (_currentNote.imagePath != null && _currentNote.imagePath!.isNotEmpty) return _currentNote.imagePath;
+    if (_currentNote.mediaFilePath != null && _currentNote.mediaFilePath!.isNotEmpty) return _currentNote.mediaFilePath;
+    return null;
+  }
+
+  Widget _buildPreviewImage() {
+    // Try imagePath first, then mediaFilePath
+    final w = _tryLoadFile(_currentNote.imagePath) ?? _tryLoadFile(_currentNote.mediaFilePath);
+    if (w != null) return w;
+    // Fallback to base64
     final b64 = _currentNote.imageBase64;
     if (b64 != null && b64.isNotEmpty) {
       try {
@@ -28747,7 +28871,7 @@ class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
   }
 
   Future<void> _sharePhoto() async {
-    final path = _currentNote.imagePath;
+    final path = _effectiveImagePath;
     if (path != null && path.isNotEmpty && File(path).existsSync()) {
       await SharePlus.instance.share(ShareParams(
         files: [XFile(path)],
@@ -28894,6 +29018,8 @@ class _NoteReadPageState extends State<NoteReadPage> {
   quill.QuillController? _quillReadController;
   final FocusNode _readFocusNode = FocusNode(canRequestFocus: false);
   final ScrollController _readScrollController = ScrollController();
+  final ScrollController _bodyScrollController = ScrollController();
+  final GlobalKey _repaintBoundaryKey = GlobalKey();
   bool _isAiLoading = false;
 
   static final _googleFontBuilders = <String, TextStyle Function()>{
@@ -29095,36 +29221,6 @@ class _NoteReadPageState extends State<NoteReadPage> {
   }
 
   Future<void> _exportAsPdf() async {
-    // Detect images and text
-    final (hasImages, hasText) = _analyzeContentDelta(_currentNote.contentDelta);
-    bool photosFullPage = false;
-    if (hasImages && hasText) {
-      final choice = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Text(tr('photo_in_pdf')),
-          content: Text(tr('photo_in_pdf_question')),
-          actions: [
-            OutlinedButton(
-              onPressed: () => Navigator.pop(ctx, 'inline'),
-              child: Text(tr('same_page')),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, 'separate'),
-              child: Text(tr('separate_page')),
-            ),
-          ],
-        ),
-      );
-      if (choice == null) return;
-      if (!mounted) return;
-      photosFullPage = choice == 'separate';
-    } else if (hasImages && !hasText) {
-      photosFullPage = true;
-    }
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -29144,7 +29240,63 @@ class _NoteReadPageState extends State<NoteReadPage> {
     );
 
     try {
-      final pdfBytes = await generateNotePdfFromProNote(_currentNote, isFlashNote: false, photosFullPage: photosFullPage);
+      // Scroll to top first
+      _bodyScrollController.jumpTo(0);
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      final pageImages = <Uint8List>[];
+      final maxScroll = _bodyScrollController.position.maxScrollExtent;
+      final viewportHeight = _bodyScrollController.position.viewportDimension;
+
+      if (maxScroll <= 0) {
+        // Content fits in one screen — capture once
+        final boundary = _repaintBoundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 3.0);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        pageImages.add(byteData!.buffer.asUint8List());
+      } else {
+        // Multi-page: scroll and capture each viewport
+        double currentScroll = 0;
+        while (currentScroll <= maxScroll) {
+          _bodyScrollController.jumpTo(currentScroll);
+          await Future.delayed(const Duration(milliseconds: 150));
+          if (!mounted) return;
+
+          final boundary = _repaintBoundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+          final image = await boundary.toImage(pixelRatio: 3.0);
+          final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+          pageImages.add(byteData!.buffer.asUint8List());
+
+          currentScroll += viewportHeight;
+        }
+        // Capture the very last bit if we didn't reach maxScroll exactly
+        if (_bodyScrollController.offset < maxScroll) {
+          _bodyScrollController.jumpTo(maxScroll);
+          await Future.delayed(const Duration(milliseconds: 150));
+          if (!mounted) return;
+          final boundary = _repaintBoundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+          final image = await boundary.toImage(pixelRatio: 3.0);
+          final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+          pageImages.add(byteData!.buffer.asUint8List());
+        }
+        // Scroll back to top
+        _bodyScrollController.jumpTo(0);
+      }
+
+      // Build PDF from captured images
+      final pdf = pw.Document();
+      for (final imgBytes in pageImages) {
+        final pdfImage = pw.MemoryImage(imgBytes);
+        pdf.addPage(pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (context) => pw.Center(
+            child: pw.Image(pdfImage, fit: pw.BoxFit.contain),
+          ),
+        ));
+      }
+      final pdfBytes = await pdf.save();
+
       if (!mounted) return;
       Navigator.pop(context); // dismiss loading
       Navigator.push(
@@ -29214,7 +29366,10 @@ class _NoteReadPageState extends State<NoteReadPage> {
           const SizedBox(width: 12),
         ],
       ),
-      body: SingleChildScrollView(
+      body: RepaintBoundary(
+        key: _repaintBoundaryKey,
+        child: SingleChildScrollView(
+        controller: _bodyScrollController,
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -29327,6 +29482,7 @@ class _NoteReadPageState extends State<NoteReadPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
