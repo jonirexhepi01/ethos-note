@@ -83,6 +83,25 @@
         </receiver>
 
 
+        <!-- Widget: Calendar Monthly (4x4, resizable) -->
+        <receiver
+            android:name=".widget.CalendarWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_calendar_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_calendar_info"/>
+        </receiver>
+
+        <!-- CalendarWidgetService for scrollable event list -->
+        <service
+            android:name=".widget.CalendarWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
         <!-- Native notification receiver: fires when AlarmManager alarm triggers -->
         <receiver
             android:name=".NotificationReceiver"

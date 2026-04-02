@@ -50,30 +50,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
-/// Returns true when the Ethos (Bordeaux) theme is active.
-bool _isEthosTheme(BuildContext context) {
-  final primary = Theme.of(context).colorScheme.primary;
-  return primary == const Color(0xFFA3274F);
-}
-
-/// Returns true when the Ephemera (diary vintage) theme is active.
-bool _isEphemeraTheme(BuildContext context) {
-  final primary = Theme.of(context).colorScheme.primary;
-  return primary == const Color(0xFF795548);
-}
-
-/// Returns true when the Nordic Zen theme is active.
-bool _isNordicTheme(BuildContext context) =>
-    Theme.of(context).colorScheme.primary == const Color(0xFF78909C);
-
-/// Returns true when the Green Salvia theme is active.
-bool _isSalviaTheme(BuildContext context) =>
-    Theme.of(context).colorScheme.primary == const Color(0xFF6B8F71);
-
-/// Returns true when the Sakura theme is active.
-bool _isSakuraTheme(BuildContext context) =>
-    Theme.of(context).colorScheme.primary == const Color(0xFFB5838D);
-
 /// Returns true when the Yellow Note theme is active.
 bool _isYellowNoteTheme(BuildContext context) =>
     Theme.of(context).colorScheme.primary == const Color(0xFF1E3A8A);
@@ -3998,7 +3974,6 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
   }
 
   // ── Spadaccino Errante (Zoro) palette — DARK steel dojo ──
-  static const _zoMoss = Color(0xFF1B4D3E);
   static const _zoCard = Color(0xFF1E5A47);
   static const _zoText = Color(0xFFF0F0F0);
   static const _zoAccent = Color(0xFF1B4D3E);
@@ -4506,7 +4481,6 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
   static const _faScaffold = Color(0xFF1A1A1A);
   static const _faCard = Color(0xFF222222);
   static const _faGreen = Color(0xFF32CD32);
-  static const _faYellow = Color(0xFFFFEB3B);
   static const _faVault = Color(0xFF005FB8);
   static const _faBorder = Color(0xFF424242);
 
@@ -5583,7 +5557,27 @@ class CalendarEventFull {
 }
 
 class Holidays {
-  static Map<String, List<Holiday>> getHolidays(String religione) {
+  /// Calcola la data di Pasqua per un dato anno (algoritmo di Butcher/Meeus)
+  static DateTime _easterDate(int year) {
+    final a = year % 19;
+    final b = year ~/ 100;
+    final c = year % 100;
+    final d = b ~/ 4;
+    final e = b % 4;
+    final f = (b + 8) ~/ 25;
+    final g = (b - f + 1) ~/ 3;
+    final h = (19 * a + b - d - g + 15) % 30;
+    final i = c ~/ 4;
+    final k = c % 4;
+    final l = (32 + 2 * e + 2 * i - h - k) % 7;
+    final m = (a + 11 * h + 22 * l) ~/ 451;
+    final month = (h + l - 7 * m + 114) ~/ 31;
+    final day = ((h + l - 7 * m + 114) % 31) + 1;
+    return DateTime(year, month, day);
+  }
+
+  static Map<String, List<Holiday>> getHolidays(String religione, {int? year}) {
+    final y = year ?? DateTime.now().year;
     final base = <Holiday>[
       Holiday(1, 1, '🎉', 'Capodanno'),
       Holiday(1, 6, '⭐', 'Epifania'),
@@ -5598,21 +5592,21 @@ class Holidays {
     ];
 
     if (religione == tr('catholic')) {
-      base.add(Holiday(4, 20, '🐣', 'Pasqua'));
-      base.add(Holiday(4, 21, '🐣', 'Pasquetta'));
+      final easter = _easterDate(y);
+      base.add(Holiday(easter.month, easter.day, '🐣', 'Pasqua'));
+      final pasquetta = easter.add(const Duration(days: 1));
+      base.add(Holiday(pasquetta.month, pasquetta.day, '🐣', 'Pasquetta'));
     } else if (religione == tr('jewish')) {
-      base.add(Holiday(9, 25, '🕎', 'Rosh Hashanah'));
-      base.add(Holiday(12, 25, '🕎', 'Hanukkah'));
+      // Date approssimative — cambiano ogni anno secondo il calendario ebraico
+      final jewishDates = _jewishHolidays(y);
+      base.addAll(jewishDates);
     } else if (religione == tr('islamic')) {
-      base.add(Holiday(4, 10, '🌙', 'Eid al-Fitr'));
-      base.add(Holiday(6, 16, '🌙', 'Eid al-Adha'));
+      // Date approssimative — cambiano ogni anno secondo il calendario islamico
+      final islamicDates = _islamicHolidays(y);
+      base.addAll(islamicDates);
     } else if (religione == tr('chinese')) {
-      base.add(Holiday(1, 29, '🧧', 'Capodanno Cinese'));
-      base.add(Holiday(2, 15, '🏮', 'Festa delle Lanterne'));
-      base.add(Holiday(4, 5, '🪦', 'Qingming'));
-      base.add(Holiday(5, 31, '🐉', 'Duanwu'));
-      base.add(Holiday(10, 1, '🇨🇳', 'Festa Nazionale Cinese'));
-      base.add(Holiday(10, 6, '🥮', 'Zhongqiu'));
+      final chineseDates = _chineseHolidays(y);
+      base.addAll(chineseDates);
     }
 
     Map<String, List<Holiday>> result = {};
@@ -5622,6 +5616,91 @@ class Holidays {
       result[key]!.add(h);
     }
     return result;
+  }
+
+  /// Festività ebraiche (date approssimative per anno)
+  static List<Holiday> _jewishHolidays(int year) {
+    // Le date del calendario ebraico si spostano nel gregoriano ogni anno.
+    // Qui usiamo date pre-calcolate per gli anni noti.
+    final map = <int, List<Holiday>>{
+      2025: [
+        Holiday(9, 22, '🕎', 'Rosh Hashanah'),
+        Holiday(12, 14, '🕎', 'Hanukkah'),
+      ],
+      2026: [
+        Holiday(9, 11, '🕎', 'Rosh Hashanah'),
+        Holiday(12, 4, '🕎', 'Hanukkah'),
+      ],
+      2027: [
+        Holiday(10, 1, '🕎', 'Rosh Hashanah'),
+        Holiday(12, 24, '🕎', 'Hanukkah'),
+      ],
+      2028: [
+        Holiday(9, 20, '🕎', 'Rosh Hashanah'),
+        Holiday(12, 12, '🕎', 'Hanukkah'),
+      ],
+    };
+    return map[year] ?? [
+      Holiday(9, 15, '🕎', 'Rosh Hashanah'),
+      Holiday(12, 10, '🕎', 'Hanukkah'),
+    ];
+  }
+
+  /// Festività islamiche (date approssimative per anno)
+  static List<Holiday> _islamicHolidays(int year) {
+    final map = <int, List<Holiday>>{
+      2025: [
+        Holiday(3, 30, '🌙', 'Eid al-Fitr'),
+        Holiday(6, 6, '🌙', 'Eid al-Adha'),
+      ],
+      2026: [
+        Holiday(3, 20, '🌙', 'Eid al-Fitr'),
+        Holiday(5, 27, '🌙', 'Eid al-Adha'),
+      ],
+      2027: [
+        Holiday(3, 9, '🌙', 'Eid al-Fitr'),
+        Holiday(5, 16, '🌙', 'Eid al-Adha'),
+      ],
+      2028: [
+        Holiday(2, 27, '🌙', 'Eid al-Fitr'),
+        Holiday(5, 5, '🌙', 'Eid al-Adha'),
+      ],
+    };
+    return map[year] ?? [
+      Holiday(3, 15, '🌙', 'Eid al-Fitr'),
+      Holiday(5, 20, '🌙', 'Eid al-Adha'),
+    ];
+  }
+
+  /// Festività cinesi (date approssimative per anno)
+  static List<Holiday> _chineseHolidays(int year) {
+    final map = <int, List<Holiday>>{
+      2025: [
+        Holiday(1, 29, '🧧', 'Capodanno Cinese'),
+        Holiday(2, 12, '🏮', 'Festa delle Lanterne'),
+      ],
+      2026: [
+        Holiday(2, 17, '🧧', 'Capodanno Cinese'),
+        Holiday(3, 3, '🏮', 'Festa delle Lanterne'),
+      ],
+      2027: [
+        Holiday(2, 6, '🧧', 'Capodanno Cinese'),
+        Holiday(2, 20, '🏮', 'Festa delle Lanterne'),
+      ],
+      2028: [
+        Holiday(1, 26, '🧧', 'Capodanno Cinese'),
+        Holiday(2, 9, '🏮', 'Festa delle Lanterne'),
+      ],
+    };
+    final cny = map[year] ?? [
+      Holiday(2, 1, '🧧', 'Capodanno Cinese'),
+      Holiday(2, 15, '🏮', 'Festa delle Lanterne'),
+    ];
+    return [
+      ...cny,
+      Holiday(4, 4, '🪦', 'Qingming'),
+      Holiday(10, 1, '🇨🇳', 'Festa Nazionale Cinese'),
+    ];
   }
 }
 
@@ -6382,7 +6461,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin, Widg
         _refreshKey++;
       });
       if (pathSegments.isNotEmpty) {
-        _pendingDeepLink = 'calendar/${pathSegments[0]}';
+        _pendingDeepLink = 'calendar/${pathSegments.join('/')}';
       }
     }
   }
@@ -6875,14 +6954,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin, Widg
       } else if (dl == 'calendar/new') {
         calendarInitialAction = 'new';
       } else if (dl.startsWith('calendar/')) {
-        final dateStr = dl.substring('calendar/'.length);
+        var dateStr = dl.substring('calendar/'.length);
+        // Strip optional 'date/' prefix (widget sends calendar/date/YYYY-M-D)
+        if (dateStr.startsWith('date/')) {
+          dateStr = dateStr.substring('date/'.length);
+        }
         final parts = dateStr.split('-');
         if (parts.length == 3) {
-          calendarInitialDate = DateTime(
-            int.tryParse(parts[0]) ?? DateTime.now().year,
-            int.tryParse(parts[1]) ?? DateTime.now().month,
-            int.tryParse(parts[2]) ?? DateTime.now().day,
-          );
+          final year = int.tryParse(parts[0]);
+          final month = int.tryParse(parts[1]);
+          final day = int.tryParse(parts[2]);
+          if (year != null && month != null && day != null &&
+              month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            calendarInitialDate = DateTime(year, month, day);
+          }
         }
       }
     }
@@ -7427,6 +7512,15 @@ class _CalendarPageState extends State<CalendarPage> {
         ),
       );
       _fetchGoogleEvents();
+    } else if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Errore sincronizzazione Google Calendar'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -8071,7 +8165,8 @@ class _CalendarPageState extends State<CalendarPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                                   duration: const Duration(seconds: 1),
+                                                   duration: const Duration(seconds: 3),
+        dismissDirection: DismissDirection.down,
         content: Text(tr('event_deleted')),
         action: SnackBarAction(
           label: tr('undo'),
@@ -8132,6 +8227,15 @@ class _CalendarPageState extends State<CalendarPage> {
             content: Text(tr('event_deleted')),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      } else if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Errore eliminazione evento Google Calendar'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -8625,7 +8729,7 @@ class _CalendarPageState extends State<CalendarPage> {
           },
         );
       },
-    );
+    ).whenComplete(() => searchCtrl.dispose());
   }
 
   void _showDayEventsBottomSheet(DateTime day) {
@@ -11582,7 +11686,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() => controller.dispose());
   }
 
   List<int> get _customAlertMinutes =>
@@ -11639,7 +11743,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() => controller.dispose());
   }
 
 
@@ -13861,30 +13965,34 @@ class _EventEditorPageState extends State<EventEditorPage> {
                   selected: _selectedReminder != null && !_reminders.contains(_selectedReminder!),
                   onSelected: (_) async {
                     final controller = TextEditingController();
-                    final minutes = await showDialog<int>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text(tr('custom_alert_time')),
-                        content: TextField(
-                          controller: controller,
-                          keyboardType: TextInputType.number,
-                          autofocus: true,
-                          decoration: InputDecoration(
-                            labelText: tr('insert_minutes'),
-                            suffixText: tr('minutes'),
+                    try {
+                      final minutes = await showDialog<int>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(tr('custom_alert_time')),
+                          content: TextField(
+                            controller: controller,
+                            keyboardType: TextInputType.number,
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              labelText: tr('insert_minutes'),
+                              suffixText: tr('minutes'),
+                            ),
                           ),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
+                            FilledButton(onPressed: () {
+                              final val = int.tryParse(controller.text);
+                              if (val != null && val > 0) Navigator.pop(ctx, val);
+                            }, child: Text(tr('confirm'))),
+                          ],
                         ),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('cancel'))),
-                          FilledButton(onPressed: () {
-                            final val = int.tryParse(controller.text);
-                            if (val != null && val > 0) Navigator.pop(ctx, val);
-                          }, child: Text(tr('confirm'))),
-                        ],
-                      ),
-                    );
+                      );
                     if (minutes != null && mounted) {
                       setState(() => _selectedReminder = '$minutes min');
+                    }
+                    } finally {
+                      controller.dispose();
                     }
                   },
                   selectedColor: colorScheme.primaryContainer,
@@ -14532,7 +14640,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         ),
       ),
-    );
+    ).whenComplete(() {
+      nomeController.dispose();
+      cognomeController.dispose();
+      nicknameController.dispose();
+    });
   }
 
   void _shareProfile() {
@@ -14586,7 +14698,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() => controller.dispose());
   }
 
   void _addFriend() {
@@ -14617,7 +14729,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() => controller.dispose());
   }
 
   @override
@@ -14880,7 +14992,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: Text(tr('trash'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const TrashPage()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const TrashPage())).then((_) {
+                      if (mounted) setState(() {});
+                    });
                   },
                 ),
                 const Divider(height: 1),
@@ -15612,6 +15726,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
   Future<void> _showSetPinDialog() async {
     final pinController = TextEditingController();
     final confirmController = TextEditingController();
+    try {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -15662,6 +15777,10 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
           SnackBar(duration: const Duration(seconds: 1), content: Text(tr('pin_created')), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         );
       }
+    }
+    } finally {
+      pinController.dispose();
+      confirmController.dispose();
     }
   }
 
@@ -16376,7 +16495,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() => controller.dispose());
   }
 
   void _showEditApiKeyDialog() {
@@ -16412,7 +16531,7 @@ class _IntegrationsPageState extends State<IntegrationsPage> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() => controller.dispose());
   }
 
   // ── Gemini AI ──
@@ -19507,26 +19626,67 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
   Future<void> _restoreNote(int index) async {
     final trashed = _trashedNotes[index];
     final db = DatabaseHelper();
-    if (trashed.type == 'pro') {
-      await db.insertProNote(ProNote.fromJson(trashed.noteJson));
-    } else if (trashed.type == 'event') {
-      final event = CalendarEventFull.fromJson(trashed.noteJson);
-      await db.insertEvent(event);
-    } else {
-      await db.insertFlashNote(FlashNote.fromJson(trashed.noteJson));
-    }
-    if (trashed.id != null) {
-      await db.deleteTrashedNote(trashed.id!);
-    }
-    Analytics.log('note_restored', {'type': trashed.type});
-    if (!mounted) return;
-    setState(() => _trashedNotes.removeAt(index));
-    if (mounted) {
+    try {
+      if (trashed.type == 'pro') {
+        await db.insertProNote(ProNote.fromJson(trashed.noteJson));
+      } else if (trashed.type == 'event') {
+        final event = CalendarEventFull.fromJson(trashed.noteJson);
+        await db.insertEvent(event);
+        CloudSyncService().notifyDataChanged();
+        // Reschedule notification if event is in the future and has a reminder
+        if (event.startTime.isAfter(DateTime.now()) &&
+            event.reminder != null &&
+            event.reminder!.isNotEmpty) {
+          final baseId = computeEventNotifId(event);
+          final r = event.reminder!;
+          int minutesBefore = 15;
+          if (r == tr('10_min_before')) {
+            minutesBefore = 10;
+          } else if (r == tr('15_min_before')) {
+            minutesBefore = 15;
+          } else if (r == tr('30_min_before')) {
+            minutesBefore = 30;
+          } else if (r == tr('1_hour_before')) {
+            minutesBefore = 60;
+          } else if (r == tr('day_before') || r == tr('1_day_before')) {
+            minutesBefore = 1440;
+          } else if (r == tr('1_week_before')) {
+            minutesBefore = 10080;
+          } else {
+            final numMatch = RegExp(r'(\d+)').firstMatch(r);
+            if (numMatch != null) minutesBefore = int.tryParse(numMatch.group(1)!) ?? 15;
+          }
+          await NotificationService.scheduleEventReminder(
+            id: baseId,
+            title: event.title,
+            eventTime: event.startTime,
+            minutesBefore: minutesBefore,
+          );
+        }
+      } else {
+        await db.insertFlashNote(FlashNote.fromJson(trashed.noteJson));
+      }
+      if (trashed.id != null) {
+        await db.deleteTrashedNote(trashed.id!);
+      }
+      Analytics.log('note_restored', {'type': trashed.type});
+      if (!mounted) return;
+      setState(() => _trashedNotes.removeAt(index));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(trashed.type == 'event' ? tr('event_restored') : tr('note_restored')),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          duration: const Duration(seconds: 1),
-          content: Text(trashed.type == 'event' ? tr('event_restored') : tr('note_restored')),
+          content: Text('${tr('error')}: $e'),
           behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     }
@@ -19554,7 +19714,8 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
     setState(() => _trashedNotes.removeAt(index));
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                                 duration: const Duration(seconds: 1),
+                                                 duration: const Duration(seconds: 3),
+      dismissDirection: DismissDirection.down,
       content: Text(tr('permanently_deleted')),
       action: SnackBarAction(
         label: tr('undo'),
@@ -21816,7 +21977,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           final dateStr = '${startDate.day}/${startDate.month}/${startDate.year}';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              duration: const Duration(seconds: 1),
+              duration: const Duration(seconds: 3),
+              dismissDirection: DismissDirection.down,
               content: Text('"$eventTitle" ${tr('event_added_on')} $dateStr'),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -21932,7 +22094,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               if (!mounted) return;
               ScaffoldMessenger.of(context).clearSnackBars();
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                                           duration: const Duration(seconds: 1),
+                                                           duration: const Duration(seconds: 3),
+                dismissDirection: DismissDirection.down,
                 content: Text('${tr('notes_deleted')} ($deletedCount)'),
                 action: SnackBarAction(
                   label: tr('undo'),
@@ -22110,7 +22273,8 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
               if (!mounted) return;
               ScaffoldMessenger.of(context).clearSnackBars();
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                                           duration: const Duration(seconds: 1),
+                                                           duration: const Duration(seconds: 3),
+                dismissDirection: DismissDirection.down,
                 content: Text('${tr('notes_deleted')} ($deletedCount)'),
                 action: SnackBarAction(
                   label: tr('undo'),
@@ -22879,7 +23043,9 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
           },
         ),
       ),
-    );
+    ).then((_) {
+      if (mounted) _loadNotes();
+    });
   }
 
   String _formatDateTime(DateTime dt) {
@@ -25399,7 +25565,9 @@ class _NotesProPageState extends State<NotesProPage> {
           },
         ),
       ),
-    );
+    ).then((_) {
+      if (mounted) _loadNotes();
+    });
   }
 
   /// Robust file image loader: reads bytes from disk and uses Image.memory
@@ -25944,7 +26112,7 @@ class _NotesProPageState extends State<NotesProPage> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() => controller.dispose());
   }
 
   void _showCreatePinDialog({required VoidCallback onSuccess}) {
@@ -26008,7 +26176,10 @@ class _NotesProPageState extends State<NotesProPage> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      pinController.dispose();
+      confirmController.dispose();
+    });
   }
 
   Future<void> _proposeEnableBiometric() async {
@@ -26341,7 +26512,7 @@ class _NotesProPageState extends State<NotesProPage> {
           ],
         ),
       ),
-    );
+    ).whenComplete(() => nameController.dispose());
   }
 
   void _showDeleteFolderDialog(String folderName) {
@@ -26405,7 +26576,8 @@ class _NotesProPageState extends State<NotesProPage> {
 
   Future<String?> _showEmojiPickerDialog() async {
     final emojiController = TextEditingController();
-    return showDialog<String>(
+    try {
+    return await showDialog<String>(
       context: context,
       builder: (emojiCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -26444,6 +26616,9 @@ class _NotesProPageState extends State<NotesProPage> {
         ],
       ),
     );
+    } finally {
+      emojiController.dispose();
+    }
   }
 
   void _showCreateFolderDialog({String? defaultParent}) async {
@@ -26724,7 +26899,10 @@ class _NotesProPageState extends State<NotesProPage> {
           ],
         ),
       ),
-    );
+    ).whenComplete(() {
+      nameController.dispose();
+      emailController.dispose();
+    });
   }
 
   @override
@@ -27999,7 +28177,8 @@ class _NotesProPageState extends State<NotesProPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                                 duration: const Duration(seconds: 1),
+                                                 duration: const Duration(seconds: 3),
+      dismissDirection: DismissDirection.down,
       content: Text('${tr('notes_deleted')} ($deletedCount)'),
       action: SnackBarAction(
         label: tr('undo'),
@@ -29097,9 +29276,9 @@ class _NoteReadPageState extends State<NoteReadPage> {
 
   Future<void> _callGeminiAI(String action) async {
     final settings = await FlashNotesSettings.load();
+    if (!mounted) return;
     final apiKey = settings.geminiApiKey;
     if (apiKey.isEmpty) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 1),
@@ -29786,9 +29965,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
   Future<void> _callGeminiAI(String action) async {
     final settings = await FlashNotesSettings.load();
+    if (!mounted) return;
     final apiKey = settings.geminiApiKey;
     if (apiKey.isEmpty) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 1),

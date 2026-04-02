@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_clip_shape"
+    android:clipToOutline="true"
+    android:outlineProvider="background">
+
+    <LinearLayout
+        android:id="@+id/cal_widget_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@drawable/widget_background"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="4dp">
+
+        <!-- Header: Month/Year + Today + Add button -->
+        <RelativeLayout
+            android:id="@+id/cal_header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/cal_month_year"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Marzo 2026"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#FF1C1B1F" />
+
+                <TextView
+                    android:id="@+id/cal_today_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sabato 21"
+                    android:textSize="12sp"
+                    android:textColor="#FF1E88E5" />
+
+            </LinearLayout>
+
+            <ImageView
+                android:id="@+id/cal_add_btn"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:src="@drawable/ic_widget_calendar_add"
+                android:contentDescription="Aggiungi evento"
+                android:clickable="true" />
+
+        </RelativeLayout>
+
+        <!-- Day of week headers -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="4dp">
+
+            <TextView android:id="@+id/dow_0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="L" android:textSize="11sp" android:textColor="#66000000" />
+            <TextView android:id="@+id/dow_1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="M" android:textSize="11sp" android:textColor="#66000000" />
+            <TextView android:id="@+id/dow_2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="M" android:textSize="11sp" android:textColor="#66000000" />
+            <TextView android:id="@+id/dow_3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="G" android:textSize="11sp" android:textColor="#66000000" />
+            <TextView android:id="@+id/dow_4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="V" android:textSize="11sp" android:textColor="#66000000" />
+            <TextView android:id="@+id/dow_5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="S" android:textSize="11sp" android:textColor="#66000000" />
+            <TextView android:id="@+id/dow_6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="D" android:textSize="11sp" android:textColor="#66000000" />
+        </LinearLayout>
+
+        <!-- Calendar grid: 6 rows x 7 columns -->
+        <!-- Row 0 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_0_0" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_0_0" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_0_1" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_0_1" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_0_2" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_0_2" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_0_3" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_0_3" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_0_4" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_0_4" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_0_5" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_0_5" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_0_6" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_0_6" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Row 1 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_1_0" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_1_0" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_1_1" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_1_1" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_1_2" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_1_2" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_1_3" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_1_3" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_1_4" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_1_4" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_1_5" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_1_5" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_1_6" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_1_6" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Row 2 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_2_0" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_2_0" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_2_1" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_2_1" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_2_2" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_2_2" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_2_3" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_2_3" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_2_4" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_2_4" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_2_5" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_2_5" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_2_6" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_2_6" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Row 3 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_3_0" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_3_0" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_3_1" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_3_1" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_3_2" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_3_2" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_3_3" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_3_3" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_3_4" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_3_4" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_3_5" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_3_5" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_3_6" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_3_6" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Row 4 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_4_0" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_4_0" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_4_1" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_4_1" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_4_2" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_4_2" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_4_3" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_4_3" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_4_4" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_4_4" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_4_5" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_4_5" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_4_6" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_4_6" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Row 5 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_5_0" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_5_0" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_5_1" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_5_1" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_5_2" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_5_2" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_5_3" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_5_3" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_5_4" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_5_4" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_5_5" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_5_5" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/day_5_6" android:layout_width="28dp" android:layout_height="28dp" android:gravity="center" android:textSize="13sp" android:textColor="#FF1C1B1F" />
+                <ImageView android:id="@+id/dot_5_6" android:layout_width="5dp" android:layout_height="5dp" android:src="@drawable/widget_cal_dot" android:visibility="invisible" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:id="@+id/cal_divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="2dp"
+            android:background="#1A000000" />
+
+        <!-- Upcoming events label -->
+        <TextView
+            android:id="@+id/cal_events_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Prossimi eventi"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="#99000000"
+            android:paddingBottom="2dp" />
+
+        <!-- Scrollable event list -->
+        <ListView
+            android:id="@+id/cal_events_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:scrollbars="none"
+            android:fadingEdge="none" />
+
+        <!-- Empty state when no events -->
+        <TextView
+            android:id="@+id/cal_no_events"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:text="Nessun evento in programma"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:textColor="#66000000"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</FrameLayout>
