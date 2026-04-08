@@ -49,6 +49,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:device_calendar/device_calendar.dart' as dc;
 
 /// Returns true when the Yellow Note theme is active.
 bool _isYellowNoteTheme(BuildContext context) =>
@@ -1779,6 +1780,15 @@ const _translations = <String, Map<String, String>>{
   'notifications_working': {'it': 'Le notifiche funzionano!', 'en': 'Notifications are working!', 'fr': 'Les notifications fonctionnent !', 'es': '¡Las notificaciones funcionan!'},
   'scheduled_notif_working': {'it': 'Notifica programmata funziona! (10s)', 'en': 'Scheduled notification works! (10s)', 'fr': 'Notification programmée fonctionne ! (10s)', 'es': '¡Notificación programada funciona! (10s)'},
   'week_prefix': {'it': 'Sett.', 'en': 'Wk.', 'fr': 'Sem.', 'es': 'Sem.'},
+
+  // ── Device Calendar ──
+  'device_calendar': {'it': 'Calendario Dispositivo', 'en': 'Device Calendar', 'fr': 'Calendrier Appareil', 'es': 'Calendario Dispositivo'},
+  'device_calendar_desc': {'it': 'Sincronizza con il calendario nativo del dispositivo', 'en': 'Sync with native device calendar', 'fr': 'Synchroniser avec le calendrier natif', 'es': 'Sincronizar con el calendario nativo'},
+  'select_calendars': {'it': 'Seleziona calendari', 'en': 'Select calendars', 'fr': 'Sélectionner les calendriers', 'es': 'Seleccionar calendarios'},
+  'device_calendar_permission_denied': {'it': 'Permesso calendario negato', 'en': 'Calendar permission denied', 'fr': 'Permission calendrier refusée', 'es': 'Permiso de calendario denegado'},
+  'no_calendars_found': {'it': 'Nessun calendario trovato', 'en': 'No calendars found', 'fr': 'Aucun calendrier trouvé', 'es': 'No se encontraron calendarios'},
+  'device_calendar_sync_error': {'it': 'Errore sincronizzazione calendario', 'en': 'Calendar sync error', 'fr': 'Erreur de synchronisation', 'es': 'Error de sincronización'},
+  'retry': {'it': 'Riprova', 'en': 'Retry', 'fr': 'Réessayer', 'es': 'Reintentar'},
 };
 
 // ─── SQLite Database Helper ──────────────────────────────────────────────────
@@ -7158,6 +7168,9 @@ class _CalendarPageState extends State<CalendarPage> {
   // Google Calendar
   Map<String, List<CalendarEventFull>> _googleEvents = {};
   Set<String> _completedGoogleEventIds = {};
+
+  // Device Calendar
+  Map<String, List<CalendarEventFull>> _deviceCalendarEvents = {};
   // Track locally-deleted events so matching Google duplicates stay hidden
   final Set<String> _deletedEventSignatures = {};
   // Only reschedule all notifications once per session
@@ -7183,6 +7196,7 @@ class _CalendarPageState extends State<CalendarPage> {
     _loadCycleDays();
     _loadCompletedGoogleEventIds();
     _initGoogleCalendar();
+    _initDeviceCalendar();
     _initHealth();
     _eventsScrollController.addListener(_onEventsScroll);
     // Handle deep link action (e.g. create new event)
@@ -7516,6 +7530,62 @@ class _CalendarPageState extends State<CalendarPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Errore sincronizzazione Google Calendar'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  Future<void> _initDeviceCalendar() async {
+    await DeviceCalendarService.loadEnabledCalendars();
+    if (!_calSettings.deviceCalendarEnabled) return;
+    final hasPerms = await DeviceCalendarService.checkPermissions();
+    if (hasPerms) {
+      await DeviceCalendarService.getCalendars();
+      _fetchDeviceCalendarEvents();
+    }
+  }
+
+  Future<void> _fetchDeviceCalendarEvents() async {
+    if (!_calSettings.deviceCalendarEnabled) return;
+    if (DeviceCalendarService.enabledCalendarIds.isEmpty) return;
+    // Fetch 3 months of events
+    final start = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
+    final end = DateTime(_focusedDay.year, _focusedDay.month + 2, 0);
+    final events = await DeviceCalendarService.fetchEvents(start, end);
+    if (!mounted) return;
+    final Map<String, List<CalendarEventFull>> mapped = {};
+    for (final e in events) {
+      final key = _dateKey(e.startTime);
+      mapped.putIfAbsent(key, () => []).add(e);
+    }
+    setState(() {
+      _deviceCalendarEvents = mapped;
+    });
+  }
+
+  Future<void> _pushEventToDeviceCalendar(CalendarEventFull event) async {
+    if (!_calSettings.deviceCalendarEnabled) return;
+    if (DeviceCalendarService.enabledCalendarIds.isEmpty) return;
+    final calId = DeviceCalendarService.enabledCalendarIds.first;
+    final success = await DeviceCalendarService.pushEvent(calId, event);
+    if (!mounted) return;
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${tr('event_saved')} - ${event.title}'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      _fetchDeviceCalendarEvents();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('device_calendar_sync_error')),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           duration: const Duration(seconds: 3),
@@ -7936,6 +8006,16 @@ class _CalendarPageState extends State<CalendarPage> {
       }
       return g;
     }).toList();
+    // Device calendar events
+    final deviceCal = _deviceCalendarEvents[_dateKey(day)] ?? [];
+    final filteredDevice = deviceCal.where((d) {
+      // Filter out device events that duplicate a local event
+      if (local.any((l) => l.title == d.title && l.startTime.difference(d.startTime).inMinutes.abs() < 2)) return false;
+      // Filter out device events that duplicate a Google event
+      if (filtered.any((g) => g.title == d.title && g.startTime.difference(d.startTime).inMinutes.abs() < 2)) return false;
+      return true;
+    }).toList();
+
     // Add holidays as all-day events
     final holidayKey = '${day.month}-${day.day}';
     final holidays = _holidays[holidayKey] ?? [];
@@ -7946,7 +8026,7 @@ class _CalendarPageState extends State<CalendarPage> {
       calendar: 'Festività',
     )).toList();
 
-    return [...local, ...filtered, ...holidayEvents];
+    return [...local, ...filtered, ...filteredDevice, ...holidayEvents];
   }
 
   void _createEvent() {
@@ -8027,6 +8107,9 @@ class _CalendarPageState extends State<CalendarPage> {
             });
             if (GoogleCalendarService.isSignedIn) {
               _pushEventToGoogle(event); // push base event only
+            }
+            if (_calSettings.deviceCalendarEnabled && DeviceCalendarService.enabledCalendarIds.isNotEmpty) {
+              _pushEventToDeviceCalendar(event); // push base event only
             }
           },
         ),
@@ -10022,6 +10105,161 @@ class GoogleCalendarService {
   }
 }
 
+// ── Device Calendar Service (Apple Calendar, Samsung, Outlook, etc.) ──
+class DeviceCalendarService {
+  static final _plugin = dc.DeviceCalendarPlugin();
+  static bool _permissionsGranted = false;
+  static List<dc.Calendar> _calendars = [];
+  static Set<String> _enabledCalendarIds = {};
+
+  static bool get hasPermissions => _permissionsGranted;
+  static List<dc.Calendar> get calendars => _calendars;
+  static Set<String> get enabledCalendarIds => _enabledCalendarIds;
+
+  /// Request calendar permissions from the user.
+  static Future<bool> requestPermissions() async {
+    try {
+      final result = await _plugin.requestPermissions();
+      _permissionsGranted = result.isSuccess && (result.data ?? false);
+      return _permissionsGranted;
+    } catch (e) {
+      if (kDebugMode) debugPrint('DeviceCalendar permission error: $e');
+      return false;
+    }
+  }
+
+  /// Check if permissions are already granted (without prompting).
+  static Future<bool> checkPermissions() async {
+    try {
+      final result = await _plugin.hasPermissions();
+      _permissionsGranted = result.isSuccess && (result.data ?? false);
+      return _permissionsGranted;
+    } catch (e) {
+      if (kDebugMode) debugPrint('DeviceCalendar check permission error: $e');
+      return false;
+    }
+  }
+
+  /// Retrieve all calendars from the device.
+  static Future<List<dc.Calendar>> getCalendars() async {
+    if (!_permissionsGranted) {
+      final granted = await requestPermissions();
+      if (!granted) return [];
+    }
+    try {
+      final result = await _plugin.retrieveCalendars();
+      if (result.isSuccess && result.data != null) {
+        _calendars = result.data!.toList();
+      } else {
+        _calendars = [];
+      }
+      return _calendars;
+    } catch (e) {
+      if (kDebugMode) debugPrint('DeviceCalendar getCalendars error: $e');
+      return [];
+    }
+  }
+
+  /// Load enabled calendar IDs from SharedPreferences.
+  static Future<void> loadEnabledCalendars() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList('device_calendar_ids');
+    _enabledCalendarIds = ids?.toSet() ?? {};
+  }
+
+  /// Save enabled calendar IDs to SharedPreferences.
+  static Future<void> saveEnabledCalendars(Set<String> ids) async {
+    _enabledCalendarIds = ids;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('device_calendar_ids', ids.toList());
+  }
+
+  /// Fetch events from enabled device calendars for a given date range.
+  static Future<List<CalendarEventFull>> fetchEvents(DateTime start, DateTime end) async {
+    if (!_permissionsGranted || _enabledCalendarIds.isEmpty) return [];
+    final List<CalendarEventFull> allEvents = [];
+    for (final calId in _enabledCalendarIds) {
+      try {
+        final result = await _plugin.retrieveEvents(
+          calId,
+          dc.RetrieveEventsParams(
+            startDate: start,
+            endDate: end,
+          ),
+        );
+        if (result.isSuccess && result.data != null) {
+          // Find calendar name for display
+          final calName = _calendars
+              .where((c) => c.id == calId)
+              .map((c) => c.name ?? 'Dispositivo')
+              .firstOrNull ?? 'Dispositivo';
+          for (final event in result.data!) {
+            allEvents.add(_deviceEventToLocal(event, calName, calId));
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) debugPrint('DeviceCalendar fetchEvents error for $calId: $e');
+      }
+    }
+    return allEvents;
+  }
+
+  /// Push a CalendarEventFull to a specific device calendar.
+  static Future<bool> pushEvent(String calendarId, CalendarEventFull event) async {
+    if (!_permissionsGranted) return false;
+    try {
+      final dcEvent = dc.Event(calendarId,
+        title: event.title,
+        description: event.notes,
+        start: tz.TZDateTime.from(event.startTime, tz.local),
+        end: tz.TZDateTime.from(event.endTime, tz.local),
+      );
+      final result = await _plugin.createOrUpdateEvent(dcEvent);
+      return result?.isSuccess ?? false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('DeviceCalendar pushEvent error: $e');
+      return false;
+    }
+  }
+
+  /// Delete an event from a device calendar.
+  static Future<bool> deleteEvent(String calendarId, String eventId) async {
+    if (!_permissionsGranted) return false;
+    try {
+      final result = await _plugin.deleteEvent(calendarId, eventId);
+      return result.isSuccess && (result.data ?? false);
+    } catch (e) {
+      if (kDebugMode) debugPrint('DeviceCalendar deleteEvent error: $e');
+      return false;
+    }
+  }
+
+  static CalendarEventFull _deviceEventToLocal(dc.Event dcEvent, String calendarName, String calendarId) {
+    DateTime startTime;
+    DateTime endTime;
+    if (dcEvent.start != null) {
+      startTime = dcEvent.start!.toLocal();
+    } else {
+      startTime = DateTime.now();
+    }
+    if (dcEvent.end != null) {
+      endTime = dcEvent.end!.toLocal();
+    } else {
+      endTime = startTime.add(const Duration(hours: 1));
+    }
+    return CalendarEventFull(
+      title: dcEvent.title ?? '(${tr('untitled')})',
+      startTime: startTime,
+      endTime: endTime,
+      calendar: calendarName,
+      reminder: '15',
+      isCompleted: false,
+      googleEventId: 'dc_${calendarId}_${dcEvent.eventId}', // prefix to identify device calendar events
+      notes: dcEvent.description,
+    );
+  }
+}
+
 // ── Health Service (Apple Health / Google Health Connect) ──
 class HealthSnapshot {
   final int? steps;
@@ -10942,6 +11180,10 @@ class CalendarSettings {
   final bool showHolidays;
   final String religione;
 
+  // Device calendar integration
+  final bool deviceCalendarEnabled;
+  final List<String> deviceCalendarIds;
+
   const CalendarSettings({
     this.alertConfig = const CalendarAlertConfig(),
     this.alertMinutesBefore = const [10],
@@ -10971,6 +11213,8 @@ class CalendarSettings {
     this.manualNextCycleDate,
     this.showHolidays = true,
     this.religione = 'Cattolica',
+    this.deviceCalendarEnabled = false,
+    this.deviceCalendarIds = const [],
   });
 
   Color get calendarColor => Color(calendarColorValue);
@@ -11008,6 +11252,8 @@ class CalendarSettings {
     bool clearManualNextCycleDate = false,
     bool? showHolidays,
     String? religione,
+    bool? deviceCalendarEnabled,
+    List<String>? deviceCalendarIds,
   }) {
     return CalendarSettings(
       alertConfig: alertConfig ?? this.alertConfig,
@@ -11038,6 +11284,8 @@ class CalendarSettings {
       manualNextCycleDate: clearManualNextCycleDate ? null : (manualNextCycleDate ?? this.manualNextCycleDate),
       showHolidays: showHolidays ?? this.showHolidays,
       religione: religione ?? this.religione,
+      deviceCalendarEnabled: deviceCalendarEnabled ?? this.deviceCalendarEnabled,
+      deviceCalendarIds: deviceCalendarIds ?? this.deviceCalendarIds,
     );
   }
 
@@ -11070,6 +11318,8 @@ class CalendarSettings {
     'manualNextCycleDate': manualNextCycleDate,
     'showHolidays': showHolidays,
     'religione': religione,
+    'deviceCalendarEnabled': deviceCalendarEnabled,
+    'deviceCalendarIds': deviceCalendarIds,
   };
 
   factory CalendarSettings.fromJson(Map<String, dynamic> json) =>
@@ -11107,6 +11357,8 @@ class CalendarSettings {
         manualNextCycleDate: json['manualNextCycleDate'],
         showHolidays: json['showHolidays'] ?? true,
         religione: json['religione'] ?? tr('catholic'),
+        deviceCalendarEnabled: json['deviceCalendarEnabled'] ?? false,
+        deviceCalendarIds: (json['deviceCalendarIds'] as List?)?.cast<String>() ?? [],
       );
 
   static Future<CalendarSettings> load() async {
@@ -11147,6 +11399,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   DateTime? _nextPredictedCycleStart;
   List<Map<String, dynamic>> _customCalendars = [];
   int? _expandedSection;
+  List<dc.Calendar> _deviceCalendars = [];
+  bool _isLoadingDeviceCalendars = false;
 
   static final _availableAlertMinutes = <int, String>{
     5: tr('5_min_before'),
@@ -11174,6 +11428,9 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     _weatherCityController = TextEditingController(text: _settings.weatherCity ?? '');
     _loadCyclePrediction();
     _loadCustomCalendars();
+    if (_settings.deviceCalendarEnabled) {
+      _loadDeviceCalendars();
+    }
   }
 
   Future<void> _loadCyclePrediction() async {
@@ -11355,6 +11612,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             _buildAccordion(6, tr('holidays'), Icons.church, _buildReligioneCard()),
             _buildAccordion(7, tr('your_calendars'), Icons.event_note, _buildCalendarsCard()),
             _buildAccordion(8, tr('cycle_tracking'), Icons.water_drop, _buildCycleTrackingSettingsCard()),
+            _buildAccordion(9, tr('device_calendar'), Icons.phone_android, _buildDeviceCalendarCard()),
             const SizedBox(height: 32),
           ],
         ),
@@ -12322,6 +12580,153 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                   ),
                 ],
               ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadDeviceCalendars() async {
+    setState(() => _isLoadingDeviceCalendars = true);
+    final granted = await DeviceCalendarService.requestPermissions();
+    if (!mounted) return;
+    if (!granted) {
+      setState(() => _isLoadingDeviceCalendars = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('device_calendar_permission_denied')),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      _updateSettings(_settings.copyWith(deviceCalendarEnabled: false));
+      return;
+    }
+    final cals = await DeviceCalendarService.getCalendars();
+    if (!mounted) return;
+    setState(() {
+      _deviceCalendars = cals;
+      _isLoadingDeviceCalendars = false;
+    });
+  }
+
+  Widget _buildDeviceCalendarCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accentColor = Color(_settings.calendarColorValue);
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row with switch
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.phone_android, color: accentColor, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('device_calendar'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 2),
+                      Text(tr('device_calendar_desc'), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _settings.deviceCalendarEnabled,
+                  activeColor: accentColor,
+                  onChanged: (v) {
+                    _updateSettings(_settings.copyWith(deviceCalendarEnabled: v));
+                    if (v) {
+                      _loadDeviceCalendars();
+                    } else {
+                      setState(() => _deviceCalendars = []);
+                    }
+                  },
+                ),
+              ],
+            ),
+            if (_settings.deviceCalendarEnabled) ...[
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              Text(tr('select_calendars'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
+              const SizedBox(height: 8),
+              if (_isLoadingDeviceCalendars)
+                const Center(child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                ))
+              else if (_deviceCalendars.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(tr('no_calendars_found'), style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant))),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: _loadDeviceCalendars,
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        ),
+                        child: Text(tr('retry'), style: const TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ..._deviceCalendars.map((cal) {
+                  final calId = cal.id ?? '';
+                  final isEnabled = _settings.deviceCalendarIds.contains(calId);
+                  final calColor = cal.color != null
+                      ? Color(cal.color!)
+                      : accentColor;
+                  return CheckboxListTile(
+                    title: Text(cal.name ?? 'Unknown', style: const TextStyle(fontSize: 14)),
+                    subtitle: cal.accountName != null && cal.accountName!.isNotEmpty
+                        ? Text(cal.accountName!, style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant))
+                        : null,
+                    secondary: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: calColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    value: isEnabled,
+                    activeColor: accentColor,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    controlAffinity: ListTileControlAffinity.trailing,
+                    onChanged: (v) {
+                      final newIds = Set<String>.from(_settings.deviceCalendarIds);
+                      if (v == true) {
+                        newIds.add(calId);
+                      } else {
+                        newIds.remove(calId);
+                      }
+                      _updateSettings(_settings.copyWith(deviceCalendarIds: newIds.toList()));
+                      DeviceCalendarService.saveEnabledCalendars(newIds);
+                    },
+                  );
+                }),
             ],
           ],
         ),

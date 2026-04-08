@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Ethos Note accede al calendario del dispositivo per sincronizzare i tuoi eventi</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Ethos Note richiede accesso completo al calendario per leggere e creare eventi</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Ethos Note usa la fotocamera per scattare foto da allegare alle note</string>
 	<key>NSFaceIDUsageDescription</key>
