@@ -34,14 +34,14 @@
 		<string>Ethos Note richiede accesso completo al calendario per leggere e creare eventi</string>
 		<key>NSCameraUsageDescription</key>
 		<string>Ethos Note usa la fotocamera per scattare foto da allegare alle note</string>
+		<key>NSContactsUsageDescription</key>
+		<string>Ethos Note salva nella tua rubrica i contatti che crei dalle note</string>
 		<key>NSFaceIDUsageDescription</key>
 		<string>Ethos Note usa Face ID per proteggere la cartella privata</string>
 		<key>NSHealthShareUsageDescription</key>
 		<string>Ethos Note legge i dati di salute per mostrare il riepilogo giornaliero</string>
 		<key>NSHealthUpdateUsageDescription</key>
 		<string>Ethos Note scrive dati sul ciclo mestruale in Salute</string>
-		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>Ethos Note usa la posizione per mostrare il meteo nella tua zona</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>Ethos Note usa il microfono per registrare note vocali</string>
 		<key>NSPhotoLibraryUsageDescription</key>

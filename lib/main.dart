@@ -36,12 +36,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:home_widget/home_widget.dart';
-import 'dart:io' show Directory, File, FileMode, HttpClient;
+import 'dart:io' show Directory, File, FileMode, HttpClient, Platform;
 import 'package:archive/archive.dart' as archive;
 import 'package:share_plus/share_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'dart:ui' as ui show PlatformDispatcher, Gradient, Image, instantiateImageCodec, Codec, PictureRecorder, ImageByteFormat;
+import 'dart:ui' as ui show PlatformDispatcher, Gradient, instantiateImageCodec, PictureRecorder, ImageByteFormat;
 import 'package:flutter_contacts/flutter_contacts.dart' as contacts_pkg;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -5634,20 +5634,20 @@ class Holidays {
     // Qui usiamo date pre-calcolate per gli anni noti.
     final map = <int, List<Holiday>>{
       2025: [
-        Holiday(9, 22, '🕎', 'Rosh Hashanah'),
-        Holiday(12, 14, '🕎', 'Hanukkah'),
+        Holiday(9, 23, '🕎', 'Rosh Hashanah'),
+        Holiday(12, 15, '🕎', 'Hanukkah'),
       ],
       2026: [
-        Holiday(9, 11, '🕎', 'Rosh Hashanah'),
-        Holiday(12, 4, '🕎', 'Hanukkah'),
+        Holiday(9, 12, '🕎', 'Rosh Hashanah'),
+        Holiday(12, 5, '🕎', 'Hanukkah'),
       ],
       2027: [
-        Holiday(10, 1, '🕎', 'Rosh Hashanah'),
-        Holiday(12, 24, '🕎', 'Hanukkah'),
+        Holiday(10, 2, '🕎', 'Rosh Hashanah'),
+        Holiday(12, 25, '🕎', 'Hanukkah'),
       ],
       2028: [
-        Holiday(9, 20, '🕎', 'Rosh Hashanah'),
-        Holiday(12, 12, '🕎', 'Hanukkah'),
+        Holiday(9, 21, '🕎', 'Rosh Hashanah'),
+        Holiday(12, 13, '🕎', 'Hanukkah'),
       ],
     };
     return map[year] ?? [
@@ -6428,7 +6428,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin, Widg
   }
 
   Future<void> _refreshWidgets() async {
-    if (kIsWeb) return;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     try {
       await HomeWidget.updateWidget(
         qualifiedAndroidName: 'com.ethosnote.app.widget.FlashNotesShortcutsProvider',
@@ -7700,7 +7700,7 @@ class _CalendarPageState extends State<CalendarPage> {
         final done = await DatabaseHelper().getCache(doneKey);
         if (done == null) {
           // Create report note in Diario del Ciclo
-          final month = months[end.month] ?? '';
+          final month = months[end.month];
           await _createCycleDiaryNote(
             title: '${tr('cycle_report')} $month',
             type: 'cycle_diary',
@@ -7743,7 +7743,7 @@ class _CalendarPageState extends State<CalendarPage> {
           final missKey = 'cycle_missing_${nextPredicted.year}-${nextPredicted.month}-${nextPredicted.day}';
           final missDone = await DatabaseHelper().getCache(missKey);
           if (missDone == null) {
-            final month = months[nextPredicted.month] ?? '';
+            final month = months[nextPredicted.month];
             await _createCycleDiaryNote(
               title: '${tr('cycle_missing')} $month',
               type: 'cycle_missing',
@@ -10989,13 +10989,29 @@ class NotificationService {
     if (reminderTime.isBefore(DateTime.now())) return;
     const id = 999888;
     final channelId = _channelIdForAlertType(alertType);
-    await _scheduleNative(
+    final nativeOk = await _scheduleNative(
       id: id,
       title: 'Promemoria Ciclo',
       body: 'Il ciclo è previsto per domani',
       channelId: channelId,
       triggerTime: reminderTime,
     );
+    if (!nativeOk) {
+      final tzScheduled = tz.TZDateTime.from(reminderTime, tz.local);
+      final details = _buildNotifDetails(alertType);
+      try {
+        await _plugin.zonedSchedule(
+          id,
+          'Promemoria Ciclo',
+          'Il ciclo è previsto per domani',
+          tzScheduled,
+          details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+          payload: 'cycle_reminder',
+        );
+      } catch (e) { if (kDebugMode) debugPrint('cycle reminder schedule error: $e'); }
+    }
   }
 
   /// Schedule cycle diary notification at a specific time.
@@ -11004,13 +11020,29 @@ class NotificationService {
     await ensurePermissions();
     if (!_permissionsGranted) return;
     const id = 999777;
-    await _scheduleNative(
+    final nativeOk = await _scheduleNative(
       id: id,
       title: 'Ethos Note',
       body: tr('cycle_ended_notif'),
       channelId: _channelIdForAlertType(alertType),
       triggerTime: time,
     );
+    if (!nativeOk) {
+      final tzScheduled = tz.TZDateTime.from(time, tz.local);
+      final details = _buildNotifDetails(alertType);
+      try {
+        await _plugin.zonedSchedule(
+          id,
+          'Ethos Note',
+          tr('cycle_ended_notif'),
+          tzScheduled,
+          details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+          payload: 'cycle_diary',
+        );
+      } catch (e) { if (kDebugMode) debugPrint('cycle diary schedule error: $e'); }
+    }
   }
 
   /// Show cycle diary notification immediately.
@@ -11402,22 +11434,10 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
   List<dc.Calendar> _deviceCalendars = [];
   bool _isLoadingDeviceCalendars = false;
 
-  static final _availableAlertMinutes = <int, String>{
-    5: tr('5_min_before'),
-    10: tr('10_min_before'),
-    15: tr('15_min_before'),
-    30: tr('30_min_before'),
-    60: tr('1_hour_before'),
-  };
-
   static final _alertTypes = {
     'vibration': tr('vibration_only'),
     'sound': tr('sound_only'),
     'sound_vibration': 'Sound + Vibration',
-  };
-
-  static final _alertDurations = {
-    3: tr('3_seconds'),
   };
 
 
@@ -11884,126 +11904,6 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       _loadCustomCalendars();
     }
   }
-
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: Color(_settings.calendarColorValue), size: 24),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Color(_settings.calendarColorValue),
-          ),
-        ),
-      ],
-    );
-  }
-
-
-  bool get _isCustomDuration =>
-      !_alertDurations.containsKey(_settings.alertConfig.durationSeconds);
-
-
-  void _showCustomDurationDialog() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(tr('default_alert')),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            hintText: tr('insert'),
-            suffixText: tr('seconds'),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(tr('cancel')),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = int.tryParse(controller.text);
-              if (value != null && value >= 1) {
-                _updateSettings(_settings.copyWith(
-                  alertConfig: CalendarAlertConfig(
-                    alertType: _settings.alertConfig.alertType,
-                    durationSeconds: value,
-                  ),
-                ));
-                Navigator.pop(context);
-              }
-            },
-            child: Text(tr('confirm')),
-          ),
-        ],
-      ),
-    ).whenComplete(() => controller.dispose());
-  }
-
-  List<int> get _customAlertMinutes =>
-      _settings.alertMinutesBefore
-          .where((m) => !_availableAlertMinutes.containsKey(m))
-          .toList();
-
-  String _formatCustomMinutes(int m) {
-    if (m < 60) return '$m ${tr('min_before')}';
-    if (m < 1440) {
-      final h = m ~/ 60;
-      final rm = m % 60;
-      return rm == 0 ? '$h ${tr('hours_before')}' : '$h ${tr('hours_min_before').replaceAll('{m}', '$rm')}';
-    }
-    final d = m ~/ 1440;
-    return d == 1 ? tr('day_before') : '$d ${tr('days_before')}';
-  }
-
-
-  void _showCustomAlertTimeDialog() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(tr('alert_sound')),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            hintText: tr('insert'),
-            suffixText: tr('minutes_before'),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(tr('cancel')),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = int.tryParse(controller.text);
-              if (value != null && value >= 1) {
-                final newList = List<int>.from(_settings.alertMinutesBefore);
-                if (!newList.contains(value)) {
-                  newList.add(value);
-                  newList.sort();
-                }
-                _updateSettings(_settings.copyWith(alertMinutesBefore: newList));
-                Navigator.pop(context);
-              }
-            },
-            child: Text(tr('confirm')),
-          ),
-        ],
-      ),
-    ).whenComplete(() => controller.dispose());
-  }
-
 
   Widget _buildNextMonthPreviewCard() {
     return Card(
@@ -12497,7 +12397,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
                       'periodStart': '${now.year}-${now.month}-${now.day}',
                       'periodEnd': '${now.year}-${now.month}-${now.day}',
                       'createdAt': now.toIso8601String(),
-                      'month': months[now.month] ?? '',
+                      'month': months[now.month],
                       'timing': null,
                       'flow': null,
                       'symptoms': <String>[],
@@ -15052,91 +14952,6 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  void _shareProfile() {
-    final vcard = StringBuffer();
-    vcard.writeln('BEGIN:VCARD');
-    vcard.writeln('VERSION:3.0');
-    vcard.writeln('FN:${_profile.fullName}');
-    if (_profile.nome != null) vcard.writeln('N:${_profile.cognome ?? ''};${_profile.nome};;;');
-    if (_profile.email != null) vcard.writeln('EMAIL:${_profile.email}');
-    for (final link in _profile.socialLinks) {
-      vcard.writeln('URL:$link');
-    }
-    vcard.writeln('END:VCARD');
-    Clipboard.setData(ClipboardData(text: vcard.toString()));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 1),
-        content: Text(tr('copied_to_clipboard')),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
-  void _addSocialLink() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(tr('add_social_link')),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            labelText: tr('url_or_username'),
-            hintText: 'https://...',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            prefixIcon: const Icon(Icons.link),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
-          FilledButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                setState(() => _profile.socialLinks.add(controller.text));
-                Navigator.pop(context);
-              }
-            },
-            child: Text(tr('add')),
-          ),
-        ],
-      ),
-    ).whenComplete(() => controller.dispose());
-  }
-
-  void _addFriend() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(tr('add_friend')),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            labelText: tr('friend_name'),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            prefixIcon: const Icon(Icons.person_add),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel'))),
-          FilledButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                setState(() => _profile.friends.add(controller.text));
-                Navigator.pop(context);
-              }
-            },
-            child: Text(tr('add')),
-          ),
-        ],
-      ),
-    ).whenComplete(() => controller.dispose());
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -15658,9 +15473,19 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
         final now = DateTime.now();
         final fileName = 'ethos_note_backup_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.zip';
 
-        final downloadDir = Directory('/storage/emulated/0/Download/EthosNote');
-        if (!await downloadDir.exists()) await downloadDir.create(recursive: true);
-        await File(p.join(downloadDir.path, fileName)).writeAsBytes(zipBytes);
+        if (Platform.isAndroid) {
+          final downloadDir = Directory('/storage/emulated/0/Download/EthosNote');
+          if (!await downloadDir.exists()) await downloadDir.create(recursive: true);
+          await File(p.join(downloadDir.path, fileName)).writeAsBytes(zipBytes);
+        } else {
+          // iOS / macOS: write to temp and open share sheet so the user can pick a destination
+          final tempDir = await getTemporaryDirectory();
+          final tempPath = p.join(tempDir.path, fileName);
+          await File(tempPath).writeAsBytes(zipBytes);
+          await SharePlus.instance.share(ShareParams(
+            files: [XFile(tempPath, mimeType: 'application/zip')],
+          ));
+        }
       }
 
       final nowIso = DateTime.now().toIso8601String();
@@ -17661,7 +17486,6 @@ class _ProfilePhotoCropPageState extends State<_ProfilePhotoCropPage> {
   Offset _offset = Offset.zero;
   Offset _prevOffset = Offset.zero;
   Offset _focalStart = Offset.zero;
-  Size _imageSize = Size.zero;
   bool _imageLoaded = false;
 
   @override
@@ -17675,7 +17499,6 @@ class _ProfilePhotoCropPageState extends State<_ProfilePhotoCropPage> {
     final frame = await codec.getNextFrame();
     if (!mounted) return;
     setState(() {
-      _imageSize = Size(frame.image.width.toDouble(), frame.image.height.toDouble());
       _imageLoaded = true;
     });
     frame.image.dispose();
@@ -18248,22 +18071,50 @@ Future<void> _saveContactToDevice(
     return;
   }
 
-  // Use native MethodChannel to open contact editor with full support
-  // for multiple emails/phones and structured address fields.
-  const channel = MethodChannel('com.ethosnote.app/contacts');
-  final fullName = '$firstName $lastName'.trim();
-  await channel.invokeMethod('openContactInsert', {
-    'name': fullName,
-    'phones': phones,
-    'emails': emails,
-    'company': company,
-    'jobTitle': role,
-    'street': street,
-    'city': city,
-    'postalCode': postalCode,
-    'province': province,
-    'website': website,
-  });
+  if (Platform.isAndroid) {
+    const channel = MethodChannel('com.ethosnote.app/contacts');
+    final fullName = '$firstName $lastName'.trim();
+    await channel.invokeMethod('openContactInsert', {
+      'name': fullName,
+      'phones': phones,
+      'emails': emails,
+      'company': company,
+      'jobTitle': role,
+      'street': street,
+      'city': city,
+      'postalCode': postalCode,
+      'province': province,
+      'website': website,
+    });
+  } else {
+    final contact = contacts_pkg.Contact()
+      ..name.first = firstName
+      ..name.last = lastName
+      ..phones = phones
+          .where((p) => p.trim().isNotEmpty)
+          .map((p) => contacts_pkg.Phone(p))
+          .toList()
+      ..emails = emails
+          .where((e) => e.trim().isNotEmpty)
+          .map((e) => contacts_pkg.Email(e))
+          .toList()
+      ..organizations = (company.isNotEmpty || role.isNotEmpty)
+          ? [contacts_pkg.Organization(company: company, title: role)]
+          : []
+      ..addresses = (street.isNotEmpty ||
+              city.isNotEmpty ||
+              postalCode.isNotEmpty ||
+              province.isNotEmpty)
+          ? [
+              contacts_pkg.Address(street,
+                  city: city, postalCode: postalCode, state: province)
+            ]
+          : []
+      ..websites = website.trim().isNotEmpty
+          ? [contacts_pkg.Website(website)]
+          : [];
+    await contacts_pkg.FlutterContacts.openExternalInsert(contact);
+  }
 
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
@@ -18861,24 +18712,6 @@ class _FlashNotesSettingsPageState extends State<FlashNotesSettingsPage> {
       ],
     );
   }
-
-  Widget _buildSectionHeader(String title, IconData icon, Color color) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
 }
 
 // ─── Theme Catalog Page ──────────────────────────────────────────────────────
@@ -19975,23 +19808,6 @@ class _NoteProSettingsPageState extends State<NoteProSettingsPage> {
       ),
     );
   }
-
-  Widget _buildSectionHeader(String title, IconData icon, Color color) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class TrashPage extends StatefulWidget {
@@ -20126,6 +19942,7 @@ class _TrashPageState extends State<TrashPage> with SingleTickerProviderStateMix
         label: tr('undo'),
         onPressed: () async {
           final newId = await db.insertTrashedNote(trashed);
+          if (!mounted) return;
           final restored = TrashedNote(
             id: newId,
             type: trashed.type,
@@ -20679,6 +20496,7 @@ class _FlashNoteEditorPageState extends State<FlashNoteEditorPage> {
     if (!await file.exists()) return;
     final bytes = await file.readAsBytes();
     final base64Image = base64Encode(bytes);
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -22423,14 +22241,13 @@ class _FlashNotesPageState extends State<FlashNotesPage> {
     final db = DatabaseHelper();
     // Move to trash if enabled
     final settings = await NoteProSettings.load();
-    int? trashedId;
     if (settings.trashEnabled) {
       final trashed = TrashedNote(
         type: 'flash',
         noteJson: note.toJson(),
         deletedAt: DateTime.now(),
       );
-      trashedId = await db.insertTrashedNote(trashed);
+      await db.insertTrashedNote(trashed);
     } else {
       // No trash — delete image file immediately
       await ImageStorageHelper().deleteImageFile(note.imagePath);
@@ -25793,7 +25610,7 @@ class _NotesProPageState extends State<NotesProPage> {
   void _createNewCycleDiary() {
     final months = localizedMonths();
     final now = DateTime.now();
-    final month = months[now.month] ?? '';
+    final month = months[now.month];
     final data = <String, dynamic>{
       'type': 'cycle_diary',
       'periodStart': '',
@@ -28854,9 +28671,8 @@ class _NotesProPageState extends State<NotesProPage> {
     if (idx == -1) return;
     final note = _proNotes[idx];
     final db = DatabaseHelper();
-    int? trashedId;
     if (_settings.trashEnabled) {
-      trashedId = await db.insertTrashedNote(TrashedNote(
+      await db.insertTrashedNote(TrashedNote(
         type: 'pro',
         noteJson: note.toJson(),
         deletedAt: DateTime.now(),
@@ -30911,6 +30727,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   void _applyTemplate(String name, BusinessTemplate template) {
     _quillController.removeListener(_updateDocumentLinks);
     _quillController.removeListener(_updateFormatState);
+    _quillController.removeListener(_onContentChanged);
     _quillController.dispose();
     setState(() {
       _selectedTemplate = name;
@@ -30924,6 +30741,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       );
       _quillController.addListener(_updateDocumentLinks);
       _quillController.addListener(_updateFormatState);
+      _quillController.addListener(_onContentChanged);
     });
   }
 
@@ -31498,6 +31316,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     if (deltaStr == null) return;
     _quillController.removeListener(_updateDocumentLinks);
     _quillController.removeListener(_updateFormatState);
+    _quillController.removeListener(_onContentChanged);
     _quillController.dispose();
     setState(() {
       _selectedTemplate = name;
@@ -31507,6 +31326,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       );
       _quillController.addListener(_updateDocumentLinks);
       _quillController.addListener(_updateFormatState);
+      _quillController.addListener(_onContentChanged);
     });
   }
 
