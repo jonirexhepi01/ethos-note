@@ -38,10 +38,6 @@
 		<string>Ethos Note salva nella tua rubrica i contatti che crei dalle note</string>
 		<key>NSFaceIDUsageDescription</key>
 		<string>Ethos Note usa Face ID per proteggere la cartella privata</string>
-		<key>NSHealthShareUsageDescription</key>
-		<string>Ethos Note legge i dati di salute per mostrare il riepilogo giornaliero</string>
-		<key>NSHealthUpdateUsageDescription</key>
-		<string>Ethos Note scrive dati sul ciclo mestruale in Salute</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>Ethos Note usa il microfono per registrare note vocali</string>
 		<key>NSPhotoLibraryUsageDescription</key>

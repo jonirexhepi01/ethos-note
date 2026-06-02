@@ -17,11 +17,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_generative_ai/google_generative_ai.dart' as gemini;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:googleapis/calendar/v3.dart' as gcal;
 import 'package:googleapis/drive/v3.dart' as gdrive;
 import 'package:file_picker/file_picker.dart';
-import 'package:health/health.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, MethodChannel, SystemNavigator, rootBundle;
@@ -1707,6 +1707,7 @@ const _translations = <String, Map<String, String>>{
   'welcome_title': {'it': 'Benvenuto su Ethos Note', 'en': 'Welcome to Ethos Note', 'fr': 'Bienvenue sur Ethos Note', 'es': 'Bienvenido a Ethos Note'},
   'welcome_subtitle': {'it': 'Le tue note, il tuo calendario, tutto in un posto', 'en': 'Your notes, your calendar, all in one place', 'fr': 'Vos notes, votre calendrier, tout en un seul endroit', 'es': 'Tus notas, tu calendario, todo en un lugar'},
   'sign_in_google': {'it': 'Accedi con Google', 'en': 'Sign in with Google', 'fr': 'Se connecter avec Google', 'es': 'Iniciar sesión con Google'},
+  'sign_in_apple': {'it': 'Accedi con Apple', 'en': 'Sign in with Apple', 'fr': 'Se connecter avec Apple', 'es': 'Iniciar sesión con Apple'},
   'continue_without_account': {'it': 'Continua senza account', 'en': 'Continue without account', 'fr': 'Continuer sans compte', 'es': 'Continuar sin cuenta'},
   'sign_out': {'it': 'Esci', 'en': 'Sign out', 'fr': 'Se déconnecter', 'es': 'Cerrar sesión'},
   'signed_in_as': {'it': 'Accesso come', 'en': 'Signed in as', 'fr': 'Connecté en tant que', 'es': 'Conectado como'},
@@ -3166,9 +3167,9 @@ void main() {
       await _migrateSharedPrefsToSqlite();
     }
     // await _initDemoDataIfNeeded(); // Demo data disabled
-    // One-time DB wipe to start clean
+    // One-time DB wipe to start clean (skip on web — uses in-memory storage)
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool('db_wiped_v1') != true) {
+    if (!kIsWeb && prefs.getBool('db_wiped_v1') != true) {
       final db = await DatabaseHelper().database;
       await db.delete('pro_notes');
       await db.delete('flash_notes');
@@ -4932,6 +4933,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
     final theme = _activeTheme;
     return MaterialApp(
       title: 'Ethos Note',
+      debugShowCheckedModeBanner: false,
       localizationsDelegates: const [
         quill.FlutterQuillLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -5123,6 +5125,45 @@ class _WelcomePageState extends State<WelcomePage> {
     }
   }
 
+  Future<void> _handleAppleSignIn() async {
+    setState(() => _signingIn = true);
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+      if (!mounted) return;
+
+      // Save profile from Apple credential
+      final db = DatabaseHelper();
+      final existing = await db.getProfile();
+      final profile = existing ?? UserProfile();
+
+      // First-time only: Apple gives name only once
+      if (credential.givenName != null && credential.givenName!.isNotEmpty) {
+        profile.nome = credential.givenName;
+      }
+      if (credential.familyName != null && credential.familyName!.isNotEmpty) {
+        profile.cognome = credential.familyName;
+      }
+      if (credential.email != null && credential.email!.isNotEmpty) {
+        profile.email = credential.email;
+      }
+
+      await db.saveProfile(profile);
+      if (!mounted) return;
+      widget.onComplete();
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (kDebugMode) debugPrint('Apple sign-in cancelled: ${e.code}');
+      if (mounted) setState(() => _signingIn = false);
+    } catch (e) {
+      if (mounted) setState(() => _signingIn = false);
+      if (kDebugMode) debugPrint('Welcome Apple sign-in error: $e');
+    }
+  }
+
   void _handleContinueWithout() {
     widget.onComplete();
   }
@@ -5196,6 +5237,25 @@ class _WelcomePageState extends State<WelcomePage> {
                     ),
                   ),
                 ),
+                // Apple Sign-In (iOS only, App Store guideline 4.8 compliance)
+                if (defaultTargetPlatform == TargetPlatform.iOS) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _signingIn ? null : _handleAppleSignIn,
+                      icon: const Icon(Icons.apple, size: 22),
+                      label: Text(tr('sign_in_apple')),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 // Continue without account
                 SizedBox(
@@ -5723,22 +5783,23 @@ class Holiday {
   Holiday(this.month, this.day, this.emoji, this.name);
 }
 
+// U+FE0F forces emoji presentation
 String getZodiacSignFromDate(int month, int day, {String mode = 'icon_and_text'}) {
   // Accurate zodiac based on actual date ranges
   String segno;
   String icon;
-  if ((month == 3 && day >= 21) || (month == 4 && day <= 19)) { segno = tr('aries'); icon = '♈'; }
-  else if ((month == 4 && day >= 20) || (month == 5 && day <= 20)) { segno = tr('taurus'); icon = '♉'; }
-  else if ((month == 5 && day >= 21) || (month == 6 && day <= 20)) { segno = tr('gemini'); icon = '♊'; }
-  else if ((month == 6 && day >= 21) || (month == 7 && day <= 22)) { segno = tr('cancer'); icon = '♋'; }
-  else if ((month == 7 && day >= 23) || (month == 8 && day <= 22)) { segno = tr('leo'); icon = '♌'; }
-  else if ((month == 8 && day >= 23) || (month == 9 && day <= 22)) { segno = tr('virgo'); icon = '♍'; }
-  else if ((month == 9 && day >= 23) || (month == 10 && day <= 22)) { segno = tr('libra'); icon = '♎'; }
-  else if ((month == 10 && day >= 23) || (month == 11 && day <= 21)) { segno = tr('scorpio'); icon = '♏'; }
-  else if ((month == 11 && day >= 22) || (month == 12 && day <= 21)) { segno = tr('sagittarius'); icon = '♐'; }
-  else if ((month == 12 && day >= 22) || (month == 1 && day <= 19)) { segno = tr('capricorn'); icon = '♑'; }
-  else if ((month == 1 && day >= 20) || (month == 2 && day <= 18)) { segno = tr('aquarius'); icon = '♒'; }
-  else { segno = tr('pisces'); icon = '♓'; }
+  if ((month == 3 && day >= 21) || (month == 4 && day <= 19)) { segno = tr('aries'); icon = '♈️'; }
+  else if ((month == 4 && day >= 20) || (month == 5 && day <= 20)) { segno = tr('taurus'); icon = '♉️'; }
+  else if ((month == 5 && day >= 21) || (month == 6 && day <= 20)) { segno = tr('gemini'); icon = '♊️'; }
+  else if ((month == 6 && day >= 21) || (month == 7 && day <= 22)) { segno = tr('cancer'); icon = '♋️'; }
+  else if ((month == 7 && day >= 23) || (month == 8 && day <= 22)) { segno = tr('leo'); icon = '♌️'; }
+  else if ((month == 8 && day >= 23) || (month == 9 && day <= 22)) { segno = tr('virgo'); icon = '♍️'; }
+  else if ((month == 9 && day >= 23) || (month == 10 && day <= 22)) { segno = tr('libra'); icon = '♎️'; }
+  else if ((month == 10 && day >= 23) || (month == 11 && day <= 21)) { segno = tr('scorpio'); icon = '♏️'; }
+  else if ((month == 11 && day >= 22) || (month == 12 && day <= 21)) { segno = tr('sagittarius'); icon = '♐️'; }
+  else if ((month == 12 && day >= 22) || (month == 1 && day <= 19)) { segno = tr('capricorn'); icon = '♑️'; }
+  else if ((month == 1 && day >= 20) || (month == 2 && day <= 18)) { segno = tr('aquarius'); icon = '♒️'; }
+  else { segno = tr('pisces'); icon = '♓️'; }
 
   switch (mode) {
     case 'icon_only': return icon;
@@ -6036,9 +6097,10 @@ class WeatherService {
 }
 
 String getZodiacSign(int month, {String mode = 'icon_and_text'}) {
+  // U+FE0F forces emoji presentation (otherwise some fonts render as text glyphs)
   const icons = {
-    1: '♑', 2: '♒', 3: '♓', 4: '♈', 5: '♉', 6: '♊',
-    7: '♋', 8: '♌', 9: '♍', 10: '♎', 11: '♏', 12: '♐',
+    1: '♑️', 2: '♒️', 3: '♓️', 4: '♈️', 5: '♉️', 6: '♊️',
+    7: '♋️', 8: '♌️', 9: '♍️', 10: '♎️', 11: '♏️', 12: '♐️',
   };
   final names = {
     1: tr('capricorn'), 2: tr('aquarius'), 3: tr('pisces'), 4: tr('aries'),
@@ -7031,7 +7093,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin, Widg
       ),
       body: Column(
         children: [
-          if (_connectivityStatus.contains(ConnectivityResult.none))
+          // Offline banner hidden for App Store screenshots
+          if (false && _connectivityStatus.contains(ConnectivityResult.none))
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
@@ -8453,7 +8516,9 @@ class _CalendarPageState extends State<CalendarPage> {
               ? Border.all(color: todayColor, width: 1.5)
               : Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.25), width: 0.5),
         ),
-        child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -8479,7 +8544,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 ],
               ),
               SizedBox(
-                height: 12,
+                height: 8,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
@@ -8499,6 +8564,7 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -10313,315 +10379,19 @@ class HealthSnapshot {
     fetchedAt: DateTime.tryParse(json['fetchedAt'] ?? '') ?? DateTime.now(),
   );
 }
-
+// HealthKit removed for App Store guideline 2.5.1 compliance.
+// Stub kept so call sites still compile but do nothing.
 class HealthService {
-  static bool get isSupported =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.iOS ||
-       defaultTargetPlatform == TargetPlatform.android);
-
-  static bool _authorized = false;
-  static bool get isAuthorized => _authorized;
+  static bool get isSupported => false;
+  static bool get isAuthorized => false;
   static String? lastError;
-
-  static final _types = [
-    HealthDataType.STEPS,
-    HealthDataType.HEART_RATE,
-    HealthDataType.BLOOD_OXYGEN,
-    HealthDataType.WEIGHT,
-    HealthDataType.TOTAL_CALORIES_BURNED,
-    HealthDataType.ACTIVE_ENERGY_BURNED,
-    HealthDataType.WATER,
-  ];
-
-  static final _permissions = [
-    HealthDataAccess.READ, // STEPS
-    HealthDataAccess.READ, // HEART_RATE
-    HealthDataAccess.READ, // BLOOD_OXYGEN
-    HealthDataAccess.READ, // WEIGHT
-    HealthDataAccess.READ, // TOTAL_CALORIES_BURNED
-    HealthDataAccess.READ, // ACTIVE_ENERGY_BURNED
-    HealthDataAccess.READ, // WATER
-  ];
-
-  static Future<bool> requestAuthorization() async {
-    if (!isSupported) return false;
-    lastError = null;
-    try {
-      final health = Health();
-      await health.configure();
-
-      // Check if Health Connect is available (Android only)
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        final available = await health.isHealthConnectAvailable();
-        if (!available) {
-          lastError = 'health_connect_not_installed';
-          if (kDebugMode) debugPrint('Health Connect not available');
-          try { await health.installHealthConnect(); } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
-          return false;
-        }
-      }
-
-      // Request authorization — may return false even if user granted permissions
-      await health.requestAuthorization(
-        _types,
-        permissions: _permissions,
-      );
-
-      // Verify actual permissions with hasPermissions (more reliable on Android)
-      bool granted = false;
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        // Check if at least STEPS permission was granted
-        final hasSteps = await health.hasPermissions(
-          [HealthDataType.STEPS],
-          permissions: [HealthDataAccess.READ],
-        );
-        granted = hasSteps == true;
-        if (kDebugMode) debugPrint('Health hasPermissions(STEPS): $hasSteps');
-      } else {
-        // On iOS, hasPermissions returns null for READ, so trust requestAuthorization
-        granted = true;
-      }
-
-      if (granted) {
-        _authorized = true;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('health_authorized', true);
-      } else {
-        lastError = 'auth_denied';
-      }
-      return _authorized;
-    } on UnsupportedError {
-      lastError = 'health_connect_not_installed';
-      if (kDebugMode) debugPrint('Health Connect not installed');
-      try { await Health().installHealthConnect(); } catch (e) { if (kDebugMode) debugPrint('Silent error: $e'); }
-      return false;
-    } catch (e) {
-      if (kDebugMode) debugPrint('Health auth error: $e');
-      lastError = e.toString();
-      return false;
-    }
-  }
-
-  static Future<void> checkAuthorization() async {
-    if (!isSupported) return;
-    final prefs = await SharedPreferences.getInstance();
-    final savedAuth = prefs.getBool('health_authorized') ?? false;
-    if (!savedAuth) { _authorized = false; return; }
-    // Verify the permission is still valid with the OS
-    try {
-      final health = Health();
-      await health.configure();
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        final hasSteps = await health.hasPermissions(
-          [HealthDataType.STEPS],
-          permissions: [HealthDataAccess.READ],
-        );
-        _authorized = hasSteps == true;
-        if (!_authorized) {
-          await prefs.setBool('health_authorized', false);
-          lastError = 'permissions_revoked';
-        }
-      } else {
-        // iOS: trust saved flag (hasPermissions returns null for READ)
-        _authorized = true;
-      }
-    } catch (e) {
-      _authorized = savedAuth; // fallback to saved flag
-      if (kDebugMode) debugPrint('Health checkAuth error: $e');
-    }
-  }
-
-  static Future<void> disconnect() async {
-    _authorized = false;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('health_authorized', false);
-  }
-
-  static Future<HealthSnapshot> fetchTodayData() async {
-    if (!isSupported || !_authorized) {
-      return HealthSnapshot(fetchedAt: DateTime.now());
-    }
-
-    // Check cache (15 min)
-    final cached = await DatabaseHelper().getCache('health_snapshot');
-    if (cached != null && cached.isNotEmpty) {
-      try {
-        final snapshot = HealthSnapshot.fromJson(json.decode(cached));
-        if (DateTime.now().difference(snapshot.fetchedAt).inMinutes < 15 && snapshot.hasData) {
-          return snapshot;
-        }
-      } catch (_) {
-        // Invalid cache, re-fetch
-      }
-    }
-
-    try {
-      final health = Health();
-      await health.configure();
-
-      final now = DateTime.now();
-      final midnight = DateTime(now.year, now.month, now.day);
-
-      // ── Steps (aggregated, de-duplicated by Health Connect) ──
-      int? steps;
-      try {
-        steps = await health.getTotalStepsInInterval(midnight, now);
-      } catch (e) {
-        if (kDebugMode) debugPrint('Health steps error: $e');
-      }
-
-      // ── Heart rate, blood oxygen, weight ──
-      double? heartRate;
-      double? bloodOxygen;
-      double? weight;
-
-      try {
-        final heartData = await health.getHealthDataFromTypes(
-          types: [HealthDataType.HEART_RATE],
-          startTime: midnight,
-          endTime: now,
-        );
-        if (heartData.isNotEmpty) {
-          final val = heartData.last.value;
-          if (val is NumericHealthValue) heartRate = val.numericValue.toDouble();
-        }
-      } catch (e) {
-        if (kDebugMode) debugPrint('Health heartRate error: $e');
-      }
-
-      try {
-        final oxygenData = await health.getHealthDataFromTypes(
-          types: [HealthDataType.BLOOD_OXYGEN],
-          startTime: midnight,
-          endTime: now,
-        );
-        if (oxygenData.isNotEmpty) {
-          final val = oxygenData.last.value;
-          if (val is NumericHealthValue) bloodOxygen = val.numericValue.toDouble();
-        }
-      } catch (e) {
-        if (kDebugMode) debugPrint('Health oxygen error: $e');
-      }
-
-      try {
-        final weightData = await health.getHealthDataFromTypes(
-          types: [HealthDataType.WEIGHT],
-          startTime: now.subtract(const Duration(days: 30)),
-          endTime: now,
-        );
-        if (weightData.isNotEmpty) {
-          final val = weightData.last.value;
-          if (val is NumericHealthValue) weight = val.numericValue.toDouble();
-        }
-      } catch (e) {
-        if (kDebugMode) debugPrint('Health weight error: $e');
-      }
-
-      // ── Calories burned today ──
-      // Try TOTAL_CALORIES_BURNED first, fallback to ACTIVE_ENERGY_BURNED
-      double? calories;
-      try {
-        final caloriesData = await health.getHealthDataFromTypes(
-          types: [HealthDataType.TOTAL_CALORIES_BURNED],
-          startTime: midnight,
-          endTime: now,
-        );
-        if (caloriesData.isNotEmpty) {
-          final deduped = health.removeDuplicates(caloriesData);
-          double totalCal = 0;
-          for (final dp in deduped) {
-            final val = dp.value;
-            if (val is NumericHealthValue) totalCal += val.numericValue.toDouble();
-          }
-          if (totalCal > 0) calories = totalCal;
-        }
-      } catch (e) {
-        if (kDebugMode) debugPrint('Health totalCalories error: $e');
-      }
-
-      // Fallback: active energy burned
-      if (calories == null) {
-        try {
-          final activeData = await health.getHealthDataFromTypes(
-            types: [HealthDataType.ACTIVE_ENERGY_BURNED],
-            startTime: midnight,
-            endTime: now,
-          );
-          if (activeData.isNotEmpty) {
-            final deduped = health.removeDuplicates(activeData);
-            double totalCal = 0;
-            for (final dp in deduped) {
-              final val = dp.value;
-              if (val is NumericHealthValue) totalCal += val.numericValue.toDouble();
-            }
-            if (totalCal > 0) calories = totalCal;
-          }
-        } catch (e) {
-          if (kDebugMode) debugPrint('Health activeCalories error: $e');
-        }
-      }
-
-      // ── Water intake today (liters) ──
-      double? waterLiters;
-      try {
-        final waterData = await health.getHealthDataFromTypes(
-          types: [HealthDataType.WATER],
-          startTime: midnight,
-          endTime: now,
-        );
-        if (waterData.isNotEmpty) {
-          final deduped = health.removeDuplicates(waterData);
-          double totalLiters = 0;
-          for (final dp in deduped) {
-            final val = dp.value;
-            if (val is NumericHealthValue) totalLiters += val.numericValue.toDouble();
-          }
-          if (totalLiters > 0) waterLiters = totalLiters;
-        }
-      } catch (e) {
-        if (kDebugMode) debugPrint('Health water error: $e');
-      }
-
-      final snapshot = HealthSnapshot(
-        steps: steps,
-        heartRate: heartRate,
-        calories: calories,
-        weight: weight,
-        bloodOxygen: bloodOxygen,
-        waterLiters: waterLiters,
-        fetchedAt: now,
-      );
-
-      // Cache
-      await DatabaseHelper().saveCache('health_snapshot', json.encode(snapshot.toJson()));
-      return snapshot;
-    } catch (e) {
-      if (kDebugMode) debugPrint('Health fetch error: $e');
-      return HealthSnapshot(fetchedAt: DateTime.now());
-    }
-  }
-
-  /// Write cycle tracking data to Apple Health / Google Health Connect
-  static Future<bool> writeMenstruationFlow(DateTime date) async {
-    if (!isSupported || !_authorized) return false;
-    try {
-      final health = Health();
-      await health.configure();
-      final start = DateTime(date.year, date.month, date.day);
-      final end = start.add(const Duration(hours: 23, minutes: 59));
-      return await health.writeHealthData(
-        value: 2, // medium flow
-        type: HealthDataType.MENSTRUATION_FLOW,
-        startTime: start,
-        endTime: end,
-      );
-    } catch (e) {
-      if (kDebugMode) debugPrint('Health write error: $e');
-      return false;
-    }
-  }
+  static Future<bool> requestAuthorization() async => false;
+  static Future<void> checkAuthorization() async {}
+  static Future<void> disconnect() async {}
+  static Future<HealthSnapshot> fetchTodayData() async => HealthSnapshot(fetchedAt: DateTime.now());
+  static Future<bool> writeMenstruationFlow(DateTime date) async => false;
 }
+
 
 // ── Notification ID helper ──
 /// Computes a unique, positive 31-bit notification ID for a calendar event.
