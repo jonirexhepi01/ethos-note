@@ -1851,7 +1851,7 @@ class DatabaseHelper {
     final path = p.join(dbPath, 'ethos_note.db');
     return await openDatabase(
       path,
-      version: 14,
+      version: 15,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -1921,6 +1921,11 @@ class DatabaseHelper {
     if (oldVersion < 14) {
       await _safeAddColumn(db, 'pro_notes', 'media_data TEXT');
     }
+    if (oldVersion < 15) {
+      // Store the device (Apple/EventKit) calendar event id so edits/deletes
+      // in Ethos propagate to the device calendar instead of duplicating.
+      await _safeAddColumn(db, 'calendar_events', 'device_event_id TEXT');
+    }
   }
 
   static final List<Map<String, dynamic>> _defaultCalendars = [
@@ -1964,7 +1969,7 @@ class DatabaseHelper {
         date_key TEXT NOT NULL, calendar TEXT NOT NULL DEFAULT 'Personale',
         reminder TEXT, preset TEXT, attachment_path TEXT, attachment_base64 TEXT,
         notes TEXT, is_completed INTEGER NOT NULL DEFAULT 0,
-        google_event_id TEXT, shared_with TEXT,
+        google_event_id TEXT, device_event_id TEXT, shared_with TEXT,
         recurrence TEXT, recurrence_end_date TEXT
       )
     ''');
@@ -3348,7 +3353,7 @@ class EthosNoteApp extends StatefulWidget {
 
 class _EthosNoteAppState extends State<EthosNoteApp> {
   // 'light', 'dark', 'ethos'
-  String _themeMode = 'ethos';
+  String _themeMode = 'light';
   bool _onboardingComplete = true; // default true to avoid flash
   bool _isLoading = true;
 
@@ -3384,7 +3389,7 @@ class _EthosNoteAppState extends State<EthosNoteApp> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _themeMode = prefs.getString('theme_mode') ?? 'ethos';
+      _themeMode = prefs.getString('theme_mode') ?? 'light';
     });
   }
 
@@ -5500,6 +5505,7 @@ class CalendarEventFull {
   final String? notes;
   final bool isCompleted;
   final String? googleEventId;
+  final String? deviceEventId;
   final List<String> sharedWith;
   final String? attachmentBase64;
   final String? recurrence; // null/daily/weekly/monthly/yearly
@@ -5517,6 +5523,7 @@ class CalendarEventFull {
     this.notes,
     this.isCompleted = false,
     this.googleEventId,
+    this.deviceEventId,
     List<String>? sharedWith,
     this.attachmentBase64,
     this.recurrence,
@@ -5531,6 +5538,8 @@ class CalendarEventFull {
     String? attachmentBase64,
     String? recurrence,
     String? recurrenceEndDate,
+    String? googleEventId,
+    String? deviceEventId,
   }) {
     return CalendarEventFull(
       id: id,
@@ -5543,7 +5552,8 @@ class CalendarEventFull {
       attachmentPath: attachmentPath,
       notes: notes,
       isCompleted: isCompleted ?? this.isCompleted,
-      googleEventId: googleEventId,
+      googleEventId: googleEventId ?? this.googleEventId,
+      deviceEventId: deviceEventId ?? this.deviceEventId,
       sharedWith: sharedWith ?? this.sharedWith,
       attachmentBase64: attachmentBase64 ?? this.attachmentBase64,
       recurrence: recurrence ?? this.recurrence,
@@ -5563,6 +5573,7 @@ class CalendarEventFull {
       'notes': notes,
       'isCompleted': isCompleted,
       if (googleEventId != null) 'googleEventId': googleEventId,
+      if (deviceEventId != null) 'deviceEventId': deviceEventId,
       'sharedWith': sharedWith,
       if (attachmentBase64 != null) 'attachmentBase64': attachmentBase64,
       if (recurrence != null) 'recurrence': recurrence,
@@ -5582,6 +5593,7 @@ class CalendarEventFull {
       notes: json['notes'],
       isCompleted: json['isCompleted'] ?? false,
       googleEventId: json['googleEventId'],
+      deviceEventId: json['deviceEventId'],
       sharedWith: (json['sharedWith'] as List<dynamic>?)?.cast<String>() ?? [],
       attachmentBase64: json['attachmentBase64'],
       recurrence: json['recurrence'],
@@ -5602,6 +5614,7 @@ class CalendarEventFull {
     'notes': notes,
     'is_completed': isCompleted ? 1 : 0,
     'google_event_id': googleEventId,
+    'device_event_id': deviceEventId,
     'shared_with': sharedWith.isNotEmpty ? json.encode(sharedWith) : null,
     'recurrence': recurrence,
     'recurrence_end_date': recurrenceEndDate,
@@ -5620,6 +5633,7 @@ class CalendarEventFull {
     notes: m['notes'] as String?,
     isCompleted: (m['is_completed'] as int?) == 1,
     googleEventId: m['google_event_id'] as String?,
+    deviceEventId: m['device_event_id'] as String?,
     sharedWith: m['shared_with'] != null ? (json.decode(m['shared_with'] as String) as List).cast<String>() : [],
     recurrence: m['recurrence'] as String?,
     recurrenceEndDate: m['recurrence_end_date'] as String?,
@@ -7259,7 +7273,9 @@ class _CalendarPageState extends State<CalendarPage> {
     _loadCycleDays();
     _loadCompletedGoogleEventIds();
     _initGoogleCalendar();
-    _initDeviceCalendar();
+    // _initDeviceCalendar() is called from _initNotificationsAndEvents() after
+    // _calSettings is loaded — otherwise it races settings load and reads
+    // deviceCalendarEnabled=false, silently skipping device calendar sync.
     _initHealth();
     _eventsScrollController.addListener(_onEventsScroll);
     // Handle deep link action (e.g. create new event)
@@ -7279,6 +7295,9 @@ class _CalendarPageState extends State<CalendarPage> {
       _calSettings = settings;
       _holidays = settings.showHolidays ? Holidays.getHolidays(settings.religione) : {};
     });
+    // Now that _calSettings is loaded, device calendar sync can read the real
+    // deviceCalendarEnabled value (fixes init race that silently skipped sync).
+    _initDeviceCalendar();
     if (settings.showWeather && settings.weatherCity != null && settings.weatherCity!.isNotEmpty) {
       _loadWeather();
     }
@@ -7576,10 +7595,20 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  Future<void> _pushEventToGoogle(CalendarEventFull event) async {
-    if (!GoogleCalendarService.isSignedIn) return;
-    final success = await GoogleCalendarService.pushEvent(event);
-    if (success && mounted) {
+  /// Push (create or update) an event to Google Calendar. Returns the Google
+  /// event id on success, or null on failure. Pass [existingId] to update an
+  /// already-synced event instead of creating a duplicate.
+  Future<String?> _pushEventToGoogle(CalendarEventFull event, {String? existingId}) async {
+    if (!GoogleCalendarService.isSignedIn) return null;
+    String? gid;
+    if (existingId != null) {
+      final ok = await GoogleCalendarService.updateEvent(existingId, event);
+      gid = ok ? existingId : null;
+    } else {
+      gid = await GoogleCalendarService.pushEvent(event);
+    }
+    if (!mounted) return gid;
+    if (gid != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${tr('event_saved')} - ${event.title}'),
@@ -7589,7 +7618,7 @@ class _CalendarPageState extends State<CalendarPage> {
         ),
       );
       _fetchGoogleEvents();
-    } else if (!success && mounted) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Errore sincronizzazione Google Calendar'),
@@ -7599,6 +7628,7 @@ class _CalendarPageState extends State<CalendarPage> {
         ),
       );
     }
+    return gid;
   }
 
   Future<void> _initDeviceCalendar() async {
@@ -7629,13 +7659,16 @@ class _CalendarPageState extends State<CalendarPage> {
     });
   }
 
-  Future<void> _pushEventToDeviceCalendar(CalendarEventFull event) async {
-    if (!_calSettings.deviceCalendarEnabled) return;
-    if (DeviceCalendarService.enabledCalendarIds.isEmpty) return;
+  /// Push (create or update) an event to the device (Apple) calendar. Returns
+  /// the device event id on success, or null on failure. Pass [existingId] to
+  /// update an already-synced event instead of creating a duplicate.
+  Future<String?> _pushEventToDeviceCalendar(CalendarEventFull event, {String? existingId}) async {
+    if (!_calSettings.deviceCalendarEnabled) return null;
+    if (DeviceCalendarService.enabledCalendarIds.isEmpty) return null;
     final calId = DeviceCalendarService.enabledCalendarIds.first;
-    final success = await DeviceCalendarService.pushEvent(calId, event);
-    if (!mounted) return;
-    if (success) {
+    final did = await DeviceCalendarService.pushEvent(calId, event, existingEventId: existingId);
+    if (!mounted) return did;
+    if (did != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${tr('event_saved')} - ${event.title}'),
@@ -7655,6 +7688,7 @@ class _CalendarPageState extends State<CalendarPage> {
         ),
       );
     }
+    return did;
   }
 
   Future<void> _initHealth() async {
@@ -8099,9 +8133,22 @@ class _CalendarPageState extends State<CalendarPage> {
       MaterialPageRoute(
         builder: (context) => EventEditorPage(
           selectedDate: _selectedDay!,
-          onSave: (event) {
+          onSave: (event) async {
+            // Push the base event to external calendars FIRST so the returned
+            // ids can be stored on the event (enables later edit/delete sync).
+            String? gid;
+            String? did;
+            if (GoogleCalendarService.isSignedIn) {
+              gid = await _pushEventToGoogle(event);
+            }
+            if (_calSettings.deviceCalendarEnabled && DeviceCalendarService.enabledCalendarIds.isNotEmpty) {
+              did = await _pushEventToDeviceCalendar(event);
+            }
+            final baseEvent = (gid != null || did != null)
+                ? event.copyWith(googleEventId: gid, deviceEventId: did)
+                : event;
             // Build full list: base event + recurring instances
-            final allEvents = <CalendarEventFull>[event];
+            final allEvents = <CalendarEventFull>[baseEvent];
             if (event.recurrence != null) {
               final duration = event.endTime.difference(event.startTime);
               DateTime nextStart = event.startTime;
@@ -8154,13 +8201,13 @@ class _CalendarPageState extends State<CalendarPage> {
                 ));
               }
             }
-            // Single setState — add all events to correct dates
-            setState(() {
-              for (final e in allEvents) {
-                final key = _dateKey(e.startTime);
-                _events.putIfAbsent(key, () => []).add(e);
-              }
-            });
+            // Add all events to the correct dates (mutate first, then repaint —
+            // robust even if the widget unmounted during the awaited push above).
+            for (final e in allEvents) {
+              final key = _dateKey(e.startTime);
+              _events.putIfAbsent(key, () => []).add(e);
+            }
+            if (mounted) setState(() {});
             // Single DB save, then schedule notifications
             _saveEvents().then((_) async {
               for (final e in allEvents) {
@@ -8168,12 +8215,6 @@ class _CalendarPageState extends State<CalendarPage> {
               }
               debugPrint('NotificationService: scheduled ${allEvents.length} notifications for "${event.title}"');
             });
-            if (GoogleCalendarService.isSignedIn) {
-              _pushEventToGoogle(event); // push base event only
-            }
-            if (_calSettings.deviceCalendarEnabled && DeviceCalendarService.enabledCalendarIds.isNotEmpty) {
-              _pushEventToDeviceCalendar(event); // push base event only
-            }
           },
         ),
       ),
@@ -8204,14 +8245,26 @@ class _CalendarPageState extends State<CalendarPage> {
         builder: (context) => EventEditorPage(
           selectedDate: day,
           existingEvent: event,
-          onSave: (updatedEvent) {
-            setState(() {
-              final key = _dateKey(day);
-              _events[key]?[index] = updatedEvent;
-            });
+          onSave: (updatedEvent) async {
+            // Propagate the edit to the external calendars this event was
+            // synced to (using the stored ids) instead of leaving stale copies.
+            String? gid = event.googleEventId;
+            String? did = event.deviceEventId;
+            if (gid != null && GoogleCalendarService.isSignedIn) {
+              gid = await _pushEventToGoogle(updatedEvent, existingId: gid) ?? gid;
+            }
+            if (did != null && _calSettings.deviceCalendarEnabled && DeviceCalendarService.enabledCalendarIds.isNotEmpty) {
+              did = await _pushEventToDeviceCalendar(updatedEvent, existingId: did) ?? did;
+            }
+            final synced = updatedEvent.copyWith(googleEventId: gid, deviceEventId: did);
+            final key = _dateKey(day);
+            if (index < (_events[key]?.length ?? 0)) {
+              _events[key]![index] = synced;
+            }
+            if (mounted) setState(() {});
             _saveEvents().then((_) async {
-              await _scheduleNotification(updatedEvent);
-              debugPrint('NotificationService: rescheduled notification for updated event "${updatedEvent.title}"');
+              await _scheduleNotification(synced);
+              debugPrint('NotificationService: rescheduled notification for updated event "${synced.title}"');
             });
           },
         ),
@@ -8308,6 +8361,13 @@ class _CalendarPageState extends State<CalendarPage> {
         if (_events[key]?.isEmpty ?? false) _events.remove(key);
       });
       await _saveEvents();
+      // Propagate the deletion to the external calendars this event was synced to.
+      if (event.googleEventId != null) {
+        GoogleCalendarService.deleteEvent(event.googleEventId!);
+      }
+      if (event.deviceEventId != null && DeviceCalendarService.enabledCalendarIds.isNotEmpty) {
+        DeviceCalendarService.deleteEvent(DeviceCalendarService.enabledCalendarIds.first, event.deviceEventId!);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -8318,14 +8378,24 @@ class _CalendarPageState extends State<CalendarPage> {
           label: tr('undo'),
           onPressed: () async {
             _deletedEventSignatures.remove(sig);
-            setState(() {
-              _events.putIfAbsent(key, () => []).insert(index.clamp(0, (_events[key]?.length ?? 0)), event);
-            });
+            // Re-create the external copies removed on delete (best effort) and
+            // capture their new ids so future edits/deletes still propagate.
+            var restored = event;
+            if (event.googleEventId != null && GoogleCalendarService.isSignedIn) {
+              final ngid = await GoogleCalendarService.pushEvent(event);
+              restored = restored.copyWith(googleEventId: ngid ?? event.googleEventId);
+            }
+            if (event.deviceEventId != null && _calSettings.deviceCalendarEnabled && DeviceCalendarService.enabledCalendarIds.isNotEmpty) {
+              final ndid = await DeviceCalendarService.pushEvent(DeviceCalendarService.enabledCalendarIds.first, event);
+              restored = restored.copyWith(deviceEventId: ndid ?? event.deviceEventId);
+            }
+            _events.putIfAbsent(key, () => []).insert(index.clamp(0, (_events[key]?.length ?? 0)), restored);
+            if (mounted) setState(() {});
             await _saveEvents();
             if (trashedId != null) {
               await db.deleteTrashedNote(trashedId);
             }
-            _scheduleNotification(event);
+            _scheduleNotification(restored);
           },
         ),
         behavior: SnackBarBehavior.floating,
@@ -8596,6 +8666,7 @@ class _CalendarPageState extends State<CalendarPage> {
         if (GoogleCalendarService.isSignedIn) {
           _fetchGoogleEvents();
         }
+        _fetchDeviceCalendarEvents();
       },
       onHeaderTapped: (_) => _showDateSearchDialog(),
       calendarBuilders: CalendarBuilders(
@@ -10109,8 +10180,10 @@ class GoogleCalendarService {
   }
 
   /// Push a local event to Google Calendar
-  static Future<bool> pushEvent(CalendarEventFull event) async {
-    if (_calendarApi == null) return false;
+  /// Insert a new event into Google Calendar. Returns the created event id
+  /// (so it can be stored locally for later update/delete), or null on failure.
+  static Future<String?> pushEvent(CalendarEventFull event) async {
+    if (_calendarApi == null) return null;
     try {
       final gEvent = gcal.Event(
         summary: event.title,
@@ -10125,10 +10198,34 @@ class GoogleCalendarService {
         description: tr('created_by_ethos'),
         reminders: gcal.EventReminders(useDefault: false, overrides: []),
       );
-      await _calendarApi!.events.insert(gEvent, 'primary');
-      return true;
+      final created = await _calendarApi!.events.insert(gEvent, 'primary');
+      return created.id;
     } catch (e) {
       if (kDebugMode) debugPrint('Push event error: $e');
+      return null;
+    }
+  }
+
+  /// Update an existing Google Calendar event in place.
+  static Future<bool> updateEvent(String eventId, CalendarEventFull event) async {
+    if (_calendarApi == null) return false;
+    try {
+      final gEvent = gcal.Event(
+        summary: event.title,
+        start: gcal.EventDateTime(
+          dateTime: event.startTime,
+          timeZone: DateTime.now().timeZoneName,
+        ),
+        end: gcal.EventDateTime(
+          dateTime: event.endTime,
+          timeZone: DateTime.now().timeZoneName,
+        ),
+        description: tr('created_by_ethos'),
+      );
+      await _calendarApi!.events.update(gEvent, 'primary', eventId);
+      return true;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Update Google event error: $e');
       return false;
     }
   }
@@ -10271,20 +10368,27 @@ class DeviceCalendarService {
   }
 
   /// Push a CalendarEventFull to a specific device calendar.
-  static Future<bool> pushEvent(String calendarId, CalendarEventFull event) async {
-    if (!_permissionsGranted) return false;
+  /// Create or update an event in the device calendar. Pass [existingEventId]
+  /// to update an event already pushed (avoids duplicates). Returns the device
+  /// event id on success (so it can be stored locally), or null on failure.
+  static Future<String?> pushEvent(String calendarId, CalendarEventFull event, {String? existingEventId}) async {
+    if (!_permissionsGranted) return null;
     try {
       final dcEvent = dc.Event(calendarId,
+        eventId: existingEventId,
         title: event.title,
         description: event.notes,
         start: tz.TZDateTime.from(event.startTime, tz.local),
         end: tz.TZDateTime.from(event.endTime, tz.local),
       );
       final result = await _plugin.createOrUpdateEvent(dcEvent);
-      return result?.isSuccess ?? false;
+      if (result?.isSuccess ?? false) {
+        return result?.data ?? existingEventId;
+      }
+      return null;
     } catch (e) {
       if (kDebugMode) debugPrint('DeviceCalendar pushEvent error: $e');
-      return false;
+      return null;
     }
   }
 
